@@ -6,23 +6,65 @@ import {
   History,
   Users2,
   SlidersHorizontal,
-  CheckCircle2,
-  Lock,
+  Plus,
   Search,
-  KeyRound
+  KeyRound,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
-import { COMPANIES, BRANCHES, DEMO_PROFILES } from '../../data/mockData';
+import { DEMO_PROFILES, COMPANIES } from '../../data/mockData';
 import { StatCard } from '../common/StatCard';
 import { StatusBadge } from '../common/StatusBadge';
+import { Modal } from '../common/Modal';
+import { UserRoleLevel } from '../../types/core';
 
 export const AdminModule: React.FC = () => {
   const { companies, branches, availableProfiles } = useAuth();
-  const { auditLogs } = useWorkflow();
+  const { auditLogs, addAuditLog } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'empresas' | 'rbac' | 'alcadas' | 'auditoria'>('empresas');
+  const [activeTab, setActiveTab] = useState<'empresas' | 'rbac' | 'alcadas' | 'auditoria'>('rbac');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+
+  // Form states for new user
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRoleLevel>('COLABORADOR');
+  const [newUserDept, setNewUserDept] = useState('Operações');
+  const [newUserLimit, setNewUserLimit] = useState('5000');
+
+  const [userList, setUserList] = useState(availableProfiles);
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    const createdUser = {
+      id: `user-${Date.now()}`,
+      fullName: newUserName,
+      email: newUserEmail,
+      registrationNumber: `MAT-0${Math.floor(200 + Math.random() * 800)}`,
+      roleLevel: newUserRole,
+      roleTitle: newUserRole.replace(/_/g, ' '),
+      department: newUserDept,
+      companyId: 'comp-1',
+      branchId: 'branch-1',
+      approvalLimitAmount: parseFloat(newUserLimit) || 0,
+      accessibleModules: ['inicio', 'service-desk', 'documents']
+    };
+
+    setUserList(prev => [createdUser, ...prev]);
+
+    addAuditLog({
+      action: 'CREATE',
+      module: 'Administração',
+      entity: `Usuário ${createdUser.fullName}`,
+      description: `Novo usuário cadastrado com perfil ${createdUser.roleLevel} e alçada de R$ ${createdUser.approvalLimitAmount}`
+    });
+
+    setIsAddUserModalOpen(false);
+    setNewUserName('');
+    setNewUserEmail('');
+  };
 
   const filteredLogs = auditLogs.filter(
     l =>
@@ -37,14 +79,24 @@ export const AdminModule: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
         <div>
           <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-black text-slate-900">Administração & Governança do SEEK</h1>
+            <h1 className="text-xl font-black text-slate-900">Administração Mestre do SEEK</h1>
             <span className="rounded-md bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">
-              SEEK Core
+              SEEK Core Operacional
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Gestão Multiempresa, Multifilial, perfis de acesso RBAC/ABAC, regras do motor de alçadas e trilha universal de auditoria.
+            Gestão Multiempresa, cadastro de colaboradores/usuários, matriz dinâmica dos 13 perfis RBAC e regras de alçada.
           </p>
+        </div>
+
+        <div className="mt-3 sm:mt-0 flex items-center space-x-2">
+          <button
+            onClick={() => setIsAddUserModalOpen(true)}
+            className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-800 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Novo Usuário / Acesso</span>
+          </button>
         </div>
       </div>
 
@@ -59,18 +111,18 @@ export const AdminModule: React.FC = () => {
           iconBg="bg-blue-50"
         />
         <StatCard
-          title="Usuários Ativos (RBAC)"
-          value={availableProfiles.length}
-          subtitle="Perfis granulares homologados"
-          icon={Users2}
+          title="Perfis Oficiais RBAC"
+          value="13"
+          subtitle="Segregação de funções estrita"
+          icon={ShieldCheck}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"
         />
         <StatCard
-          title="Regras de Alçada Ativas"
-          value="8"
-          subtitle="Compras, finanças e contratos"
-          icon={GitBranch}
+          title="Usuários Ativos"
+          value={userList.length}
+          subtitle="Com credenciais no Core"
+          icon={Users2}
           iconColor="text-purple-600"
           iconBg="bg-purple-50"
         />
@@ -87,17 +139,6 @@ export const AdminModule: React.FC = () => {
       {/* Abas Administrativas */}
       <div className="flex border-b border-slate-200 space-x-4">
         <button
-          onClick={() => setActiveTab('empresas')}
-          className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-            activeTab === 'empresas'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          Estrutura Multiempresa & Filiais
-        </button>
-
-        <button
           onClick={() => setActiveTab('rbac')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
             activeTab === 'rbac'
@@ -105,7 +146,7 @@ export const AdminModule: React.FC = () => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Usuários & Perfis RBAC
+          Usuários & Os 13 Perfis RBAC ({userList.length})
         </button>
 
         <button
@@ -120,6 +161,17 @@ export const AdminModule: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('empresas')}
+          className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'empresas'
+              ? 'border-blue-700 text-blue-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Estrutura Multiempresa & Filiais
+        </button>
+
+        <button
           onClick={() => setActiveTab('auditoria')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
             activeTab === 'auditoria'
@@ -127,11 +179,96 @@ export const AdminModule: React.FC = () => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Trilha Universal de Auditoria
+          Trilha Universal de Auditoria ({auditLogs.length})
         </button>
       </div>
 
-      {/* ABA 1: EMPRESAS & FILIAIS */}
+      {/* ABA 1: RBAC & USUÁRIOS */}
+      {activeTab === 'rbac' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Usuários & Matriz de Perfis (RBAC Dinâmico)</h3>
+              <p className="text-xs text-slate-500">
+                13 perfis oficiais com restrição automática de telas, alçadas financeiras e ações de auditoria.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Colaborador / Nome</th>
+                  <th className="py-3 px-4">E-mail Corporativo</th>
+                  <th className="py-3 px-4">Cargo / Função</th>
+                  <th className="py-3 px-4">Departamento</th>
+                  <th className="py-3 px-4 text-center">Perfil Oficial</th>
+                  <th className="py-3 px-4 text-right">Alçada Direta</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {userList.map(p => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="py-3 px-4 font-bold text-slate-900">{p.fullName}</td>
+                    <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">{p.email}</td>
+                    <td className="py-3 px-4 text-slate-700">{p.roleTitle}</td>
+                    <td className="py-3 px-4 text-slate-600">{p.department}</td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                        {p.roleLevel}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right font-black text-slate-900">
+                      R$ {p.approvalLimitAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ABA 2: MOTOR DE ALÇADAS */}
+      {activeTab === 'alcadas' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Parâmetros do Motor Central de Alçadas</h3>
+            <p className="text-xs text-slate-500">
+              Regras transversais que regem Compras, Despesas, Contratos, Férias e Descontos Comerciais.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <span className="font-bold text-xs text-slate-800">Alçada Nível 1 — Gestor Departamental</span>
+              <p className="text-[11px] text-slate-600">
+                Aprovações de até <strong>R$ 15.000,00</strong> para compras operacionais e rotinas do setor.
+              </p>
+              <div className="text-[10px] text-slate-500 font-semibold">Exige: GESTOR</div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <span className="font-bold text-xs text-slate-800">Alçada Nível 2 — Gerência Financeira</span>
+              <p className="text-[11px] text-slate-600">
+                Validações de <strong>R$ 15.000,01 a R$ 50.000,00</strong> e todas as antecipações orçamentárias.
+              </p>
+              <div className="text-[10px] text-slate-500 font-semibold">Exige: FINANCEIRO</div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <span className="font-bold text-xs text-slate-800">Alçada Nível 3 — Diretoria Executiva / CEO</span>
+              <p className="text-[11px] text-slate-600">
+                Valores acima de <strong>R$ 50.000,00</strong>, minutas contratuais e exceções de margem comercial.
+              </p>
+              <div className="text-[10px] text-slate-500 font-semibold">Exige: DIRETORIA / ADMIN_GERAL</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ABA 3: EMPRESAS & FILIAIS */}
       {activeTab === 'empresas' && (
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
@@ -188,87 +325,6 @@ export const AdminModule: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ABA 2: RBAC & USUÁRIOS */}
-      {activeTab === 'rbac' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Matriz de Perfis e Permissões (RBAC)</h3>
-            <p className="text-xs text-slate-500">
-              Controle granular de acesso a módulos, ações de aprovação e exportação de dados corporativos.
-            </p>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Colaborador / Usuário</th>
-                  <th className="py-3 px-4">Cargo / Função</th>
-                  <th className="py-3 px-4">Departamento</th>
-                  <th className="py-3 px-4 text-center">Nível RBAC</th>
-                  <th className="py-3 px-4 text-right">Teto de Alçada Direta</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {availableProfiles.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-bold text-slate-900">{p.fullName}</td>
-                    <td className="py-3 px-4 text-slate-700">{p.roleTitle}</td>
-                    <td className="py-3 px-4 text-slate-600">{p.department}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
-                        {p.roleLevel}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-black text-slate-900">
-                      R$ {p.approvalLimitAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ABA 3: MOTOR DE ALÇADAS */}
-      {activeTab === 'alcadas' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Parâmetros do Motor Central de Alçadas</h3>
-            <p className="text-xs text-slate-500">
-              Regras unificadas que governam Compras, Despesas, Contratos, Férias e Descontos Comerciais no SEEK.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <span className="font-bold text-xs text-slate-800">Alçada Nível 1 — Gestor Departamental</span>
-              <p className="text-[11px] text-slate-600">
-                Aprovações de até <strong>R$ 15.000,00</strong> para compras operacionais e rotinas do setor.
-              </p>
-              <div className="text-[10px] text-slate-500 font-semibold">Exige: GESTOR_DEPARTAMENTO</div>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <span className="font-bold text-xs text-slate-800">Alçada Nível 2 — Gerência Financeira</span>
-              <p className="text-[11px] text-slate-600">
-                Validações de <strong>R$ 15.000,01 a R$ 50.000,00</strong> e todas as antecipações orçamentárias.
-              </p>
-              <div className="text-[10px] text-slate-500 font-semibold">Exige: Parecer da Controladoria</div>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <span className="font-bold text-xs text-slate-800">Alçada Nível 3 — Diretoria Executiva / CEO</span>
-              <p className="text-[11px] text-slate-600">
-                Valores acima de <strong>R$ 50.000,00</strong>, minutas contratuais e exceções de margem comercial.
-              </p>
-              <div className="text-[10px] text-slate-500 font-semibold">Exige: DIRETORIA / ADMIN_GLOBAL</div>
             </div>
           </div>
         </div>
@@ -335,6 +391,105 @@ export const AdminModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Cadastro de Novo Usuário RBAC */}
+      <Modal
+        isOpen={isAddUserModalOpen}
+        onClose={() => setIsAddUserModalOpen(false)}
+        title="Cadastrar Novo Usuário no SEEK Core"
+        subtitle="Vincule um novo colaborador ao sistema de permissões dinâmicas."
+      >
+        <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Nome Completo</label>
+            <input
+              type="text"
+              required
+              value={newUserName}
+              onChange={e => setNewUserName(e.target.value)}
+              placeholder="Ex: Amanda Ferreira dos Santos"
+              className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+            />
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">E-mail Corporativo</label>
+            <input
+              type="email"
+              required
+              value={newUserEmail}
+              onChange={e => setNewUserEmail(e.target.value)}
+              placeholder="amanda.ferreira@diskingressos.com.br"
+              className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Perfil Oficial RBAC</label>
+              <select
+                value={newUserRole}
+                onChange={e => setNewUserRole(e.target.value as UserRoleLevel)}
+                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              >
+                <option value="ADMIN_GERAL">Administrador Geral</option>
+                <option value="DIRETORIA">Diretoria</option>
+                <option value="GESTOR">Gestor</option>
+                <option value="FINANCEIRO">Financeiro</option>
+                <option value="CONTABILIDADE">Contabilidade</option>
+                <option value="FISCAL">Fiscal</option>
+                <option value="COMERCIAL">Comercial</option>
+                <option value="RH">RH</option>
+                <option value="COMPRAS">Compras</option>
+                <option value="JURIDICO">Jurídico</option>
+                <option value="TI">TI</option>
+                <option value="AUDITORIA">Auditoria</option>
+                <option value="COLABORADOR">Colaborador</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Teto de Alçada Direta (R$)</label>
+              <input
+                type="number"
+                step="100"
+                value={newUserLimit}
+                onChange={e => setNewUserLimit(e.target.value)}
+                placeholder="Ex: 5000"
+                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Departamento</label>
+            <input
+              type="text"
+              required
+              value={newUserDept}
+              onChange={e => setNewUserDept(e.target.value)}
+              placeholder="Ex: Operações de Bilheteria"
+              className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsAddUserModalOpen(false)}
+              className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white shadow-xs hover:bg-blue-800"
+            >
+              Salvar Usuário no Core
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
