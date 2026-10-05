@@ -41,6 +41,35 @@ app.use('/api/governance', governanceRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/seek-ai', seekAiRouter);
 
+// Compatibilidade com rotas diretas do protótipo
+app.post('/api/login', (req, res) => {
+  res.redirect(307, '/api/auth/login');
+});
+app.use('/api/employees', (req, res, next) => {
+  req.url = req.url === '/' ? '/employees' : req.url;
+  hrRouter(req, res, next);
+});
+app.use('/api/time', (req, res, next) => {
+  req.url = req.url === '/' ? '/time-records' : req.url;
+  hrRouter(req, res, next);
+});
+app.use('/api/assets', (req, res, next) => {
+  req.url = req.url === '/' ? '/assets' : req.url;
+  inventoryRouter(req, res, next);
+});
+app.use('/api/inventoryMoves', (req, res, next) => {
+  req.url = req.url === '/' ? '/movements' : req.url;
+  inventoryRouter(req, res, next);
+});
+app.use('/api/projectTasks', (req, res, next) => {
+  req.url = req.url === '/' ? '/tasks' : req.url;
+  projectsRouter(req, res, next);
+});
+app.use('/api/tickets', (req, res, next) => {
+  req.url = req.url === '/' ? '/tickets' : req.url;
+  serviceDeskRouter(req, res, next);
+});
+
 // Endpoint Consolidado para o Dashboard Executivo C-Level
 app.get('/api/dashboard', (_req, res) => {
   try {
@@ -59,7 +88,7 @@ app.get('/api/dashboard', (_req, res) => {
 
     const headcount = db.prepare('SELECT COUNT(*) as count FROM employees WHERE active = 1').get() as { count: number };
     const openTickets = db.prepare(`SELECT COUNT(*) as count FROM tickets WHERE status != 'RESOLVIDO'`).get() as { count: number };
-    const totalAssetValue = db.prepare('SELECT COALESCE(SUM(current_book_value), 0) as total FROM assets WHERE status = "ATIVO"').get() as { total: number };
+    const totalAssetValue = db.prepare(`SELECT COALESCE(SUM(current_book_value), 0) as total FROM assets WHERE status = 'ATIVO'`).get() as { total: number };
 
     const totalReceitas = recSum.total;
     const totalDespesas = paySum.total;
