@@ -1,17 +1,19 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ApprovalItem, ApprovalStatus } from '../types/workflow';
 import { AuditLogEntry } from '../types/core';
 import { INITIAL_APPROVALS, INITIAL_AUDIT_LOGS } from '../data/mockData';
 import { useAuth } from './AuthContext';
+import { api } from '../services/api';
 
 interface WorkflowContextType {
   approvals: ApprovalItem[];
   pendingApprovalsCount: number;
   auditLogs: AuditLogEntry[];
-  approveRequest: (requestId: string, comment: string) => void;
-  rejectRequest: (requestId: string, comment: string) => void;
+  approveRequest: (requestId: string, comment: string) => Promise<void>;
+  rejectRequest: (requestId: string, comment: string) => Promise<void>;
   addAuditLog: (entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'userName' | 'userRole'>) => void;
-  createApprovalRequest: (request: Partial<ApprovalItem>) => void;
+  createApprovalRequest: (request: Partial<ApprovalItem>) => Promise<void>;
+  refreshApprovals: () => Promise<void>;
 }
 
 const WorkflowContext = createContext<WorkflowContextType | undefined>(undefined);
@@ -20,6 +22,25 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const { currentUser } = useAuth();
   const [approvals, setApprovals] = useState<ApprovalItem[]>(INITIAL_APPROVALS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+
+  const refreshApprovals = async () => {
+    try {
+      const serverApprovals = await api.getApprovals();
+      if (serverApprovals && serverApprovals.length > 0) {
+        setApprovals(serverApprovals);
+      }
+      const serverLogs = await api.getAuditLogs();
+      if (serverLogs && serverLogs.length > 0) {
+        setAuditLogs(serverLogs);
+      }
+    } catch {
+      // mantém estado atual
+    }
+  };
+
+  useEffect(() => {
+    refreshApprovals();
+  }, []);
 
   const addAuditLog = (entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'userName' | 'userRole'>) => {
     const now = new Date();
@@ -42,12 +63,13 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAuditLogs(prev => [newLog, ...prev]);
   };
 
-  const approveRequest = (requestId: string, comment: string) => {
+  const approveRequest = async (requestId: string, comment: string) => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
       now.getDate()
     ).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+    // Atualização otimista no frontend
     setApprovals(prev =>
       prev.map(item => {
         if (item.id !== requestId) return item;
@@ -74,6 +96,14 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       })
     );
 
+    // Persistência no Backend SQLite
+    try {
+      await api.decideApproval(requestId, 'approve', comment, currentUser.fullName, currentUser.roleTitle);
+      await refreshApprovals();
+    } catch {
+      // mantido pelo otimista
+    }
+
     const approvedItem = approvals.find(a => a.id === requestId);
     addAuditLog({
       action: 'APPROVE',
@@ -83,7 +113,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const rejectRequest = (requestId: string, comment: string) => {
+  const rejectRequest = async (requestId: string, comment: string) => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
       now.getDate()
@@ -110,6 +140,13 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       })
     );
 
+    try {
+      await api.decideApproval(requestId, 'reject', comment, currentUser.fullName, currentUser.roleTitle);
+      await refreshApprovals();
+    } catch {
+      // mantido pelo otimista
+    }
+
     const targetItem = approvals.find(a => a.id === requestId);
     addAuditLog({
       action: 'REJECT',
@@ -119,7 +156,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const createApprovalRequest = (request: Partial<ApprovalItem>) => {
+  const createApprovalRequest = async (request: Partial<ApprovalItem>) => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
       now.getDate()
@@ -161,6 +198,23 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setApprovals(prev => [newApproval, ...prev]);
 
+    try {
+      await api.createApproval({
+        entityType: newApproval.entityType,
+        title: newApproval.title,
+        description: newApproval.description,
+        department: newApproval.department,
+        requesterName: newApproval.requesterName,
+        requesterRole: newApproval.requesterRole,
+        amount: newApproval.amount,
+        priority: newApproval.priority,
+        steps: newApproval.steps
+      });
+      await refreshApprovals();
+    } catch {
+      // mantido pelo otimista
+    }
+
     addAuditLog({
       action: 'CREATE',
       module: 'Central de Aprovações',
@@ -182,7 +236,8 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         approveRequest,
         rejectRequest,
         addAuditLog,
-        createApprovalRequest
+        createApprovalRequest,
+        refreshApprovals
       }}
     >
       {children}

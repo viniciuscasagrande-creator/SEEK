@@ -1,14 +1,176 @@
-import React, { useState } from 'react';
-import { FileText, Plus, AlertTriangle, CheckCircle, Scale, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  FileText,
+  Plus,
+  AlertTriangle,
+  CheckCircle,
+  Scale,
+  ShieldCheck,
+  RefreshCw,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  Percent,
+  Check,
+  ArrowRight
+} from 'lucide-react';
 import { CONTRACTS_RECORDS } from '../../data/mockData';
 import { ContractRecord } from '../../types/modules';
 import { StatusBadge } from '../common/StatusBadge';
 import { StatCard } from '../common/StatCard';
+import { Modal } from '../common/Modal';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 
 export const ContractsModule: React.FC = () => {
-  const [contracts] = useState<ContractRecord[]>(CONTRACTS_RECORDS);
+  const { currentUser } = useAuth();
+  const [contracts, setContracts] = useState<ContractRecord[]>(CONTRACTS_RECORDS);
+  const [filterType, setFilterType] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+
+  // Modais
+  const [isNewContractOpen, setIsNewContractOpen] = useState(false);
+  const [newContract, setNewContract] = useState({
+    partyName: '',
+    type: 'CLIENTE',
+    monthlyValue: '',
+    startDate: '2026-11-01',
+    endDate: '2027-11-01',
+    readjustmentIndex: 'IPCA'
+  });
+
+  const [reajusteModal, setReajusteModal] = useState<{
+    isOpen: boolean;
+    contract: any | null;
+    rate: string;
+    indexName: string;
+  }>({
+    isOpen: false,
+    contract: null,
+    rate: '4.2',
+    indexName: 'IPCA'
+  });
+
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const loadContracts = async () => {
+    try {
+      const data = await api.getContracts(filterType, filterStatus);
+      if (data && data.contracts && data.contracts.length > 0) {
+        setContracts(data.contracts);
+      }
+    } catch {
+      // fallback
+    }
+  };
+
+  useEffect(() => {
+    loadContracts();
+  }, [filterType, filterStatus]);
+
+  const handleCreateContract = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newContract.partyName || !newContract.monthlyValue) return;
+
+    const res = await api.createContract({
+      partyName: newContract.partyName,
+      type: newContract.type,
+      monthlyValue: parseFloat(newContract.monthlyValue),
+      startDate: newContract.startDate,
+      endDate: newContract.endDate,
+      readjustmentIndex: newContract.readjustmentIndex,
+      userName: currentUser.fullName,
+      userRole: currentUser.roleTitle
+    });
+
+    if (res && res.success) {
+      setNotification(`✅ Contrato ${res.contract.contractNumber} com ${newContract.partyName} registrado com sucesso!`);
+      setIsNewContractOpen(false);
+      setNewContract({
+        partyName: '',
+        type: 'CLIENTE',
+        monthlyValue: '',
+        startDate: '2026-11-01',
+        endDate: '2027-11-01',
+        readjustmentIndex: 'IPCA'
+      });
+      loadContracts();
+    } else {
+      const fallbackContract: ContractRecord = {
+        id: `ct-${Date.now()}`,
+        contractNumber: `CT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        partyName: newContract.partyName,
+        type: newContract.type as any,
+        monthlyValue: parseFloat(newContract.monthlyValue),
+        startDate: newContract.startDate,
+        endDate: newContract.endDate,
+        daysRemaining: 365,
+        readjustmentIndex: newContract.readjustmentIndex as any,
+        status: 'VIGENTE'
+      };
+      setContracts(prev => [fallbackContract, ...prev]);
+      setIsNewContractOpen(false);
+      setNotification(`✅ Contrato ${fallbackContract.contractNumber} registrado localmente.`);
+    }
+
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleApplyReadjustment = async () => {
+    if (!reajusteModal.contract) return;
+
+    const res = await api.readjustContract(
+      reajusteModal.contract.id,
+      parseFloat(reajusteModal.rate),
+      reajusteModal.indexName,
+      currentUser.fullName
+    );
+
+    if (res && res.success) {
+      setNotification(
+        `📈 Reajuste de ${reajusteModal.rate}% (${reajusteModal.indexName}) aplicado com sucesso no contrato ${res.contractNumber}! Novo valor: R$ ${res.newMonthlyValue?.toLocaleString(
+          'pt-BR',
+          { minimumFractionDigits: 2 }
+        )}/mês.`
+      );
+      setReajusteModal({ isOpen: false, contract: null, rate: '4.2', indexName: 'IPCA' });
+      loadContracts();
+    } else {
+      const rate = parseFloat(reajusteModal.rate);
+      setContracts(prev =>
+        prev.map(c =>
+          c.id === reajusteModal.contract.id
+            ? { ...c, monthlyValue: c.monthlyValue * (1 + rate / 100), readjustmentIndex: reajusteModal.indexName as any }
+            : c
+        )
+      );
+      setReajusteModal({ isOpen: false, contract: null, rate: '4.2', indexName: 'IPCA' });
+      setNotification(`📈 Reajuste aplicado no contrato.`);
+    }
+
+    setTimeout(() => setNotification(null), 6000);
+  };
+
+  const handleRenewContract = async (contract: any) => {
+    const res = await api.renewContract(contract.id, 12, currentUser.fullName);
+    if (res && res.success) {
+      setNotification(`🔄 Contrato ${res.contractNumber} renovado por mais 12 meses até ${res.newEndDate}!`);
+      loadContracts();
+    } else {
+      setContracts(prev =>
+        prev.map(c =>
+          c.id === contract.id
+            ? { ...c, daysRemaining: c.daysRemaining + 365, status: 'VIGENTE' }
+            : c
+        )
+      );
+      setNotification(`🔄 Contrato renovado por 12 meses.`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   const totalMonthlyBilling = contracts.reduce((acc, c) => acc + c.monthlyValue, 0);
+  const expiringWithin30Days = contracts.filter(c => c.daysRemaining <= 30 && c.status !== 'RESCINDIDO');
 
   return (
     <div className="space-y-6">
@@ -22,35 +184,71 @@ export const ContractsModule: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Gestão de vigência, alertas preventivos de renovação, reajustes por índices (IPCA/IGP-M) e procurações societárias.
+            Gestão integrada de vigência, régua de alertas de renovação (30/60/90 dias), aplicação auditada de índices (IPCA/IGP-M) e minutas.
           </p>
         </div>
 
         <div className="mt-3 sm:mt-0 flex items-center space-x-2">
-          <button className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-800">
+          <button
+            onClick={() => setIsNewContractOpen(true)}
+            className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-800 transition-colors"
+          >
             <Plus className="h-4 w-4" />
             <span>Cadastrar Contrato</span>
           </button>
         </div>
       </div>
 
+      {notification && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-900 flex items-center justify-between shadow-2xs">
+          <span>{notification}</span>
+          <button onClick={() => setNotification(null)} className="text-emerald-700 hover:text-emerald-950 font-black">✕</button>
+        </div>
+      )}
+
+      {/* Alerta Preventivo de Renovação Crítica */}
+      {expiringWithin30Days.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
+          <div className="flex items-start space-x-2.5">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block text-sm">
+                Atenção Jurídica: {expiringWithin30Days.length} contrato(s) com vencimento nos próximos 30 dias!
+              </span>
+              <span className="text-slate-600">
+                {expiringWithin30Days.map(c => `${c.contractNumber} (${c.partyName})`).join(', ')} — Necessário acionar renovação ou distrato formal.
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => handleRenewContract(expiringWithin30Days[0])}
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 shrink-0 transition-colors shadow-2xs"
+          >
+            Renovar {expiringWithin30Days[0].contractNumber} (12 Meses)
+          </button>
+        </div>
+      )}
+
       {/* KPIs de Contratos */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Faturamento Mensal Contratual"
           value={`R$ ${(totalMonthlyBilling / 1000).toFixed(1)}k/mês`}
-          subtitle="Receita recorrente garantida"
+          change={`R$ ${(totalMonthlyBilling * 12 / 1000000).toFixed(2)}M/ano`}
+          changeType="positive"
+          subtitle="Receita recorrente contratada"
           icon={FileText}
           iconColor="text-indigo-600"
           iconBg="bg-indigo-50"
         />
         <StatCard
           title="Alertas de Vencimento"
-          value="1"
-          subtitle="Janela < 30 dias (Allianz Parque)"
+          value={expiringWithin30Days.length}
+          subtitle="Janela crítica < 30 dias"
           icon={AlertTriangle}
-          iconColor="text-amber-600"
-          iconBg="bg-amber-50"
+          iconColor="text-rose-600"
+          iconBg="bg-rose-50"
         />
         <StatCard
           title="Contratos Vigentes"
@@ -61,13 +259,46 @@ export const ContractsModule: React.FC = () => {
           iconBg="bg-emerald-50"
         />
         <StatCard
-          title="Índice de Reajuste Médio"
+          title="Índice de Reajuste Homologado"
           value="+4.2% (IPCA)"
-          subtitle="Aplicável no ciclo 2026/2027"
+          subtitle="Ciclo contratual 2026/2027"
           icon={Scale}
           iconColor="text-purple-600"
           iconBg="bg-purple-50"
         />
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+        <div className="flex items-center space-x-2 text-xs">
+          <span className="font-bold text-slate-700">Filtrar por Tipo:</span>
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 font-medium focus:outline-hidden"
+          >
+            <option value="ALL">Todos os Tipos</option>
+            <option value="CLIENTE">Clientes</option>
+            <option value="FORNECEDOR">Fornecedores</option>
+            <option value="PRESTADOR">Prestadores de Serviço</option>
+          </select>
+
+          <span className="font-bold text-slate-700 ml-2">Status:</span>
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 font-medium focus:outline-hidden"
+          >
+            <option value="ALL">Todos os Status</option>
+            <option value="VIGENTE">Vigente</option>
+            <option value="VENCENDO">Vencendo (&lt;30 dias)</option>
+            <option value="RENOVADO">Renovado</option>
+          </select>
+        </div>
+
+        <span className="text-xs text-slate-500 font-medium">
+          Exibindo <strong>{contracts.length}</strong> contratos ativos
+        </span>
       </div>
 
       {/* Tabela de Contratos */}
@@ -85,28 +316,29 @@ export const ContractsModule: React.FC = () => {
                 <th className="py-3 px-4 text-center">Dias Restantes</th>
                 <th className="py-3 px-4 text-center">Índice</th>
                 <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-4 text-center">Ações Jurídicas</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {contracts.map(c => (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="py-3 px-4 font-mono font-bold text-slate-800">{c.contractNumber}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900">{c.partyName}</td>
-                  <td className="py-3 px-4 text-center">
+                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{c.contractNumber}</td>
+                  <td className="py-3.5 px-4 font-bold text-slate-900">{c.partyName}</td>
+                  <td className="py-3.5 px-4 text-center">
                     <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
                       {c.type}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-slate-900">
+                  <td className="py-3.5 px-4 text-right font-black text-slate-900">
                     R$ {c.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="py-3 px-4 text-slate-600">{c.startDate}</td>
-                  <td className="py-3 px-4 text-slate-600 font-medium">{c.endDate}</td>
-                  <td className="py-3 px-4 text-center">
+                  <td className="py-3.5 px-4 text-slate-600">{c.startDate}</td>
+                  <td className="py-3.5 px-4 text-slate-600 font-medium">{c.endDate}</td>
+                  <td className="py-3.5 px-4 text-center">
                     <span
-                      className={`font-bold ${
+                      className={`font-black ${
                         c.daysRemaining <= 30
-                          ? 'text-rose-600'
+                          ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded'
                           : c.daysRemaining <= 90
                           ? 'text-amber-600'
                           : 'text-slate-700'
@@ -115,9 +347,35 @@ export const ContractsModule: React.FC = () => {
                       {c.daysRemaining} dias
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-center font-bold text-slate-600">{c.readjustmentIndex}</td>
-                  <td className="py-3 px-4 text-center">
+                  <td className="py-3.5 px-4 text-center font-bold text-slate-600">{c.readjustmentIndex}</td>
+                  <td className="py-3.5 px-4 text-center">
                     <StatusBadge status={c.status} />
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <div className="flex items-center justify-center space-x-1.5">
+                      <button
+                        onClick={() =>
+                          setReajusteModal({
+                            isOpen: true,
+                            contract: c,
+                            rate: '4.2',
+                            indexName: c.readjustmentIndex || 'IPCA'
+                          })
+                        }
+                        className="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                        title="Aplicar Reajuste por Índice"
+                      >
+                        Reajustar
+                      </button>
+
+                      <button
+                        onClick={() => handleRenewContract(c)}
+                        className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                        title="Renovar Contrato por 12 Meses"
+                      >
+                        Renovar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -125,6 +383,199 @@ export const ContractsModule: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Modal Novo Contrato */}
+      <Modal
+        isOpen={isNewContractOpen}
+        onClose={() => setIsNewContractOpen(false)}
+        title="Cadastrar Novo Contrato Corporativo"
+        subtitle="Registro com validação jurídica, vigência e índice de reajuste"
+      >
+        <form onSubmit={handleCreateContract} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-700 mb-1">Parte Envolvida / Razão Social *</label>
+            <input
+              type="text"
+              required
+              value={newContract.partyName}
+              onChange={e => setNewContract({ ...newContract, partyName: e.target.value })}
+              placeholder="Ex: Allianz Parque Gestão de Arenas"
+              className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Tipo de Contrato</label>
+              <select
+                value={newContract.type}
+                onChange={e => setNewContract({ ...newContract, type: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              >
+                <option value="CLIENTE">Cliente (Receita Recorrente)</option>
+                <option value="FORNECEDOR">Fornecedor (Despesa Fixa)</option>
+                <option value="PRESTADOR">Prestador de Serviços</option>
+                <option value="LOCACAO">Locação de Imóvel / Infraestrutura</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Valor Mensal (R$) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={newContract.monthlyValue}
+                onChange={e => setNewContract({ ...newContract, monthlyValue: e.target.value })}
+                placeholder="0,00"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-bold focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Data Início</label>
+              <input
+                type="date"
+                value={newContract.startDate}
+                onChange={e => setNewContract({ ...newContract, startDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Data Fim / Vencimento</label>
+              <input
+                type="date"
+                value={newContract.endDate}
+                onChange={e => setNewContract({ ...newContract, endDate: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Índice de Reajuste</label>
+              <select
+                value={newContract.readjustmentIndex}
+                onChange={e => setNewContract({ ...newContract, readjustmentIndex: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              >
+                <option value="IPCA">IPCA (IBGE)</option>
+                <option value="IGP-M">IGP-M (FGV)</option>
+                <option value="INPC">INPC</option>
+                <option value="FIXO">Valor Fixo (Sem Reajuste)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsNewContractOpen(false)}
+              className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white hover:bg-blue-800 shadow-xs"
+            >
+              Registrar Contrato
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Simulador & Aplicação de Reajuste */}
+      {reajusteModal.isOpen && reajusteModal.contract && (
+        <Modal
+          isOpen={reajusteModal.isOpen}
+          onClose={() => setReajusteModal({ isOpen: false, contract: null, rate: '4.2', indexName: 'IPCA' })}
+          title={`Simulação de Reajuste — ${reajusteModal.contract.contractNumber}`}
+          subtitle={reajusteModal.contract.partyName}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-slate-500 block">Valor Mensal Vigente:</span>
+                <span className="text-sm font-bold text-slate-900">
+                  R$ {reajusteModal.contract.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Índice Contratual:</span>
+                <span className="text-sm font-bold text-slate-900">{reajusteModal.contract.readjustmentIndex}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Taxa de Reajuste (%) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={reajusteModal.rate}
+                  onChange={e => setReajusteModal({ ...reajusteModal, rate: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-bold focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Índice Aplicado</label>
+                <select
+                  value={reajusteModal.indexName}
+                  onChange={e => setReajusteModal({ ...reajusteModal, indexName: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-bold focus:border-blue-600 focus:outline-hidden"
+                >
+                  <option value="IPCA">IPCA (Acumulado 12M: 4.2%)</option>
+                  <option value="IGP-M">IGP-M (Acumulado 12M: 3.8%)</option>
+                  <option value="INPC">INPC (Acumulado 12M: 4.0%)</option>
+                  <option value="LIVRE_NEGOCIACAO">Livre Negociação</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Cálculo em tempo real */}
+            <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase block">Novo Valor Mensal Projetado</span>
+              <span className="text-base font-black text-emerald-950 block">
+                R${' '}
+                {(
+                  reajusteModal.contract.monthlyValue *
+                  (1 + (parseFloat(reajusteModal.rate) || 0) / 100)
+                ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                /mês
+              </span>
+              <span className="text-[10px] text-emerald-700">
+                Acréscimo de R${' '}
+                {(
+                  reajusteModal.contract.monthlyValue *
+                  ((parseFloat(reajusteModal.rate) || 0) / 100)
+                ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{' '}
+                mensais.
+              </span>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setReajusteModal({ isOpen: false, contract: null, rate: '4.2', indexName: 'IPCA' })}
+                className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyReadjustment}
+                className="rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white hover:bg-emerald-700 shadow-xs"
+              >
+                Efetivar Reajuste Contratual
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

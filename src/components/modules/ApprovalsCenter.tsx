@@ -44,14 +44,15 @@ export const ApprovalsCenter: React.FC = () => {
     return true;
   });
 
-  const handleDecision = () => {
+  const handleDecision = async () => {
     if (decisionModal.type === 'approve') {
-      approveRequest(decisionModal.requestId, comment);
+      await approveRequest(decisionModal.requestId, comment);
     } else {
-      rejectRequest(decisionModal.requestId, comment);
+      await rejectRequest(decisionModal.requestId, comment);
     }
     setDecisionModal({ isOpen: false, type: 'approve', requestId: '', itemTitle: '' });
     setDetailModal(null);
+    setComment('');
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
   ArrowUpRight,
@@ -10,7 +10,10 @@ import {
   CheckCircle2,
   Calendar,
   Landmark,
-  Building
+  Building,
+  CheckCircle,
+  TrendingUp,
+  Percent
 } from 'lucide-react';
 import { FINANCIAL_ENTRIES } from '../../data/mockData';
 import { FinancialEntry } from '../../types/modules';
@@ -19,15 +22,21 @@ import { StatCard } from '../common/StatCard';
 import { Modal } from '../common/Modal';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 
 export const FinanceModule: React.FC = () => {
   const { addAuditLog } = useWorkflow();
   const { currentUser } = useAuth();
 
   const [entries, setEntries] = useState<FinancialEntry[]>(FINANCIAL_ENTRIES);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([
+    { id: 'bank-1', bankName: 'Banco Bradesco S.A.', bankCode: '237', agency: '1204', accountNumber: '45890-1', currentBalance: 1250000.0 },
+    { id: 'bank-2', bankName: 'Banco Itaú Unibanco S.A.', bankCode: '341', agency: '0842', accountNumber: '98120-7', currentBalance: 590500.0 }
+  ]);
   const [activeTab, setActiveTab] = useState<'lancamentos' | 'dre' | 'fluxo' | 'bancos'>('lancamentos');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
 
   // Form states
   const [entryType, setEntryType] = useState<'PAGAR' | 'RECEBER'>('PAGAR');
@@ -39,65 +48,102 @@ export const FinanceModule: React.FC = () => {
   const [dueDate, setDueDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('PIX');
 
-  const totalReceitas = entries.filter(e => e.type === 'RECEBER').reduce((a, b) => a + b.amount, 0);
-  const totalDespesas = entries.filter(e => e.type === 'PAGAR').reduce((a, b) => a + b.amount, 0);
+  const loadData = async () => {
+    try {
+      const serverRecords = await api.getFinanceRecords(filterType);
+      if (serverRecords && serverRecords.length > 0) {
+        setEntries(serverRecords);
+      }
+      const serverAccounts = await api.getBankAccounts();
+      if (serverAccounts && serverAccounts.length > 0) {
+        setBankAccounts(serverAccounts);
+      }
+    } catch {
+      // fallback
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [filterType]);
+
+  const totalReceitas = entries.filter(e => e.type === 'RECEBER').reduce((a, b) => a + (b.amount || 0), 0);
+  const totalDespesas = entries.filter(e => e.type === 'PAGAR').reduce((a, b) => a + (b.amount || 0), 0);
   const saldoLiquido = totalReceitas - totalDespesas;
+  const totalBancos = bankAccounts.reduce((a, b) => a + (b.currentBalance || b.current_balance || 0), 0);
+  const ebitdaPercent = totalReceitas > 0 ? ((saldoLiquido / totalReceitas) * 100).toFixed(1) : '24.8';
 
   const filteredEntries = entries.filter(e => {
     if (filterType !== 'ALL' && e.type !== filterType) return false;
     return true;
   });
 
-  const handleCreateEntry = (e: React.FormEvent) => {
+  const handleCreateEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newEntry: FinancialEntry = {
-      id: `fin-${Date.now()}`,
-      code: `${entryType === 'RECEBER' ? 'CR' : 'CP'}-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+    const parsedAmount = parseFloat(amount) || 0;
+
+    const res = await api.createFinanceRecord({
       type: entryType,
       title,
-      entityName,
+      entityName: entityName || 'Entidade Corporativa',
       costCenter,
       category,
-      amount: parseFloat(amount) || 0,
+      amount: parsedAmount,
       dueDate: dueDate || '2026-10-31',
-      status: 'CONFIRMADO',
-      paymentMethod
-    };
+      paymentMethod,
+      userName: currentUser.fullName,
+      userRole: currentUser.roleTitle
+    });
 
-    setEntries(prev => [newEntry, ...prev]);
+    if (res && res.id) {
+      setNotification(`✅ Lançamento ${res.code} cadastrado no Financeiro.`);
+      loadData();
+    } else {
+      const newEntry: FinancialEntry = {
+        id: `fin-${Date.now()}`,
+        code: `${entryType === 'RECEBER' ? 'CR' : 'CP'}-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        type: entryType,
+        title,
+        entityName,
+        costCenter,
+        category,
+        amount: parsedAmount,
+        dueDate: dueDate || '2026-10-31',
+        status: 'CONFIRMADO',
+        paymentMethod
+      };
+      setEntries(prev => [newEntry, ...prev]);
+      setNotification(`✅ Lançamento cadastrado localmente.`);
+    }
 
     addAuditLog({
       action: 'CREATE',
       module: 'Financeiro',
-      entity: `Lançamento ${newEntry.code}`,
-      description: `Criado lançamento ${newEntry.type} no valor de R$ ${newEntry.amount.toLocaleString('pt-BR', {
-        minimumFractionDigits: 2
-      })} para ${newEntry.entityName}`
+      entity: `Lançamento ${title}`,
+      description: `Criado lançamento ${entryType} no valor de R$ ${parsedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
     });
 
     setIsModalOpen(false);
     setTitle('');
     setEntityName('');
     setAmount('');
+    setTimeout(() => setNotification(null), 5000);
   };
 
-  const handleLiquidate = (id: string) => {
-    setEntries(prev =>
-      prev.map(e => {
-        if (e.id === id) {
-          addAuditLog({
-            action: 'UPDATE',
-            module: 'Financeiro',
-            entity: `Lançamento ${e.code}`,
-            description: `Baixa / liquidação financeira efetuada no valor de R$ ${e.amount.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2
-            })}`
-          });
-          return { ...e, status: 'PAGO' };
-        }
-        return e;
-      })
-    );
+  const handleLiquidate = async (id: string) => {
+    // Seleciona primeira conta disponível para débito/crédito
+    const primaryBankId = bankAccounts[0]?.id || 'bank-1';
+    const success = await api.payFinanceRecord(id, primaryBankId, currentUser.fullName, currentUser.roleTitle);
+
+    if (success) {
+      setNotification(`💰 Baixa / Liquidação efetuada com sucesso! Saldo bancário atualizado.`);
+      loadData();
+    } else {
+      setEntries(prev => prev.map(e => (e.id === id ? { ...e, status: 'PAGO' } : e)));
+      setNotification(`💰 Baixa registrada localmente.`);
+    }
+
+    setTimeout(() => setNotification(null), 5000);
   };
 
   return (
@@ -119,13 +165,20 @@ export const FinanceModule: React.FC = () => {
         <div className="mt-3 sm:mt-0 flex items-center space-x-2">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-800 cursor-pointer"
+            className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-800 cursor-pointer transition-colors"
           >
             <Plus className="h-4 w-4" />
             <span>Novo Lançamento</span>
           </button>
         </div>
       </div>
+
+      {notification && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-900 flex items-center justify-between shadow-2xs">
+          <span>{notification}</span>
+          <button onClick={() => setNotification(null)} className="text-emerald-700 hover:text-emerald-950 font-black">✕</button>
+        </div>
+      )}
 
       {/* KPIs Financeiros */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -151,18 +204,18 @@ export const FinanceModule: React.FC = () => {
         />
         <StatCard
           title="Disponibilidade em Bancos"
-          value="R$ 1.840,5k"
-          subtitle="Bradesco Matriz + Itaú Filiais"
+          value={`R$ ${(totalBancos / 1000).toFixed(1)}k`}
+          subtitle="Bradesco Matriz + Itaú SP"
           icon={Landmark}
           iconColor="text-blue-600"
           iconBg="bg-blue-50"
         />
         <StatCard
           title="Resultado Operacional (EBITDA)"
-          value="24.8%"
-          change="+1.5 p.p."
+          value={`${ebitdaPercent}%`}
+          change={`Saldo líquido R$ ${(saldoLiquido / 1000).toFixed(1)}k`}
           changeType="positive"
-          subtitle="Margem de contribuição saudável"
+          subtitle="Margem de contribuição líquida"
           icon={PieChart}
           iconColor="text-purple-600"
           iconBg="bg-purple-50"
@@ -346,7 +399,7 @@ export const FinanceModule: React.FC = () => {
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Projeção Semanal de Fluxo de Caixa (15 Dias)</h3>
-            <p className="text-xs text-slate-500">Saldo inicial em bancos: R$ 1.840.500,00</p>
+            <p className="text-xs text-slate-500">Saldo inicial consolidado em bancos: R$ {totalBancos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -385,33 +438,25 @@ export const FinanceModule: React.FC = () => {
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900">Contas Bancárias & Conciliação</h3>
-            <p className="text-xs text-slate-500">Saldos operacionais vinculados às filiais da DiskIngressos</p>
+            <p className="text-xs text-slate-500">Saldos operacionais vinculados às filiais da SEEK</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-slate-800">Banco Bradesco (237) — Conta Corrente Matriz</span>
-                <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Conciliado</span>
+            {bankAccounts.map((acc: any) => (
+              <div key={acc.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-slate-800">{acc.bankName || acc.bank_name} ({acc.bankCode || acc.bank_code})</span>
+                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Conciliado</span>
+                </div>
+                <p className="text-xs text-slate-600">Agência: {acc.agency} • Conta: {acc.accountNumber || acc.account_number}</p>
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
+                  <span className="text-xs text-slate-500">Saldo Disponível:</span>
+                  <span className="text-base font-black text-slate-900">
+                    R$ {(acc.currentBalance ?? acc.current_balance ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-slate-600">Agência: 1204 • Conta: 45890-1 • Curitiba (PR)</p>
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
-                <span className="text-xs text-slate-500">Saldo Disponível:</span>
-                <span className="text-base font-black text-slate-900">R$ 1.250.000,00</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-slate-800">Banco Itaú (341) — Conta Operações SP</span>
-                <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Conciliado</span>
-              </div>
-              <p className="text-xs text-slate-600">Agência: 0842 • Conta: 98120-7 • São Paulo (SP)</p>
-              <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline">
-                <span className="text-xs text-slate-500">Saldo Disponível:</span>
-                <span className="text-base font-black text-slate-900">R$ 590.500,00</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       )}
@@ -452,30 +497,46 @@ export const FinanceModule: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Título / Descrição do Lançamento</label>
+            <label className="block font-bold text-slate-700 mb-1">Título / Descrição da Despesa ou Receita</label>
             <input
               type="text"
               required
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="Ex: Licenciamento de software antivírus corporativo"
+              placeholder="Ex: Fornecimento de ingressos ou Taxa de serviço"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Favorecido / Parceiro</label>
+              <label className="block font-bold text-slate-700 mb-1">Favorecido / Fornecedor / Cliente</label>
               <input
                 type="text"
                 required
                 value={entityName}
                 onChange={e => setEntityName(e.target.value)}
-                placeholder="Ex: Microsoft Brasil / Arena Ticket"
+                placeholder="Ex: Live Nation Brasil"
                 className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               />
             </div>
 
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Centro de Custo</label>
+              <select
+                value={costCenter}
+                onChange={e => setCostCenter(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              >
+                <option value="Operações de Eventos">Operações de Eventos</option>
+                <option value="Tecnologia & Infraestrutura Cloud">Tecnologia & Infraestrutura Cloud</option>
+                <option value="Comercial & Marketing">Comercial & Marketing</option>
+                <option value="Administrativo & RH">Administrativo & RH</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-slate-700 mb-1">Data de Vencimento</label>
               <input
@@ -486,26 +547,9 @@ export const FinanceModule: React.FC = () => {
                 className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Centro de Custo</label>
-              <select
-                value={costCenter}
-                onChange={e => setCostCenter(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
-              >
-                <option>Operações de Eventos</option>
-                <option>Tecnologia da Informação</option>
-                <option>Recursos Humanos Corporativo</option>
-                <option>Comercial & Marketing</option>
-                <option>Diretoria Executiva</option>
-              </select>
-            </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Método de Pagamento</label>
+              <label className="block font-bold text-slate-700 mb-1">Forma de Liquidação</label>
               <select
                 value={paymentMethod}
                 onChange={e => setPaymentMethod(e.target.value)}
@@ -513,8 +557,8 @@ export const FinanceModule: React.FC = () => {
               >
                 <option value="PIX">PIX Corporativo</option>
                 <option value="Boleto Bancário">Boleto Bancário</option>
-                <option value="TED">Transferência TED</option>
-                <option value="Cartão Corporativo">Cartão Corporativo</option>
+                <option value="TED Bancária">TED / Transferência</option>
+                <option value="Cartão Corporativo">Cartão de Crédito Corporativo</option>
               </select>
             </div>
           </div>
@@ -531,7 +575,7 @@ export const FinanceModule: React.FC = () => {
               type="submit"
               className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white shadow-xs hover:bg-blue-800"
             >
-              Confirmar Lançamento
+              Efetivar Lançamento
             </button>
           </div>
         </form>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   DollarSign,
@@ -11,20 +11,48 @@ import {
   FileCheck,
   Percent,
   Calendar,
-  Layers
+  Layers,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { StatCard } from '../common/StatCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { CONTRACTS_RECORDS, FINANCIAL_ENTRIES, CRM_OPPORTUNITIES } from '../../data/mockData';
+import { api } from '../../services/api';
 
 export const ExecutiveDashboard: React.FC = () => {
   const { activeCompany, activeBranch } = useAuth();
 
-  // Métricas calculadas para a visão executiva
-  const totalReceitas = FINANCIAL_ENTRIES.filter(f => f.type === 'RECEBER').reduce((a, b) => a + b.amount, 0);
-  const totalDespesas = FINANCIAL_ENTRIES.filter(f => f.type === 'PAGAR').reduce((a, b) => a + b.amount, 0);
-  const totalPipeline = CRM_OPPORTUNITIES.reduce((a, b) => a + b.value, 0);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [contracts, setContracts] = useState<any[]>(CONTRACTS_RECORDS);
+  const [crmDeals, setCrmDeals] = useState<any[]>(CRM_OPPORTUNITIES);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const d = await api.getDashboard();
+        if (d) setDashboardData(d);
+
+        const c = await api.getContracts();
+        if (c && c.contracts && c.contracts.length > 0) setContracts(c.contracts);
+
+        const deals = await api.getCrmDeals();
+        if (deals && deals.length > 0) setCrmDeals(deals);
+      } catch {
+        // fallback to defaults
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Métricas calculadas para a visão executiva com fallback
+  const totalReceitas = dashboardData?.finance?.totalReceitas ?? FINANCIAL_ENTRIES.filter(f => f.type === 'RECEBER').reduce((a, b) => a + b.amount, 0);
+  const totalDespesas = dashboardData?.finance?.totalDespesas ?? FINANCIAL_ENTRIES.filter(f => f.type === 'PAGAR').reduce((a, b) => a + b.amount, 0);
+  const totalPipeline = dashboardData?.crm?.pipelineTotal ?? CRM_OPPORTUNITIES.reduce((a, b) => a + b.value, 0);
+  const ebitdaPercent = dashboardData?.finance?.ebitdaPercent ?? 24.8;
+  const pendingApprovalsCount = dashboardData?.operations?.pendingApprovalsCount ?? 2;
+  const expiringContractsCount = dashboardData?.contracts?.expiringSoonCount ?? 1;
 
   return (
     <div className="space-y-6">
@@ -39,7 +67,7 @@ export const ExecutiveDashboard: React.FC = () => {
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Empresa ativa: <strong className="text-slate-800">{activeCompany.tradeName}</strong> ({activeBranch.name})
-            — Indicadores financeiros, vendas, contratos, RH e operações em tempo real.
+            — Indicadores financeiros, vendas, contratos, suprimentos e operações em tempo real.
           </p>
         </div>
 
@@ -58,7 +86,7 @@ export const ExecutiveDashboard: React.FC = () => {
           value={`R$ ${(totalReceitas / 1000).toFixed(1)}k`}
           change="+14.2% vs set"
           changeType="positive"
-          subtitle="Taxas e contratos SaaS"
+          subtitle="Taxas e contratos homologados"
           icon={DollarSign}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"
@@ -78,9 +106,9 @@ export const ExecutiveDashboard: React.FC = () => {
         <StatCard
           title="Pipeline Comercial (CRM)"
           value={`R$ ${(totalPipeline / 1000000).toFixed(2)}M`}
-          change="5 oportunidades ativas"
+          change={`${crmDeals.length} contas em negociação`}
           changeType="neutral"
-          subtitle="Turnês & Festivais 2026/27"
+          subtitle="Turnês, Festivais e Arenas"
           icon={Briefcase}
           iconColor="text-indigo-600"
           iconBg="bg-indigo-50"
@@ -88,7 +116,7 @@ export const ExecutiveDashboard: React.FC = () => {
 
         <StatCard
           title="EBITDA Projetado"
-          value="24.8%"
+          value={`${ebitdaPercent}%`}
           change="+1.5 p.p."
           changeType="positive"
           subtitle="Margem de contribuição saudável"
@@ -169,7 +197,9 @@ export const ExecutiveDashboard: React.FC = () => {
             <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
               <div className="flex items-center space-x-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                <span className="text-xs font-bold text-amber-900">Contrato Vencendo em 27 Dias</span>
+                <span className="text-xs font-bold text-amber-900">
+                  {expiringContractsCount} Contrato(s) em Alerta de Renovação
+                </span>
               </div>
               <p className="mt-1 text-[11px] text-amber-800 leading-tight">
                 <strong>Allianz Parque</strong> (R$ 85k/mês) entra na janela de renovação e reajuste por IPCA.
@@ -178,21 +208,23 @@ export const ExecutiveDashboard: React.FC = () => {
 
             <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
               <div className="flex items-center space-x-2">
-                <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
-                <span className="text-xs font-bold text-blue-900">Auditoria LGPD & Trilha SEEK</span>
+                <Clock className="h-4 w-4 text-blue-600 shrink-0" />
+                <span className="text-xs font-bold text-blue-900">
+                  {pendingApprovalsCount} Alçadas Pendentes de Deliberação
+                </span>
               </div>
               <p className="mt-1 text-[11px] text-blue-800 leading-tight">
-                100% dos acessos e aprovações do mês registrados na trilha imutável de auditoria.
+                Processos de compras e contratos aguardando validação de Diretoria e Gerência.
               </p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
               <div className="flex items-center space-x-2">
-                <FileCheck className="h-4 w-4 text-slate-700 shrink-0" />
-                <span className="text-xs font-bold text-slate-900">Saving Acumulado em Compras</span>
+                <FileCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span className="text-xs font-bold text-emerald-900">Saving Acumulado em Compras</span>
               </div>
-              <p className="mt-1 text-[11px] text-slate-600 leading-tight">
-                Negociações de cotações geraram <strong>R$ 42.100,00</strong> de economia direta no trimestre.
+              <p className="mt-1 text-[11px] text-emerald-800 leading-tight">
+                Negociações com concorrência geraram <strong>R$ 48.750,00</strong> de economia direta no trimestre.
               </p>
             </div>
           </div>
@@ -209,22 +241,22 @@ export const ExecutiveDashboard: React.FC = () => {
           </div>
 
           <div className="mt-4 divide-y divide-slate-100">
-            {CONTRACTS_RECORDS.map(c => (
+            {contracts.slice(0, 5).map((c: any) => (
               <div key={c.id} className="py-3 flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-slate-900">{c.partyName}</span>
+                    <span className="text-xs font-bold text-slate-900">{c.partyName || c.party_name}</span>
                     <StatusBadge status={c.status} />
                   </div>
                   <span className="text-[11px] text-slate-500">
-                    {c.contractNumber} • Término: {c.endDate} ({c.daysRemaining} dias)
+                    {c.contractNumber || c.contract_number} • Término: {c.endDate || c.end_date} ({c.daysRemaining ?? c.days_remaining} dias)
                   </span>
                 </div>
                 <div className="text-right">
                   <span className="text-xs font-extrabold text-slate-900">
-                    R$ {c.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
+                    R$ {(c.monthlyValue || c.monthly_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
                   </span>
-                  <span className="block text-[10px] text-slate-400">Índice: {c.readjustmentIndex}</span>
+                  <span className="block text-[10px] text-slate-400">Índice: {c.readjustmentIndex || c.readjustment_index}</span>
                 </div>
               </div>
             ))}
@@ -239,18 +271,18 @@ export const ExecutiveDashboard: React.FC = () => {
           </div>
 
           <div className="mt-4 divide-y divide-slate-100">
-            {CRM_OPPORTUNITIES.map(op => (
+            {crmDeals.slice(0, 5).map((op: any) => (
               <div key={op.id} className="py-3 flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-bold text-slate-900">{op.clientName}</span>
+                    <span className="text-xs font-bold text-slate-900">{op.clientName || op.client_name}</span>
                     <StatusBadge status={op.stage} />
                   </div>
                   <span className="text-[11px] text-slate-500">{op.title}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-xs font-extrabold text-slate-900">
-                    R$ {op.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(op.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                   <span className="block text-[10px] font-bold text-indigo-600">
                     {op.probability}% de probabilidade

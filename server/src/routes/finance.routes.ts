@@ -1,164 +1,182 @@
 import { Router, Request, Response } from 'express';
-import { auditLogs } from '../db.js';
+import { db, logAudit } from '../db.js';
 
 export const financeRouter = Router();
 
-// Store em memória compartilhada com sincronização
-export let financialRecords = [
-  {
-    id: 'fin-01',
-    code: 'CP-2026-1044',
-    type: 'PAGAR',
-    title: 'Licenciamento de Datacenter & Servidores Dedicados',
-    entityName: 'Equinix Brasil Soluções de TI',
-    costCenter: 'TI & Infraestrutura',
-    category: 'Infraestrutura Tecnológica',
-    amount: 34800.00,
-    dueDate: '2026-10-10',
-    status: 'CONFIRMADO',
-    paymentMethod: 'Boleto Bancário'
-  },
-  {
-    id: 'fin-02',
-    code: 'CR-2026-0941',
-    type: 'RECEBER',
-    title: 'Taxa de Conveniência e Bilheteria Festival Curitiba Sounds',
-    entityName: 'Live Nation Entretenimento Brasil',
-    costCenter: 'Operações de Grandes Eventos',
-    category: 'Receita Operacional Bruta',
-    amount: 185600.00,
-    dueDate: '2026-10-12',
-    status: 'PREVISTO',
-    paymentMethod: 'PIX Cobrança'
-  },
-  {
-    id: 'fin-03',
-    code: 'CP-2026-1045',
-    type: 'PAGAR',
-    title: 'Fornecimento de Bobinas Térmicas e Pulseiras RFID',
-    entityName: 'Gráfica Segurança do Sul Ltda.',
-    costCenter: 'Suprimentos & Insumos',
-    category: 'Custos Diretos de Ingressos',
-    amount: 12450.00,
-    dueDate: '2026-10-15',
-    status: 'PREVISTO',
-    paymentMethod: 'TED Bancária'
-  },
-  {
-    id: 'fin-04',
-    code: 'CR-2026-0942',
-    type: 'RECEBER',
-    title: 'Faturamento Mensal Teatro Positivo (Contrato Anual)',
-    entityName: 'Teatro Positivo Curitiba',
-    costCenter: 'Casas de Espetáculos & Teatros',
-    category: 'Receita Recorrente SaaS/Taxa',
-    amount: 45000.00,
-    dueDate: '2026-10-20',
-    status: 'CONFIRMADO',
-    paymentMethod: 'Boleto Registrado'
-  },
-  {
-    id: 'fin-05',
-    code: 'CP-2026-1046',
-    type: 'PAGAR',
-    title: 'Folha de Pagamento Consolidada + Encargos FGTS/INSS',
-    entityName: 'Colaboradores DiskIngressos Matriz',
-    costCenter: 'Recursos Humanos Corporativo',
-    category: 'Despesas com Pessoal',
-    amount: 289400.00,
-    dueDate: '2026-10-05',
-    status: 'PAGO',
-    paymentMethod: 'Folha Automática Itaú'
-  }
-];
-
 financeRouter.get('/records', (req: Request, res: Response) => {
-  const { type, status } = req.query;
-  let result = [...financialRecords];
-  if (type && type !== 'ALL') {
-    result = result.filter(r => r.type === type);
+  try {
+    const { type, status } = req.query;
+    let query = 'SELECT * FROM financial_records WHERE 1=1';
+    const params: any[] = [];
+
+    if (type && type !== 'ALL') {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+    if (status && status !== 'ALL') {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY due_date ASC';
+    const rows = db.prepare(query).all(...params) as any[];
+
+    const records = rows.map(r => ({
+      id: r.id,
+      companyId: r.company_id,
+      code: r.code,
+      type: r.type,
+      title: r.title,
+      entityName: r.entity_name,
+      costCenter: r.cost_center,
+      category: r.category,
+      amount: r.amount,
+      dueDate: r.due_date,
+      paymentDate: r.payment_date,
+      status: r.status,
+      paymentMethod: r.payment_method,
+      createdAt: r.created_at
+    }));
+
+    return res.json({ total: records.length, records });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
-  if (status && status !== 'ALL') {
-    result = result.filter(r => r.status === status);
-  }
-  return res.json({ total: result.length, records: result });
 });
 
 financeRouter.post('/records', (req: Request, res: Response) => {
-  const { type, title, entityName, costCenter, category, amount, dueDate, paymentMethod } = req.body;
+  try {
+    const { type, title, entityName, costCenter, category, amount, dueDate, paymentMethod, userName, userRole } = req.body;
 
-  if (!title || !amount || !dueDate) {
-    return res.status(400).json({ error: 'Campos obrigatórios: title, amount, dueDate.' });
+    if (!title || !amount || !dueDate) {
+      return res.status(400).json({ error: 'Campos obrigatórios: title, amount, dueDate.' });
+    }
+
+    const codePrefix = type === 'RECEBER' ? 'CR' : 'CP';
+    const id = `fin-${Date.now()}`;
+    const code = `${codePrefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const parsedAmount = parseFloat(amount);
+    const recType = type || 'PAGAR';
+    const recEntity = entityName || 'Entidade Corporativa';
+    const recCostCenter = costCenter || 'Administrativo Geral';
+    const recCategory = category || 'Despesas Gerais';
+    const recStatus = 'PREVISTO';
+    const recMethod = paymentMethod || 'PIX';
+
+    db.prepare(`
+      INSERT INTO financial_records (id, company_id, code, type, title, entity_name, cost_center, category, amount, due_date, status, payment_method)
+      VALUES (?, 'comp-1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, code, recType, title, recEntity, recCostCenter, recCategory, parsedAmount, dueDate, recStatus, recMethod);
+
+    // Registro de auditoria
+    logAudit(
+      userName || 'Operador Financeiro',
+      userRole || 'Financeiro',
+      'CREATE',
+      'Financeiro',
+      `Lançamento ${code}`,
+      `Criado lançamento ${recType} no valor de R$ ${parsedAmount.toFixed(2)} (${title})`,
+      req.ip || '189.44.120.10'
+    );
+
+    const newRecord = {
+      id,
+      code,
+      type: recType,
+      title,
+      entityName: recEntity,
+      costCenter: recCostCenter,
+      category: recCategory,
+      amount: parsedAmount,
+      dueDate,
+      status: recStatus,
+      paymentMethod: recMethod
+    };
+
+    return res.status(201).json(newRecord);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
-
-  const codePrefix = type === 'RECEBER' ? 'CR' : 'CP';
-  const newRecord = {
-    id: `fin-${Date.now()}`,
-    code: `${codePrefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-    type: type || 'PAGAR',
-    title,
-    entityName: entityName || 'Entidade Corporativa',
-    costCenter: costCenter || 'Administrativo Geral',
-    category: category || 'Despesas Gerais',
-    amount: parseFloat(amount),
-    dueDate,
-    status: 'PREVISTO',
-    paymentMethod: paymentMethod || 'PIX'
-  };
-
-  financialRecords.unshift(newRecord);
-
-  // Registro de auditoria
-  auditLogs.unshift({
-    id: `aud-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    userName: req.body.userName || 'Sistema Financeiro',
-    userRole: 'Financeiro',
-    action: 'CREATE',
-    module: 'Financeiro',
-    entity: `Lançamento ${newRecord.code}`,
-    description: `Criado lançamento ${newRecord.type} no valor de R$ ${newRecord.amount.toFixed(2)} (${newRecord.title})`,
-    ipAddress: req.ip || '189.44.120.10'
-  });
-
-  return res.status(201).json(newRecord);
 });
 
 financeRouter.patch('/records/:id/pay', (req: Request, res: Response) => {
-  const { id } = req.params;
-  const index = financialRecords.findIndex(r => r.id === id);
+  try {
+    const { id } = req.params;
+    const { userName, userRole, bankId } = req.body;
 
-  if (index === -1) {
-    return res.status(404).json({ error: 'Lançamento financeiro não encontrado.' });
+    const record = db.prepare('SELECT * FROM financial_records WHERE id = ?').get(id) as any;
+    if (!record) {
+      return res.status(404).json({ error: 'Lançamento financeiro não encontrado.' });
+    }
+
+    const paymentDate = new Date().toISOString().substring(0, 10);
+    db.prepare(`
+      UPDATE financial_records
+      SET status = 'PAGO', payment_date = ?
+      WHERE id = ?
+    `).run(paymentDate, id);
+
+    // Atualiza saldo bancário correspondente se informado
+    if (bankId) {
+      if (record.type === 'PAGAR') {
+        db.prepare('UPDATE bank_accounts SET current_balance = current_balance - ? WHERE id = ?').run(record.amount, bankId);
+      } else {
+        db.prepare('UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?').run(record.amount, bankId);
+      }
+    }
+
+    logAudit(
+      userName || 'Operador Financeiro',
+      userRole || 'Financeiro',
+      'UPDATE',
+      'Financeiro',
+      `Lançamento ${record.code}`,
+      `Baixa / liquidação financeira efetuada no valor de R$ ${record.amount.toFixed(2)}`,
+      req.ip || '189.44.120.10'
+    );
+
+    return res.json({
+      success: true,
+      record: {
+        ...record,
+        status: 'PAGO',
+        paymentDate
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
+});
 
-  financialRecords[index].status = 'PAGO';
-
-  auditLogs.unshift({
-    id: `aud-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    userName: req.body.userName || 'Operador Financeiro',
-    userRole: 'Financeiro',
-    action: 'UPDATE',
-    module: 'Financeiro',
-    entity: `Lançamento ${financialRecords[index].code}`,
-    description: `Baixa / liquidação financeira efetuada no valor de R$ ${financialRecords[index].amount.toFixed(2)}`,
-    ipAddress: req.ip || '189.44.120.10'
-  });
-
-  return res.json({ success: true, record: financialRecords[index] });
+financeRouter.get('/accounts', (_req: Request, res: Response) => {
+  try {
+    const accounts = db.prepare('SELECT * FROM bank_accounts WHERE active = 1').all() as any[];
+    return res.json({ accounts });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 financeRouter.get('/summary', (_req: Request, res: Response) => {
-  const totalReceitas = financialRecords.filter(f => f.type === 'RECEBER').reduce((a, b) => a + b.amount, 0);
-  const totalDespesas = financialRecords.filter(f => f.type === 'PAGAR').reduce((a, b) => a + b.amount, 0);
-  const saldoLiquido = totalReceitas - totalDespesas;
+  try {
+    const recSum = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM financial_records WHERE type = 'RECEBER'`).get() as { total: number };
+    const paySum = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM financial_records WHERE type = 'PAGAR'`).get() as { total: number };
+    const bankSum = db.prepare(`SELECT COALESCE(SUM(current_balance), 0) as total FROM bank_accounts WHERE active = 1`).get() as { total: number };
 
-  return res.json({
-    totalReceitas,
-    totalDespesas,
-    saldoLiquido,
-    disponibilidadeBancaria: 1840500.00,
-    ebitdaProjetadoPercent: 24.8
-  });
+    const totalReceitas = recSum.total;
+    const totalDespesas = paySum.total;
+    const saldoLiquido = totalReceitas - totalDespesas;
+    const disponibilidadeBancaria = bankSum.total;
+    const ebitdaProjetadoPercent = totalReceitas > 0 ? Number(((saldoLiquido / totalReceitas) * 100).toFixed(1)) : 24.8;
+
+    return res.json({
+      totalReceitas,
+      totalDespesas,
+      saldoLiquido,
+      disponibilidadeBancaria,
+      ebitdaProjetadoPercent
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
 });
