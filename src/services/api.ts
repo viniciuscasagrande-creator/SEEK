@@ -1,5 +1,5 @@
 // SEEK — Cliente HTTP & Camada de Serviços da API
-// Hiper Pacote 3: Gestão Corporativa Integrada (Full-Stack Integrado)
+// Hiper Pacote 4: Administração Empresarial (Full-Stack Integrado)
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
@@ -355,6 +355,374 @@ export const api = {
       return null;
     } catch {
       return null;
+    }
+  },
+
+  // PACOTE 4: RH & Departamento Pessoal
+  async getEmployees(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/hr/employees`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.employees || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createEmployee(employee: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/hr/employees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(employee)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getTimeRecords(employeeId?: string): Promise<any[]> {
+    try {
+      const url = employeeId ? `${API_BASE_URL}/hr/time-records?employeeId=${employeeId}` : `${API_BASE_URL}/hr/time-records`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.records || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async clockTimeRecord(data: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/hr/time-records/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getVacations(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/hr/vacations`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.vacations || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createVacationRequest(data: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/hr/vacations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getOrganogram(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/hr/organogram`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  // PACOTE 4: Estoque & Patrimônio
+  async getInventoryItems(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory/items`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.items || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createInventoryMovement(data: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory/movements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getAssets(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory/assets`);
+      if (res.ok) return await res.json();
+      return { assets: [], total: 0, totalBookValue: 0 };
+    } catch {
+      return { assets: [], total: 0, totalBookValue: 0 };
+    }
+  },
+
+  async createAsset(asset: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory/assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(asset)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async signAssetCustody(id: string, userName?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory/assets/${id}/custody`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // PACOTE 4: Projetos & Operações
+  async getProjects(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.projects || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createProject(project: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getProjectTasks(projectId?: string): Promise<any[]> {
+    try {
+      const url = projectId ? `${API_BASE_URL}/projects/tasks?projectId=${projectId}` : `${API_BASE_URL}/projects/tasks`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.tasks || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async updateProjectTaskStatus(id: string, status: string, userName?: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/tasks/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, userName })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async createProjectTask(task: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  // PACOTE 4: Service Desk Interno
+  async getTickets(department?: string, status?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (department && department !== 'ALL') params.append('department', department);
+      if (status && status !== 'ALL') params.append('status', status);
+
+      const res = await fetch(`${API_BASE_URL}/service-desk/tickets?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.tickets || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createTicket(ticket: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/service-desk/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticket)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateTicketStatus(id: string, status: string, assignedTo?: string, userName?: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/service-desk/tickets/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, assignedTo, userName })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  // PACOTE 4: Documentos Corporativos (GED)
+  async getDocuments(category?: string, department?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (category && category !== 'ALL') params.append('category', category);
+      if (department && department !== 'ALL') params.append('department', department);
+
+      const res = await fetch(`${API_BASE_URL}/documents?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.documents || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createDocument(doc: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  // PACOTE 4: Governança & Riscos / LGPD
+  async getRisks(category?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (category && category !== 'ALL') params.append('category', category);
+
+      const res = await fetch(`${API_BASE_URL}/governance/risks?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.risks || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createRisk(risk: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/governance/risks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(risk)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  // PACOTE 4: Notificações
+  async getNotifications(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications`);
+      if (res.ok) return await res.json();
+      return { notifications: [], total: 0, unreadCount: 0 };
+    } catch {
+      return { notifications: [], total: 0, unreadCount: 0 };
+    }
+  },
+
+  async markNotificationRead(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+        method: 'PATCH'
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async markAllNotificationsRead(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications/read-all`, {
+        method: 'POST'
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   },
 

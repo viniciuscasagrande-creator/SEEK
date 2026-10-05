@@ -1,5 +1,5 @@
 // SEEK Backend — Banco de Dados Local Persistente (SQLite / PostgreSQL Ready)
-// Hiper Pacote 3: Gestão Corporativa Integrada (13 Perfis RBAC, Workflows, Compras, Contratos, CRM, Financeiro, Auditoria)
+// Hiper Pacote 4: Administração Empresarial (RH/DP, Ponto, Organograma, Estoque, Patrimônio, Projetos, Service Desk, GED, Governança, Notificações)
 
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
@@ -20,7 +20,7 @@ export const db = new Database(dbPath);
 // Habilita WAL mode para alta performance e concorrência no SQLite
 db.pragma('journal_mode = WAL');
 
-// 1. INICIALIZAÇÃO DAS TABELAS DO SEEK CORE
+// 1. INICIALIZAÇÃO DAS TABELAS DO SEEK CORE E ADMINISTRAÇÃO EMPRESARIAL
 export function initializeDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS companies (
@@ -151,7 +151,7 @@ export function initializeDatabase() {
       requester_name TEXT NOT NULL,
       supplier_name TEXT NOT NULL,
       total_amount REAL NOT NULL,
-      status TEXT NOT NULL DEFAULT 'PENDENTE_APROVACAO', -- COTACAO, PENDENTE_APROVACAO, APROVADO, RECEBIDO, REJEITADO
+      status TEXT NOT NULL DEFAULT 'PENDENTE_APROVACAO',
       required_date TEXT,
       items_json TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -161,13 +161,13 @@ export function initializeDatabase() {
       id TEXT PRIMARY KEY,
       contract_number TEXT UNIQUE NOT NULL,
       party_name TEXT NOT NULL,
-      type TEXT NOT NULL, -- CLIENTE, FORNECEDOR, PRESTADOR, LOCACAO
+      type TEXT NOT NULL,
       monthly_value REAL NOT NULL,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
       days_remaining INTEGER,
       readjustment_index TEXT DEFAULT 'IPCA',
-      status TEXT NOT NULL DEFAULT 'VIGENTE', -- VIGENTE, VENCENDO, RENOVADO, RESCINDIDO
+      status TEXT NOT NULL DEFAULT 'VIGENTE',
       signed_date TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -182,7 +182,7 @@ export function initializeDatabase() {
       requester_name TEXT NOT NULL,
       requester_role TEXT,
       amount REAL,
-      status TEXT NOT NULL DEFAULT 'PENDENTE', -- PENDENTE, APROVADO, REJEITADO
+      status TEXT NOT NULL DEFAULT 'PENDENTE',
       priority TEXT NOT NULL DEFAULT 'MEDIA',
       current_step INTEGER DEFAULT 1,
       total_steps INTEGER DEFAULT 2,
@@ -206,19 +206,170 @@ export function initializeDatabase() {
       timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
       user_name TEXT NOT NULL,
       user_role TEXT NOT NULL,
-      action TEXT NOT NULL, -- CREATE, UPDATE, DELETE, APPROVE, REJECT, LOGIN
+      action TEXT NOT NULL,
       module TEXT NOT NULL,
       entity TEXT NOT NULL,
       description TEXT NOT NULL,
       ip_address TEXT DEFAULT '189.44.120.10'
     );
 
+    -- PACOTE 4: RH & DEPARTAMENTO PESSOAL
+    CREATE TABLE IF NOT EXISTS employees (
+      id TEXT PRIMARY KEY,
+      company_id TEXT REFERENCES companies(id),
+      registration_number TEXT UNIQUE NOT NULL,
+      full_name TEXT NOT NULL,
+      job_title TEXT NOT NULL,
+      department TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      regime TEXT NOT NULL, -- CLT, PJ, ESTAGIO
+      admission_date TEXT NOT NULL,
+      salary REAL NOT NULL,
+      vacation_balance_days INTEGER DEFAULT 30,
+      bank_hours_balance REAL DEFAULT 0, -- Em horas
+      manager_name TEXT,
+      active INTEGER DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS time_records (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT REFERENCES employees(id),
+      date TEXT NOT NULL,
+      clock_in TEXT,
+      clock_out_lunch TEXT,
+      clock_in_lunch TEXT,
+      clock_out TEXT,
+      total_hours REAL DEFAULT 8.0,
+      balance_minutes INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'NORMAL' -- NORMAL, AJUSTADO, PENDENTE
+    );
+
+    CREATE TABLE IF NOT EXISTS vacation_requests (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT REFERENCES employees(id),
+      employee_name TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      days_count INTEGER NOT NULL,
+      status TEXT DEFAULT 'PENDENTE', -- PENDENTE, APROVADO, REJEITADO
+      approval_id TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 4: PATRIMÔNIO & ATIVOS IMOBILIZADOS
+    CREATE TABLE IF NOT EXISTS assets (
+      id TEXT PRIMARY KEY,
+      tag_number TEXT UNIQUE NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL, -- TI, MOBILIARIO, EQUIPAMENTO, LICENCA
+      location TEXT NOT NULL,
+      responsible_name TEXT NOT NULL,
+      acquisition_cost REAL NOT NULL,
+      current_book_value REAL NOT NULL,
+      custodian_signed INTEGER DEFAULT 1,
+      status TEXT DEFAULT 'ATIVO' -- ATIVO, EM_MANUTENCAO, BAIXADO
+    );
+
+    -- PACOTE 4: ESTOQUE & ALMOXARIFADO
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      current_stock INTEGER NOT NULL,
+      min_stock INTEGER NOT NULL,
+      unit TEXT NOT NULL,
+      unit_cost REAL NOT NULL,
+      location TEXT NOT NULL,
+      status TEXT DEFAULT 'NORMAL' -- NORMAL, BAIXO
+    );
+
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id TEXT PRIMARY KEY,
+      item_id TEXT REFERENCES inventory_items(id),
+      item_name TEXT NOT NULL,
+      type TEXT NOT NULL, -- ENTRADA, SAIDA
+      quantity INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      requester_name TEXT NOT NULL,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 4: PROJETOS & OPERAÇÕES
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      department TEXT NOT NULL,
+      leader_name TEXT NOT NULL,
+      progress INTEGER DEFAULT 0,
+      budget REAL NOT NULL,
+      spent REAL NOT NULL,
+      deadline TEXT NOT NULL,
+      status TEXT DEFAULT 'EM_ANDAMENTO' -- PLANEJAMENTO, EM_ANDAMENTO, CONCLUIDO, PAUSADO
+    );
+
+    CREATE TABLE IF NOT EXISTS project_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT REFERENCES projects(id),
+      title TEXT NOT NULL,
+      assignee_name TEXT NOT NULL,
+      due_date TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      status TEXT DEFAULT 'A_FAZER', -- A_FAZER, EM_ANDAMENTO, CONCLUIDA
+      hours_estimated REAL DEFAULT 8.0,
+      hours_spent REAL DEFAULT 0.0
+    );
+
+    -- PACOTE 4: SERVICE DESK INTERNO
+    CREATE TABLE IF NOT EXISTS tickets (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      department TEXT NOT NULL, -- TI, RH, Financeiro, Jurídico, Administrativo
+      status TEXT DEFAULT 'ABERTO', -- ABERTO, EM_ATENDIMENTO, PENDENTE, RESOLVIDO
+      priority TEXT NOT NULL, -- BAIXA, MEDIA, ALTA, CRITICA
+      sla_hours_remaining INTEGER NOT NULL,
+      requester_name TEXT NOT NULL,
+      assigned_to TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 4: DOCUMENTOS CORPORATIVOS (GED)
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL, -- POLITICA, CONTRATO, ATA, TERMO, FISCAL
+      department TEXT NOT NULL,
+      version TEXT NOT NULL,
+      file_size TEXT NOT NULL,
+      access_level TEXT NOT NULL,
+      status TEXT DEFAULT 'VIGENTE',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 4: GOVERNANÇA & RISCOS (COMPLIANCE / LGPD)
+    CREATE TABLE IF NOT EXISTS risks_compliance (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      category TEXT NOT NULL, -- LGPD, FINANCEIRO, OPERACIONAL, JURIDICO
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      probability TEXT NOT NULL, -- BAIXA, MEDIA, ALTA
+      impact TEXT NOT NULL, -- BAIXO, MEDIO, ALTO
+      risk_level TEXT NOT NULL, -- BAIXO, MEDIO, ALTO, CRITICO
+      mitigation_plan TEXT NOT NULL,
+      status TEXT DEFAULT 'MONITORADO'
+    );
+
+    -- PACOTE 4: CENTRAL DE NOTIFICAÇÕES
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT,
       title TEXT NOT NULL,
       message TEXT NOT NULL,
-      type TEXT NOT NULL,
+      type TEXT NOT NULL, -- INFO, ALERTA, APROVACAO, PRAZO
       link_route TEXT,
       read INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -487,7 +638,7 @@ function seedInitialData() {
     `).run();
   }
 
-  // 5. SEED DE DADOS OPERACIONAIS (CRM, FINANCEIRO, CONTRATOS, APROVAÇÕES)
+  // 5. SEED DE CRM, FINANCEIRO, CONTRATOS, APROVAÇÕES
   const crmCheck = db.prepare('SELECT COUNT(*) as count FROM crm_deals').get() as { count: number };
   if (crmCheck.count === 0) {
     db.prepare(`
@@ -558,12 +709,116 @@ function seedInitialData() {
         ('aud-03', '2026-10-05 14:10:30', 'Lucas Bertolli Costa', 'Líder Comercial & CRM', 'UPDATE', 'CRM & Comercial', 'Allianz Parque Stadium', 'Avançou estágio de Proposta para Negociação (R$ 650.000,00)')
     `).run();
   }
+
+  // 6. SEED PACOTE 4: RH, PONTO, PATRIMÔNIO, ESTOQUE, PROJETOS, SERVICE DESK, GED, GOVERNANÇA, NOTIFICAÇÕES
+  const empCheck = db.prepare('SELECT COUNT(*) as count FROM employees').get() as { count: number };
+  if (empCheck.count === 0) {
+    // Colaboradores
+    db.prepare(`
+      INSERT INTO employees (id, company_id, registration_number, full_name, job_title, department, branch, regime, admission_date, salary, vacation_balance_days, bank_hours_balance, manager_name)
+      VALUES
+        ('emp-01', 'comp-1', 'MAT-0001', 'Carlos Drummond de Castro', 'Administrador Geral', 'Tecnologia & Governança', 'Curitiba (Matriz)', 'CLT', '2021-03-01', 28500.00, 30, 0, 'Conselho de Administração'),
+        ('emp-02', 'comp-1', 'MAT-0002', 'Roberto Vianna Guimarães', 'Diretor Presidente / C-Level', 'Diretoria Executiva', 'Curitiba (Matriz)', 'CLT', '2020-01-15', 38000.00, 20, 0, 'Conselho de Administração'),
+        ('emp-03', 'comp-1', 'MAT-0015', 'Eduardo Martins Fontes', 'Gestor de Operações & TI', 'Operações de Eventos', 'Curitiba (Matriz)', 'CLT', '2022-04-10', 14500.00, 15, 12.5, 'Roberto Vianna Guimarães'),
+        ('emp-04', 'comp-1', 'MAT-0045', 'Helena Silveira Ramos', 'Gerente Financeira', 'Financeiro & Controladoria', 'Curitiba (Matriz)', 'CLT', '2022-08-01', 16000.00, 22, -2.0, 'Roberto Vianna Guimarães'),
+        ('emp-05', 'comp-1', 'MAT-0130', 'Lucas Bertolli Costa', 'Líder Comercial & CRM', 'Comercial & CRM', 'São Paulo (Faria Lima)', 'PJ', '2023-01-10', 17500.00, 0, 0, 'Roberto Vianna Guimarães'),
+        ('emp-06', 'comp-1', 'MAT-0088', 'Camila Duarte', 'Gerente de RH & DP', 'Recursos Humanos & DP', 'Curitiba (Matriz)', 'CLT', '2022-11-15', 13800.00, 18, 4.0, 'Roberto Vianna Guimarães'),
+        ('emp-07', 'comp-1', 'MAT-0164', 'Beatriz Castro Lima', 'Analista Operacional Pleno', 'Operações de Eventos', 'Curitiba (Matriz)', 'CLT', '2023-06-01', 5800.00, 25, 8.5, 'Eduardo Martins Fontes')
+    `).run();
+
+    // Espelho de Ponto
+    db.prepare(`
+      INSERT INTO time_records (id, employee_id, date, clock_in, clock_out_lunch, clock_in_lunch, clock_out, total_hours, balance_minutes, status)
+      VALUES
+        ('ponto-01', 'emp-07', '2026-10-01', '08:58', '12:05', '13:02', '18:15', 8.25, 15, 'NORMAL'),
+        ('ponto-02', 'emp-07', '2026-10-02', '09:02', '12:00', '13:00', '18:30', 8.50, 30, 'NORMAL'),
+        ('ponto-03', 'emp-07', '2026-10-05', '08:55', '12:00', '13:05', '18:00', 8.00, 0, 'NORMAL')
+    `).run();
+
+    // Patrimônio & Ativos
+    db.prepare(`
+      INSERT INTO assets (id, tag_number, description, category, location, responsible_name, acquisition_cost, current_book_value, custodian_signed, status)
+      VALUES
+        ('ast-01', 'PAT-2024-0012', 'Servidor Rack Dell PowerEdge R750xs Dual Xeon', 'TI', 'Datacenter Curitiba Matriz', 'Alexandre Magno (TI)', 45800.00, 32060.00, 1, 'ATIVO'),
+        ('ast-02', 'PAT-2025-0089', 'Lote de 20 Catracas Eletrônicas Portáteis Digicon', 'EQUIPAMENTO', 'Galpão de Eventos Curitiba', 'Beatriz Castro Lima', 48900.00, 41565.00, 1, 'ATIVO'),
+        ('ast-03', 'PAT-2026-0045', 'MacBook Pro 16 M3 Max 36GB para Líder Comercial', 'TI', 'Filial São Paulo (Faria Lima)', 'Lucas Bertolli Costa', 24500.00, 22050.00, 1, 'ATIVO'),
+        ('ast-04', 'PAT-2023-0104', 'Mobiliário Estações de Trabalho Open Space (12 posições)', 'MOBILIARIO', 'Sede Curitiba 3º Andar', 'Camila Duarte (RH)', 18000.00, 10800.00, 1, 'ATIVO')
+    `).run();
+
+    // Estoque & Almoxarifado
+    db.prepare(`
+      INSERT INTO inventory_items (id, code, name, category, current_stock, min_stock, unit, unit_cost, location, status)
+      VALUES
+        ('inv-01', 'MAT-BOB-01', 'Bobinas Térmicas Ticket 80x40mm (Caixa 30 un)', 'Insumos de Bilheteria', 450, 100, 'CX', 120.00, 'Curitiba Almoxarifado A', 'NORMAL'),
+        ('inv-02', 'MAT-RFID-02', 'Pulseiras Tyvek com Chip RFID NTAG213 Homologado', 'Insumos de Controle', 85000, 20000, 'UN', 0.65, 'Curitiba Almoxarifado A', 'NORMAL'),
+        ('inv-03', 'MAT-SCN-03', 'Scanners Ópticos Manuais QR Code / Barcode USB', 'Equipamentos Portáteis', 18, 25, 'UN', 340.00, 'Curitiba Almoxarifado B', 'BAIXO'),
+        ('inv-04', 'MAT-CRD-04', 'Cordões e Crachás VIP com Presilha Jacaré', 'Credenciamento', 12000, 3000, 'UN', 1.80, 'Curitiba Almoxarifado A', 'NORMAL')
+    `).run();
+
+    // Projetos Estratégicos
+    db.prepare(`
+      INSERT INTO projects (id, code, name, department, leader_name, progress, budget, spent, deadline, status)
+      VALUES
+        ('prj-01', 'PRJ-2026-01', 'Implantação da Plataforma Integrada SEEK V1', 'Tecnologia & Operações', 'Eduardo Martins Fontes', 90, 150000.00, 124500.00, '2026-11-15', 'EM_ANDAMENTO'),
+        ('prj-02', 'PRJ-2026-02', 'Expansão Operacional Filial São Paulo (Faria Lima)', 'Diretoria & Comercial', 'Lucas Bertolli Costa', 65, 450000.00, 298000.00, '2026-12-30', 'EM_ANDAMENTO'),
+        ('prj-03', 'PRJ-2026-03', 'Operação de Bilheteria & Acessos Festival Curitiba Sounds', 'Operações de Eventos', 'Beatriz Castro Lima', 95, 80000.00, 78500.00, '2026-10-20', 'EM_ANDAMENTO')
+    `).run();
+
+    // Tarefas de Projetos
+    db.prepare(`
+      INSERT INTO project_tasks (id, project_id, title, assignee_name, due_date, priority, status, hours_estimated, hours_spent)
+      VALUES
+        ('tsk-01', 'prj-01', 'Validação das 13 Alçadas de Segurança no Core SQLite', 'Alexandre Magno', '2026-10-10', 'ALTA', 'CONCLUIDA', 16, 14),
+        ('tsk-02', 'prj-01', 'Treinamento de Gestores nos Módulos de Compras e Contratos', 'Camila Duarte', '2026-10-18', 'MEDIA', 'EM_ANDAMENTO', 20, 8),
+        ('tsk-03', 'prj-02', 'Contratação e Onboarding da Equipe Comercial SP', 'Camila Duarte', '2026-10-25', 'ALTA', 'EM_ANDAMENTO', 40, 28),
+        ('tsk-04', 'prj-03', 'Homologação e Carga das 45 Catracas Faciais na Arena', 'Beatriz Castro Lima', '2026-10-14', 'CRITICA', 'A_FAZER', 24, 0)
+    `).run();
+
+    // Service Desk Interno
+    db.prepare(`
+      INSERT INTO tickets (id, code, title, department, status, priority, sla_hours_remaining, requester_name, assigned_to)
+      VALUES
+        ('tkt-01', 'CH-2026-0882', 'Configuração de VPN e Certificado Digital A1 Filial SP', 'TI', 'EM_ATENDIMENTO', 'ALTA', 6, 'Lucas Bertolli Costa', 'Alexandre Magno'),
+        ('tkt-02', 'CH-2026-0883', 'Solicitação de Declaração de Rendimentos e Ponto 2026', 'RH', 'ABERTO', 'MEDIA', 22, 'Beatriz Castro Lima', 'Camila Duarte'),
+        ('tkt-03', 'CH-2026-0884', 'Revisão de Minuta de Aditivo Contratual Allianz Parque', 'Jurídico', 'EM_ATENDIMENTO', 'CRITICA', 3, 'Lucas Bertolli Costa', 'Dr. Fernando Araripe'),
+        ('tkt-04', 'CH-2026-0885', 'Liberação de Orçamento Emergencial para Pulseiras RFID', 'Financeiro', 'RESOLVIDO', 'ALTA', 0, 'Mariana Fontes Prado', 'Helena Silveira Ramos')
+    `).run();
+
+    // GED Corporativo
+    db.prepare(`
+      INSERT INTO documents (id, code, title, category, department, version, file_size, access_level, status)
+      VALUES
+        ('doc-01', 'DOC-POL-001', 'Política Geral de Governança, Alçadas e Aprovações SEEK', 'POLITICA', 'Diretoria & Compliance', 'v2.1', '1.8 MB', 'CORPORATIVO', 'VIGENTE'),
+        ('doc-02', 'DOC-LGPD-004', 'Manual de Boas Práticas e Proteção de Dados (LGPD)', 'POLITICA', 'Jurídico & TI', 'v1.4', '2.4 MB', 'CORPORATIVO', 'VIGENTE'),
+        ('doc-03', 'DOC-SOC-012', 'Estatuto Social Consolidado DiskIngressos S.A.', 'ATA', 'Jurídico', 'v3.0', '4.2 MB', 'RESTRITO', 'VIGENTE'),
+        ('doc-04', 'DOC-RH-008', 'Acordo Coletivo de Trabalho e Banco de Horas 2026/2027', 'TERMO', 'Recursos Humanos', 'v1.0', '950 KB', 'COLABORADORES', 'VIGENTE')
+    `).run();
+
+    // Governança & Riscos
+    db.prepare(`
+      INSERT INTO risks_compliance (id, code, category, title, description, probability, impact, risk_level, mitigation_plan, status)
+      VALUES
+        ('rsk-01', 'RSK-LGPD-01', 'LGPD', 'Vazamento acidental de dados de compradores de ingressos', 'BAIXA', 'ALTO', 'ALTO', 'Anonimização de CPF, logs de acesso auditados e criptografia de ponta a ponta.', 'MONITORADO'),
+        ('rsk-02', 'RSK-OPE-02', 'OPERACIONAL', 'Queda de link de internet durante validação em festivais', 'MEDIA', 'ALTO', 'CRITICO', 'Scanners operam em modo offline com sincronização assíncrona local por Wi-Fi redundante.', 'MONITORADO'),
+        ('rsk-03', 'RSK-FIN-03', 'FINANCEIRO', 'Inadimplência de taxa de bilheteria de promotores terceiros', 'BAIXA', 'MEDIO', 'MEDIO', 'Retenção automática no split bancário antes do repasse final do evento.', 'MITIGADO')
+    `).run();
+
+    // Notificações Iniciais
+    db.prepare(`
+      INSERT INTO notifications (id, user_id, title, message, type, link_route, read)
+      VALUES
+        ('notif-01', 'user-admin', 'Ordem de Compra OC-2026-0042 aguardando alçada', 'Aquisição de 15 catracas requer validação financeira e diretoria.', 'APROVACAO', 'approvals', 0),
+        ('notif-02', 'user-admin', 'Contrato CT-2024-0089 (Allianz Parque) vencendo em 27 dias', 'Janela de negociação do índice IPCA aberta.', 'ALERTA', 'contracts', 0),
+        ('notif-03', 'user-admin', 'Chamado CH-2026-0884 com SLA crítico (3 horas)', 'Revisão jurídica de minuta contratual.', 'PRAZO', 'service-desk', 0),
+        ('notif-04', 'user-admin', 'SEEK V1 Hiper Pacote 4 implantado com sucesso', 'Todos os módulos empresariais ativos e integrados.', 'INFO', 'inicio', 0)
+    `).run();
+  }
 }
 
 // Inicializa o banco automaticamente ao importar
 initializeDatabase();
 
-// 6. HELPER PARA AUDITORIA IMUTÁVEL
+// 7. HELPER PARA AUDITORIA IMUTÁVEL
 export function logAudit(userName: string, userRole: string, action: string, module: string, entity: string, description: string, ip: string = '189.44.120.10') {
   const id = `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);

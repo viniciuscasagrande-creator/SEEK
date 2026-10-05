@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Company, Branch, UserProfile, CorporateNotification, UserFavorite } from '../types/core';
 import { COMPANIES, BRANCHES, DEMO_PROFILES, INITIAL_NOTIFICATIONS, INITIAL_FAVORITES } from '../data/mockData';
+import { api } from '../services/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -20,6 +21,7 @@ interface AuthContextType {
   notifications: CorporateNotification[];
   unreadNotificationsCount: number;
   markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
   favorites: UserFavorite[];
   toggleFavorite: (moduleCode: string, title: string, route: string) => void;
   isFavorite: (moduleCode: string) => boolean;
@@ -34,6 +36,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<UserProfile>(DEMO_PROFILES[0]); // Padrão: Administrador Geral
   const [notifications, setNotifications] = useState<CorporateNotification[]>(INITIAL_NOTIFICATIONS);
   const [favorites, setFavorites] = useState<UserFavorite[]>(INITIAL_FAVORITES);
+
+  // Carregar notificações da API corporativa
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await api.getNotifications();
+        if (res && res.notifications && res.notifications.length > 0) {
+          setNotifications(res.notifications);
+        }
+      } catch {
+        // Usa mock
+      }
+    };
+    fetchNotifications();
+  }, []);
 
   // Verificação Dinâmica de Acesso RBAC / ABAC (Pacote 1)
   const hasPermission = (moduleKey: string, action: string = 'read'): boolean => {
@@ -92,10 +109,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const markNotificationAsRead = (id: string) => {
+  const markNotificationAsRead = async (id: string) => {
     setNotifications(prev =>
       prev.map(n => (n.id === id ? { ...n, read: true } : n))
     );
+    await api.markNotificationRead(id);
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    await api.markAllNotificationsRead();
   };
 
   const toggleFavorite = (moduleCode: string, title: string, route: string) => {
@@ -135,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         notifications,
         unreadNotificationsCount,
         markNotificationAsRead,
+        markAllNotificationsAsRead,
         favorites,
         toggleFavorite,
         isFavorite

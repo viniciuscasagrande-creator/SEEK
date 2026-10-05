@@ -8,6 +8,13 @@ import { crmRouter } from './routes/crm.routes.js';
 import { workflowRouter } from './routes/workflow.routes.js';
 import { purchasingRouter } from './routes/purchasing.routes.js';
 import { contractsRouter } from './routes/contracts.routes.js';
+import { hrRouter } from './routes/hr.routes.js';
+import { inventoryRouter } from './routes/inventory.routes.js';
+import { projectsRouter } from './routes/projects.routes.js';
+import { serviceDeskRouter } from './routes/serviceDesk.routes.js';
+import { documentsRouter } from './routes/documents.routes.js';
+import { governanceRouter } from './routes/governance.routes.js';
+import { notificationsRouter } from './routes/notifications.routes.js';
 import { seekAiRouter } from './routes/seekAi.routes.js';
 
 const app = express();
@@ -17,7 +24,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Rotas da API SEEK V1 (Hiper Pacote 3: Gestão Corporativa)
+// Rotas da API SEEK V1 (Hiper Pacote 4: Administração Empresarial)
 app.use('/api/auth', authRouter);
 app.use('/api/core', coreRouter);
 app.use('/api/finance', financeRouter);
@@ -25,6 +32,13 @@ app.use('/api/crm', crmRouter);
 app.use('/api/workflow', workflowRouter);
 app.use('/api/purchasing', purchasingRouter);
 app.use('/api/contracts', contractsRouter);
+app.use('/api/hr', hrRouter);
+app.use('/api/inventory', inventoryRouter);
+app.use('/api/projects', projectsRouter);
+app.use('/api/service-desk', serviceDeskRouter);
+app.use('/api/documents', documentsRouter);
+app.use('/api/governance', governanceRouter);
+app.use('/api/notifications', notificationsRouter);
 app.use('/api/seek-ai', seekAiRouter);
 
 // Endpoint Consolidado para o Dashboard Executivo C-Level
@@ -42,6 +56,10 @@ app.get('/api/dashboard', (_req, res) => {
 
     const pendingApprovals = db.prepare(`SELECT COUNT(*) as count FROM approvals WHERE status = 'PENDENTE'`).get() as { count: number };
     const pendingPurchases = db.prepare(`SELECT COUNT(*) as count FROM purchase_orders WHERE status = 'PENDENTE_APROVACAO'`).get() as { count: number };
+
+    const headcount = db.prepare('SELECT COUNT(*) as count FROM employees WHERE active = 1').get() as { count: number };
+    const openTickets = db.prepare(`SELECT COUNT(*) as count FROM tickets WHERE status != 'RESOLVIDO'`).get() as { count: number };
+    const totalAssetValue = db.prepare('SELECT COALESCE(SUM(current_book_value), 0) as total FROM assets WHERE status = "ATIVO"').get() as { total: number };
 
     const totalReceitas = recSum.total;
     const totalDespesas = paySum.total;
@@ -66,9 +84,14 @@ app.get('/api/dashboard', (_req, res) => {
         activeContractsCount: contractsBilling.count,
         expiringSoonCount: contractsExpiringSoon.count
       },
+      hr: {
+        headcount: headcount.count
+      },
       operations: {
         pendingApprovalsCount: pendingApprovals.count,
-        pendingPurchasesCount: pendingPurchases.count
+        pendingPurchasesCount: pendingPurchases.count,
+        openTicketsCount: openTickets.count,
+        totalAssetValue: totalAssetValue.total
       },
       timestamp: new Date().toISOString()
     });
@@ -82,8 +105,8 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ONLINE',
     system: 'SEEK — Gestão Corporativa Integrada',
-    package: 'Hiper Pacote 3: Gestão Corporativa',
-    version: '1.3.0-GESTAO',
+    package: 'Hiper Pacote 4: Administração Empresarial',
+    version: '1.4.0-EMPRESARIAL',
     timestamp: new Date().toISOString()
   });
 });

@@ -43,7 +43,8 @@ export const Header: React.FC<HeaderProps> = ({
     logout,
     notifications,
     unreadNotificationsCount,
-    markNotificationAsRead
+    markNotificationAsRead,
+    markAllNotificationsAsRead
   } = useAuth();
 
   const { pendingApprovalsCount } = useWorkflow();
@@ -152,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Bell className="h-4 w-4" />
             {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-xs">
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-xs animate-pulse">
                 {unreadNotificationsCount}
               </span>
             )}
@@ -160,15 +161,27 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Dropdown de Notificações */}
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-100">
+            <div className="absolute right-0 mt-2 w-84 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-100">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-                <span className="text-xs font-bold text-slate-800">Notificações Corporativas</span>
-                <span className="text-[10px] font-semibold text-slate-500">
-                  {unreadNotificationsCount} não lidas
-                </span>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-xs font-bold text-slate-800">Central de Notificações</span>
+                  {unreadNotificationsCount > 0 && (
+                    <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-800">
+                      {unreadNotificationsCount} nova(s)
+                    </span>
+                  )}
+                </div>
+                {unreadNotificationsCount > 0 && (
+                  <button
+                    onClick={() => markAllNotificationsAsRead()}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                  >
+                    Ler todas
+                  </button>
+                )}
               </div>
 
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div className="space-y-2 max-h-72 overflow-y-auto">
                 {notifications.map(n => (
                   <div
                     key={n.id}
@@ -177,17 +190,51 @@ export const Header: React.FC<HeaderProps> = ({
                       if (n.linkRoute) onNavigate(n.linkRoute);
                       setNotificationsOpen(false);
                     }}
-                    className={`p-2 rounded-lg text-xs transition-colors cursor-pointer ${
-                      n.read ? 'bg-slate-50 text-slate-600' : 'bg-blue-50/70 border border-blue-100 text-slate-800'
+                    className={`p-2.5 rounded-lg text-xs transition-all cursor-pointer ${
+                      n.read
+                        ? 'bg-slate-50 text-slate-600 hover:bg-slate-100/80'
+                        : 'bg-blue-50/80 border border-blue-200 text-slate-900 hover:bg-blue-100/60 shadow-2xs'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold">{n.title}</span>
+                      <span className="font-bold text-slate-900">{n.title}</span>
                       <span className="text-[9px] text-slate-400">{n.createdAt}</span>
                     </div>
-                    <p className="text-[11px] text-slate-600 mt-0.5">{n.message}</p>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">{n.message}</p>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span
+                        className={`rounded px-1.5 py-0.2 text-[9px] font-bold ${
+                          n.type === 'APPROVAL'
+                            ? 'bg-amber-100 text-amber-800'
+                            : n.type === 'SLA_ALERT'
+                            ? 'bg-rose-100 text-rose-800'
+                            : n.type === 'CONTRACT'
+                            ? 'bg-indigo-100 text-indigo-800'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {n.type === 'APPROVAL'
+                          ? 'Alçada / Aprovação'
+                          : n.type === 'SLA_ALERT'
+                          ? 'Alerta SLA'
+                          : n.type === 'CONTRACT'
+                          ? 'Contratos'
+                          : 'Sistema'}
+                      </span>
+                      {n.linkRoute && (
+                        <span className="text-[10px] text-blue-600 font-semibold flex items-center space-x-0.5">
+                          <span>Acessar</span>
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
+                {notifications.length === 0 && (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    Nenhuma notificação no momento.
+                  </div>
+                )}
               </div>
             </div>
           )}
