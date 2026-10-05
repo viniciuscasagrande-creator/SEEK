@@ -501,7 +501,7 @@ export const HRModule: React.FC = () => {
                 <span className="text-[10px] text-slate-500 mt-1 block">Alçada Executiva: R$ 500.000,00</span>
               </div>
               <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
-                <span className="font-bold text-xs text-slate-900 block">Carlos Drummond de Castro</span>
+                <span className="font-bold text-xs text-slate-900 block">Administrador Geral</span>
                 <span className="text-[11px] text-blue-800 font-semibold block">Administrador Geral SEEK</span>
                 <span className="text-[10px] text-slate-500 mt-1 block">Alçada Global: R$ 1.000.000,00</span>
               </div>

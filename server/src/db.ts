@@ -717,7 +717,7 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO employees (id, company_id, registration_number, full_name, job_title, department, branch, regime, admission_date, salary, vacation_balance_days, bank_hours_balance, manager_name)
       VALUES
-        ('emp-01', 'comp-1', 'MAT-0001', 'Carlos Drummond de Castro', 'Administrador Geral', 'Tecnologia & Governança', 'Curitiba (Matriz)', 'CLT', '2021-03-01', 28500.00, 30, 0, 'Conselho de Administração'),
+        ('emp-01', 'comp-1', 'MAT-0001', 'Administrador Geral', 'Administrador Geral', 'Tecnologia & Governança', 'Curitiba (Matriz)', 'CLT', '2021-03-01', 28500.00, 30, 0, 'Conselho de Administração'),
         ('emp-02', 'comp-1', 'MAT-0002', 'Roberto Vianna Guimarães', 'Diretor Presidente / C-Level', 'Diretoria Executiva', 'Curitiba (Matriz)', 'CLT', '2020-01-15', 38000.00, 20, 0, 'Conselho de Administração'),
         ('emp-03', 'comp-1', 'MAT-0015', 'Eduardo Martins Fontes', 'Gestor de Operações & TI', 'Operações de Eventos', 'Curitiba (Matriz)', 'CLT', '2022-04-10', 14500.00, 15, 12.5, 'Roberto Vianna Guimarães'),
         ('emp-04', 'comp-1', 'MAT-0045', 'Helena Silveira Ramos', 'Gerente Financeira', 'Financeiro & Controladoria', 'Curitiba (Matriz)', 'CLT', '2022-08-01', 16000.00, 22, -2.0, 'Roberto Vianna Guimarães'),

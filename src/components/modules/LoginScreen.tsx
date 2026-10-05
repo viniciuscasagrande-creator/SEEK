@@ -94,7 +94,7 @@ export const LoginScreen: React.FC = () => {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="ex: carlos.drummond@diskingressos.com.br"
+                  placeholder="ex: admin@seek.local"
                   className="w-full rounded-xl border border-slate-700 bg-slate-800/80 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
                 />
               </div>

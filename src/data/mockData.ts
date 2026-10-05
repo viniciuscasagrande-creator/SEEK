@@ -88,8 +88,8 @@ export const BRANCHES: Branch[] = [
 export const DEMO_PROFILES: UserProfile[] = [
   {
     id: 'user-admin',
-    fullName: 'Carlos Drummond de Castro',
-    email: 'admin.carlos@diskingressos.com.br',
+    fullName: 'Administrador Geral',
+    email: 'admin@seek.local',
     registrationNumber: 'MAT-0001',
     roleLevel: 'ADMIN_GERAL',
     roleTitle: 'Administrador Geral',
@@ -708,7 +708,7 @@ export const EMPLOYEES: EmployeeProfile[] = [
   {
     id: 'emp-01',
     registrationNumber: 'MAT-0001',
-    fullName: 'Carlos Drummond de Castro',
+    fullName: 'Administrador Geral',
     jobTitle: 'Administrador Geral',
     department: 'Tecnologia & Governança',
     branch: 'Curitiba (Sede / Matriz)',
@@ -850,7 +850,7 @@ export const ASSETS_RECORDS: AssetRecord[] = [
     description: 'MacBook Pro 16" M3 Max 36GB RAM',
     category: 'TI',
     location: 'Diretoria Executiva',
-    responsibleName: 'Carlos Drummond de Castro',
+    responsibleName: 'Administrador Geral',
     acquisitionCost: 22000.00,
     currentBookValue: 18500.00,
     status: 'ATIVO'
@@ -900,7 +900,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: 'aud-01',
     timestamp: '2026-10-05 16:20:12',
-    userName: 'Carlos Drummond de Castro',
+    userName: 'Administrador Geral',
     userRole: 'Administrador Geral',
     action: 'APPROVE',
     module: 'Financeiro',
