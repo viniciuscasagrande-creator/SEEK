@@ -1,0 +1,546 @@
+// SEEK — Plataforma de Gestão Corporativa Integrada
+// Esquema de Banco de Dados Unificado (PostgreSQL / Prisma)
+// Suporte nativo a Multiempresa, Multifilial, RBAC, Auditoria e Motor de Aprovações
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. SEEK CORE: EMPRESAS, FILIAIS & ESTRUTURA
+// ==========================================
+
+model Company {
+  id              String         @id @default(uuid())
+  code            String         @unique // Ex: EMP-001
+  legalName       String         @map("legal_name") // Razão Social
+  tradeName       String         @map("trade_name") // Nome Fantasia
+  documentNumber  String         @unique @map("document_number") // CNPJ
+  stateRegistry   String?        @map("state_registry") // Inscrição Estadual
+  municipalRegistry String?      @map("municipal_registry") // Inscrição Municipal
+  isHolding       Boolean        @default(false) @map("is_holding")
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  branches        Branch[]
+  departments     Department[]
+  costCenters     CostCenter[]
+  users           User[]
+  businessPartners BusinessPartner[]
+  approvalRules   ApprovalRule[]
+  contracts       Contract[]
+  auditLogs       AuditLog[]
+
+  @@map("companies")
+}
+
+model Branch {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  code            String         // Ex: FIL-01
+  name            String         // Ex: Matriz Curitiba, Filial São Paulo
+  documentNumber  String         @map("document_number") // CNPJ filial
+  city            String
+  state           String
+  isHeadquarter   Boolean        @default(false) @map("is_headquarter")
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  departments     Department[]
+  bankAccounts    BankAccount[]
+  inventoryItems  InventoryItem[]
+  assets          Asset[]
+
+  @@unique([companyId, code])
+  @@map("branches")
+}
+
+model Department {
+  id          String         @id @default(uuid())
+  companyId   String         @map("company_id")
+  branchId    String?        @map("branch_id")
+  name        String         // Ex: Financeiro, RH, Comercial, Jurídico
+  code        String
+  managerId   String?        @map("manager_id") // Gestor responsável
+  budgetLimit Decimal?       @map("budget_limit") @db.Decimal(14, 2)
+  active      Boolean        @default(true)
+
+  company     Company        @relation(fields: [companyId], references: [id])
+  branch      Branch?        @relation(fields: [branchId], references: [id])
+  employees   Employee[]
+  costCenters CostCenter[]
+  serviceDeskTickets ServiceDeskTicket[]
+
+  @@unique([companyId, code])
+  @@map("departments")
+}
+
+model CostCenter {
+  id          String         @id @default(uuid())
+  companyId   String         @map("company_id")
+  departmentId String?       @map("department_id")
+  code        String         // Ex: 1.01.002
+  name        String         // Ex: Operações de Eventos, Marketing Corporativo
+  active      Boolean        @default(true)
+
+  company     Company        @relation(fields: [companyId], references: [id])
+  department  Department?    @relation(fields: [departmentId], references: [id])
+  financialRecords FinancialRecord[]
+
+  @@unique([companyId, code])
+  @@map("cost_centers")
+}
+
+// ==========================================
+// 2. SEEK CORE: USUÁRIOS, COLABORADORES & RBAC
+// ==========================================
+
+enum UserRoleLevel {
+  ADMIN_GLOBAL       // Acesso irrestrito a todas as empresas e configurações
+  DIRETORIA          // Acesso a indicadores executivos e alçadas de alto nível
+  GESTOR_DEPARTAMENTO// Gestão do departamento, aprovações de equipe
+  OPERACIONAL        // Execução de tarefas, abertura de chamados, visualização restrita
+  CONSULTA           // Apenas leitura
+}
+
+model User {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  email           String         @unique
+  passwordHash    String         @map("password_hash")
+  fullName        String         @map("full_name")
+  avatarUrl       String?        @map("avatar_url")
+  roleLevel       UserRoleLevel  @default(OPERACIONAL) @map("role_level")
+  active          Boolean        @default(true)
+  lastLoginAt     DateTime?      @map("last_login_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  company         Company        @relation(fields: [companyId], references: [id])
+  employee        Employee?      // Ligação 1:1 com Colaborador do RH
+  roles           UserRole[]
+  approvalRequestsInitiated ApprovalRequest[] @relation("RequestRequester")
+  approvalStepsDecided     ApprovalStep[]    @relation("StepDecider")
+  auditLogs       AuditLog[]
+  assignedTasks   ProjectTask[]  @relation("TaskAssignee")
+  ticketsCreated  ServiceDeskTicket[] @relation("TicketCreator")
+  ticketsAssigned ServiceDeskTicket[] @relation("TicketAssignee")
+
+  @@map("users")
+}
+
+model Role {
+  id          String         @id @default(uuid())
+  name        String         // Ex: Gestor de Compras, Analista Fiscal Pleno
+  description String?
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  id          String         @id @default(uuid())
+  roleId      String         @map("role_id")
+  module      String         // Ex: finance, crm, hr, purchases, contracts
+  action      String         // create, read, update, delete, approve, export
+
+  role        Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, module, action])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId      String         @map("user_id")
+  roleId      String         @map("role_id")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ==========================================
+// 3. MOTOR CENTRAL DE WORKFLOWS & APROVAÇÕES
+// ==========================================
+
+enum WorkflowEntityType {
+  COMPRA                 // Solicitação de Compra
+  PAGAMENTO              // Contas a Pagar / Despesa
+  CONTRATO               // Minuta de Contrato
+  FERIAS                 // Solicitação de Férias RH
+  REEMBOLSO              // Adiantamento ou Reembolso
+  DESCONTO_COMERCIAL     // Exceção de Margem Comercial
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model ApprovalRule {
+  id              String             @id @default(uuid())
+  companyId       String             @map("company_id")
+  entityType      WorkflowEntityType @map("entity_type")
+  minAmount       Decimal            @default(0) @map("min_amount") @db.Decimal(14, 2)
+  maxAmount       Decimal?           @map("max_amount") @db.Decimal(14, 2)
+  requiredLevel   UserRoleLevel      @map("required_level")
+  description     String
+  order           Int                @default(1) // Ordem de aprovação
+  active          Boolean            @default(true)
+
+  company         Company            @relation(fields: [companyId], references: [id])
+
+  @@map("approval_rules")
+}
+
+model ApprovalRequest {
+  id              String             @id @default(uuid())
+  companyId       String             @map("company_id")
+  entityType      WorkflowEntityType @map("entity_type")
+  entityId        String             @map("entity_id") // ID do registro original
+  requesterId     String             @map("requester_id")
+  title           String
+  description     String?
+  amount          Decimal?           @db.Decimal(14, 2)
+  status          ApprovalStatus     @default(PENDING)
+  currentStep     Int                @default(1) @map("current_step")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  requester       User               @relation("RequestRequester", fields: [requesterId], references: [id])
+  steps           ApprovalStep[]
+
+  @@map("approval_requests")
+}
+
+model ApprovalStep {
+  id              String             @id @default(uuid())
+  requestId       String             @map("request_id")
+  stepNumber      Int                @map("step_number")
+  deciderId       String?            @map("decider_id")
+  requiredLevel   UserRoleLevel      @map("required_level")
+  status          ApprovalStatus     @default(PENDING)
+  decisionDate    DateTime?          @map("decision_date")
+  comment         String?
+
+  request         ApprovalRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  decider         User?              @relation("StepDecider", fields: [deciderId], references: [id])
+
+  @@map("approval_steps")
+}
+
+// ==========================================
+// 4. PARCEIROS DE NEGÓCIOS UNIFICADOS (CRM + COMPRAS)
+// ==========================================
+
+enum PartnerType {
+  CLIENTE
+  FORNECEDOR
+  PARCEIRO
+  AMBOS
+}
+
+model BusinessPartner {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  type            PartnerType    @default(CLIENTE)
+  legalName       String         @map("legal_name")
+  tradeName       String?        @map("trade_name")
+  documentNumber  String         @map("document_number") // CNPJ ou CPF
+  email           String?
+  phone           String?
+  city            String?
+  state           String?
+  rating          Int?           @default(5) // Score de fornecedor / cliente
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  company         Company        @relation(fields: [companyId], references: [id])
+  financialRecords FinancialRecord[]
+  purchaseOrders  PurchaseOrder[]
+  contracts       Contract[]
+  crmDeals        CrmDeal[]
+
+  @@unique([companyId, documentNumber])
+  @@map("business_partners")
+}
+
+// ==========================================
+// 5. FINANCEIRO, CONTABILIDADE & FISCAL
+// ==========================================
+
+enum TransactionType {
+  PAGAR   // Despesa
+  RECEBER // Receita
+}
+
+enum FinancialStatus {
+  PREVISTO
+  CONFIRMADO
+  PAGO
+  CANCELADO
+  CONCILIADO
+}
+
+model FinancialRecord {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  partnerId       String?        @map("partner_id")
+  costCenterId    String?        @map("cost_center_id")
+  type            TransactionType
+  title           String
+  documentNumber  String?        @map("document_number")
+  category        String         // Plano de Contas Gerencial
+  amount          Decimal        @db.Decimal(14, 2)
+  paidAmount      Decimal?       @map("paid_amount") @db.Decimal(14, 2)
+  dueDate         DateTime       @map("due_date")
+  paymentDate     DateTime?      @map("payment_date")
+  status          FinancialStatus @default(PREVISTO)
+  paymentMethod   String?        @map("payment_method") // PIX, Boleto, TED, Cartao
+  bankAccountId   String?        @map("bank_account_id")
+  approvalId      String?        @map("approval_id")
+
+  partner         BusinessPartner? @relation(fields: [partnerId], references: [id])
+  costCenter      CostCenter?    @relation(fields: [costCenterId], references: [id])
+  bankAccount     BankAccount?   @relation(fields: [bankAccountId], references: [id])
+
+  @@map("financial_records")
+}
+
+model BankAccount {
+  id              String         @id @default(uuid())
+  branchId        String         @map("branch_id")
+  bankName        String         @map("bank_name")
+  bankCode        String         @map("bank_code")
+  agency          String
+  accountNumber   String         @map("account_number")
+  currentBalance  Decimal        @default(0) @map("current_balance") @db.Decimal(14, 2)
+  active          Boolean        @default(true)
+
+  branch          Branch         @relation(fields: [branchId], references: [id])
+  financialRecords FinancialRecord[]
+
+  @@map("bank_accounts")
+}
+
+// ==========================================
+// 6. RH & DEPARTAMENTO PESSOAL
+// ==========================================
+
+enum ContractRegime {
+  CLT
+  PJ
+  ESTAGIO
+  APRENDIZ
+}
+
+model Employee {
+  id              String         @id @default(uuid())
+  userId          String?        @unique @map("user_id") // Vínculo com acesso de usuário
+  departmentId    String         @map("department_id")
+  registrationNumber String      @unique @map("registration_number") // Matrícula
+  fullName        String         @map("full_name")
+  cpf             String         @unique
+  birthDate       DateTime?      @map("birth_date")
+  admissionDate   DateTime       @map("admission_date")
+  jobTitle        String         @map("job_title") // Cargo
+  regime          ContractRegime @default(CLT)
+  baseSalary      Decimal        @map("base_salary") @db.Decimal(14, 2)
+  vacationBalance Int            @default(30) @map("vacation_balance") // Dias restantes
+  active          Boolean        @default(true)
+
+  user            User?          @relation(fields: [userId], references: [id])
+  department      Department     @relation(fields: [departmentId], references: [id])
+  assignedAssets  Asset[]
+
+  @@map("employees")
+}
+
+// ==========================================
+// 7. COMPRAS, SUPRIMENTOS & PATRIMÔNIO
+// ==========================================
+
+model PurchaseOrder {
+  id              String         @id @default(uuid())
+  partnerId       String         @map("partner_id") // Fornecedor
+  code            String         @unique // Ex: OC-2026-089
+  title           String
+  totalAmount     Decimal        @map("total_amount") @db.Decimal(14, 2)
+  status          String         // DRAFT, PENDING_APPROVAL, APPROVED, RECEIVED
+  deliveryDeadline DateTime?     @map("delivery_deadline")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  supplier        BusinessPartner @relation(fields: [partnerId], references: [id])
+
+  @@map("purchase_orders")
+}
+
+model InventoryItem {
+  id              String         @id @default(uuid())
+  branchId        String         @map("branch_id")
+  sku             String         @unique
+  name            String
+  category        String
+  quantity        Int            @default(0)
+  minQuantity     Int            @default(5) @map("min_quantity")
+  unitCost        Decimal        @map("unit_cost") @db.Decimal(10, 2)
+
+  branch          Branch         @relation(fields: [branchId], references: [id])
+
+  @@map("inventory_items")
+}
+
+model Asset {
+  id              String         @id @default(uuid())
+  branchId        String         @map("branch_id")
+  responsibleId   String?        @map("responsible_id") // Colaborador responsável
+  tagNumber       String         @unique @map("tag_number") // Plaqueta patrimonial
+  description     String
+  category        String         // TI, Mobiliario, Veiculo, Equipamento
+  acquisitionDate DateTime       @map("acquisition_date")
+  acquisitionCost Decimal        @map("acquisition_cost") @db.Decimal(12, 2)
+  currentValue    Decimal        @map("current_value") @db.Decimal(12, 2)
+  status          String         // ATIVO, MANUTENCAO, BAIXADO
+
+  branch          Branch         @relation(fields: [branchId], references: [id])
+  responsible     Employee?      @relation(fields: [responsibleId], references: [id])
+
+  @@map("assets")
+}
+
+// ==========================================
+// 8. CRM & COMERCIAL
+// ==========================================
+
+enum DealStage {
+  PROSPECCAO
+  QUALIFICACAO
+  PROPOSTA
+  NEGOCIACAO
+  GANHO
+  PERDIDO
+}
+
+model CrmDeal {
+  id              String         @id @default(uuid())
+  partnerId       String         @map("partner_id") // Cliente
+  title           String
+  value           Decimal        @db.Decimal(14, 2)
+  stage           DealStage      @default(PROSPECCAO)
+  probability     Int            @default(20) // % de chance de fechar
+  ownerName       String         @map("owner_name")
+  expectedClose   DateTime?      @map("expected_close")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  partner         BusinessPartner @relation(fields: [partnerId], references: [id])
+
+  @@map("crm_deals")
+}
+
+// ==========================================
+// 9. PROJETOS & OPERAÇÕES
+// ==========================================
+
+model Project {
+  id              String         @id @default(uuid())
+  code            String         @unique
+  name            String
+  budget          Decimal?       @db.Decimal(14, 2)
+  startDate       DateTime       @map("start_date")
+  endDate         DateTime?      @map("end_date")
+  status          String         // PLANEJAMENTO, EM_ANDAMENTO, CONCLUIDO
+  tasks           ProjectTask[]
+
+  @@map("projects")
+}
+
+model ProjectTask {
+  id              String         @id @default(uuid())
+  projectId       String         @map("project_id")
+  assigneeId      String?        @map("assignee_id")
+  title           String
+  priority        String         // BAIXA, MEDIA, ALTA, URGENTE
+  status          String         // BACKLOG, EM_ANDAMENTO, REVISAO, CONCLUIDA
+  dueDate         DateTime?      @map("due_date")
+
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee        User?          @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  @@map("project_tasks")
+}
+
+// ==========================================
+// 10. CONTRATOS, JURÍDICO & SERVICE DESK
+// ==========================================
+
+model Contract {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  partnerId       String         @map("partner_id")
+  contractNumber  String         @unique @map("contract_number")
+  title           String
+  totalValue      Decimal        @map("total_value") @db.Decimal(14, 2)
+  startDate       DateTime       @map("start_date")
+  endDate         DateTime       @map("end_date")
+  autoRenew       Boolean        @default(false) @map("auto_renew")
+  status          String         // ATIVO, VENCENDO, RESCINDIDO, RENOVADO
+
+  company         Company        @relation(fields: [companyId], references: [id])
+  partner         BusinessPartner @relation(fields: [partnerId], references: [id])
+
+  @@map("contracts")
+}
+
+model ServiceDeskTicket {
+  id              String         @id @default(uuid())
+  departmentId    String         @map("department_id") // Fila (TI, RH, Juridico, Financeiro)
+  creatorId       String         @map("creator_id")
+  assigneeId      String?        @map("assignee_id")
+  ticketNumber    String         @unique @map("ticket_number")
+  title           String
+  description     String
+  priority        String         // BAIXA, MEDIA, ALTA, CRITICA
+  status          String         // ABERTO, EM_ATENDIMENTO, PENDENTE, RESOLVIDO
+  slaDeadline     DateTime       @map("sla_deadline")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  department      Department     @relation(fields: [departmentId], references: [id])
+  creator         User           @relation("TicketCreator", fields: [creatorId], references: [id])
+  assignee        User?          @relation("TicketAssignee", fields: [assigneeId], references: [id])
+
+  @@map("service_desk_tickets")
+}
+
+// ==========================================
+// 11. AUDITORIA UNIVERSAL (AUDIT TRAIL)
+// ==========================================
+
+model AuditLog {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  userId          String?        @map("user_id")
+  action          String         // CREATE, UPDATE, DELETE, APPROVE, LOGIN
+  module          String         // finance, hr, purchases, contracts, crm
+  entity          String         // Ex: FinancialRecord, PurchaseOrder
+  entityId        String         // ID do registro auditado
+  ipAddress       String?        @map("ip_address")
+  details         String?        // Resumo ou JSON diff
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  company         Company        @relation(fields: [companyId], references: [id])
+  user            User?          @relation(fields: [userId], references: [id])
+
+  @@index([companyId, module, createdAt])
+  @@map("audit_logs")
+}
