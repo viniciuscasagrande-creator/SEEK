@@ -143,7 +143,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         {
           stepNumber: 1,
           label: 'Aprovação do Gestor Imediato',
-          requiredLevel: 'GESTOR_DEPARTAMENTO',
+          requiredLevel: 'GESTOR',
           status: 'PENDENTE'
         },
         ...(request.amount && request.amount > 15000

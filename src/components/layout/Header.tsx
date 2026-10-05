@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Building2,
   MapPin,
-  UserCheck,
   Bell,
   Sparkles,
   Plus,
   ShieldCheck,
-  Search
+  Search,
+  LogOut,
+  Check,
+  ExternalLink,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
@@ -16,12 +19,16 @@ interface HeaderProps {
   onOpenQuickAction: () => void;
   onToggleSeekAI: () => void;
   onNavigateToApprovals: () => void;
+  onOpenCommandCenter: () => void;
+  onNavigate: (route: any) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenQuickAction,
   onToggleSeekAI,
-  onNavigateToApprovals
+  onNavigateToApprovals,
+  onOpenCommandCenter,
+  onNavigate
 }) => {
   const {
     activeCompany,
@@ -32,14 +39,19 @@ export const Header: React.FC<HeaderProps> = ({
     setCurrentUser,
     companies,
     branches,
-    availableProfiles
+    availableProfiles,
+    logout,
+    notifications,
+    unreadNotificationsCount,
+    markNotificationAsRead
   } = useAuth();
 
   const { pendingApprovalsCount } = useWorkflow();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-5 shadow-xs">
-      {/* Esquerda: Identidade SEEK & Busca Global */}
+      {/* Esquerda: Identidade SEEK & Busca Global (Ctrl+K) */}
       <div className="flex items-center space-x-6">
         <div className="flex items-center space-x-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 via-slate-900 to-blue-950 text-white shadow-md shadow-blue-950/20">
@@ -58,15 +70,17 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Global Search Bar (Ctrl+K) */}
-        <div className="hidden lg:flex items-center relative">
-          <Search className="absolute left-3 h-4 w-4 text-slate-600" />
-          <input
-            type="text"
-            placeholder="Buscar colaboradores, contratos, ordens, contas... (Ctrl+K)"
-            className="w-80 rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs text-slate-700 placeholder-slate-600 focus:border-blue-600 focus:bg-white focus:outline-hidden transition-all"
-          />
-        </div>
+        {/* Global Search Bar (Ctrl+K trigger) */}
+        <button
+          onClick={onOpenCommandCenter}
+          className="hidden lg:flex items-center space-x-2 rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-3 text-xs text-slate-400 hover:border-blue-400 hover:bg-white hover:text-slate-600 transition-all cursor-pointer w-80 text-left"
+        >
+          <Search className="h-4 w-4 text-slate-400 shrink-0" />
+          <span className="flex-1 truncate">Buscar ou digitar comando...</span>
+          <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.2 text-[10px] font-bold text-slate-500 shadow-2xs">
+            Ctrl+K
+          </kbd>
+        </button>
       </div>
 
       {/* Centro / Direita: Multiempresa, Multifilial, Seletor de Perfil, Ações Rápidas & SEEK IA */}
@@ -114,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Botão de Ação Rápida */}
         <button
           onClick={onOpenQuickAction}
-          className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-800 transition-colors"
+          className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-800 transition-colors cursor-pointer"
         >
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Nova Ação</span>
@@ -123,27 +137,63 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Botão SEEK IA */}
         <button
           onClick={onToggleSeekAI}
-          className="flex items-center space-x-1.5 rounded-lg border border-indigo-200 bg-linear-to-r from-indigo-50 to-blue-50 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs hover:from-indigo-100 hover:to-blue-100 transition-all cursor-pointer"
+          className="flex items-center space-x-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs hover:from-indigo-100 hover:to-blue-100 transition-all cursor-pointer"
         >
           <Sparkles className="h-3.5 w-3.5 text-indigo-600 animate-pulse" />
           <span>SEEK IA</span>
         </button>
 
         {/* Notificações / Pendências */}
-        <button
-          onClick={onNavigateToApprovals}
-          title="Central de Aprovações Pendentes"
-          className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-        >
-          <Bell className="h-4 w-4" />
-          {pendingApprovalsCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-xs">
-              {pendingApprovalsCount}
-            </span>
-          )}
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            title="Central de Notificações"
+            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+          >
+            <Bell className="h-4 w-4" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-xs">
+                {unreadNotificationsCount}
+              </span>
+            )}
+          </button>
 
-        {/* Seletor de Perfil Simulado (Demonstrar RBAC dinâmico) */}
+          {/* Dropdown de Notificações */}
+          {notificationsOpen && (
+            <div className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                <span className="text-xs font-bold text-slate-800">Notificações Corporativas</span>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {unreadNotificationsCount} não lidas
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {notifications.map(n => (
+                  <div
+                    key={n.id}
+                    onClick={() => {
+                      markNotificationAsRead(n.id);
+                      if (n.linkRoute) onNavigate(n.linkRoute);
+                      setNotificationsOpen(false);
+                    }}
+                    className={`p-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                      n.read ? 'bg-slate-50 text-slate-600' : 'bg-blue-50/70 border border-blue-100 text-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold">{n.title}</span>
+                      <span className="text-[9px] text-slate-400">{n.createdAt}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">{n.message}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Seletor dos 13 Perfis Oficiais (Demonstrar RBAC dinâmico) */}
         <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white shadow-xs">
             {currentUser.fullName.slice(0, 2).toUpperCase()}
@@ -156,8 +206,8 @@ export const Header: React.FC<HeaderProps> = ({
               <ShieldCheck className="h-3 w-3 text-blue-600" />
             </div>
             <select
-              aria-label="Alternar Perfil RBAC"
-              className="block text-[11px] font-medium text-slate-700 bg-transparent focus:outline-hidden cursor-pointer border-0 p-0"
+              aria-label="Alternar entre os 13 Perfis Oficiais"
+              className="block text-[11px] font-medium text-slate-700 bg-transparent focus:outline-hidden cursor-pointer border-0 p-0 max-w-[140px] truncate"
               value={currentUser.id}
               onChange={e => {
                 const profile = availableProfiles.find(p => p.id === e.target.value);
@@ -166,11 +216,20 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {availableProfiles.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.roleTitle}
+                  {p.roleTitle} ({p.roleLevel})
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Botão de Encerrar Sessão */}
+          <button
+            onClick={logout}
+            title="Encerrar Sessão"
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 transition-colors cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </header>

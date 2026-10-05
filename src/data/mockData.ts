@@ -1,6 +1,7 @@
 // SEEK — Base de Dados Corporativa Integrada (Mock Interconectado)
+// Pacote 1 (Fundação Corporativa) & Pacote 2 (Experiência e Central de Trabalho)
 
-import { Company, Branch, UserProfile, AuditLogEntry } from '../types/core';
+import { Company, Branch, UserProfile, AuditLogEntry, CorporateNotification, UserFavorite } from '../types/core';
 import { ApprovalItem } from '../types/workflow';
 import {
   TaskItem,
@@ -80,73 +81,250 @@ export const BRANCHES: Branch[] = [
   }
 ];
 
+// ==========================================
+// OS 13 PERFIS OFICIAIS DO SEEK (PACOTE 1)
+// ==========================================
+
 export const DEMO_PROFILES: UserProfile[] = [
   {
-    id: 'user-ceo',
+    id: 'user-admin',
     fullName: 'Carlos Drummond de Castro',
-    email: 'carlos.drummond@diskingressos.com.br',
+    email: 'admin.carlos@diskingressos.com.br',
+    registrationNumber: 'MAT-0001',
+    roleLevel: 'ADMIN_GERAL',
+    roleTitle: 'Administrador Geral',
+    department: 'Tecnologia & Governança',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 1000000,
+    accessibleModules: ['*']
+  },
+  {
+    id: 'user-diretoria',
+    fullName: 'Roberto Vianna Guimarães',
+    email: 'roberto.vianna@diskingressos.com.br',
+    registrationNumber: 'MAT-0002',
     roleLevel: 'DIRETORIA',
-    roleTitle: 'Diretor Presidente / CEO',
+    roleTitle: 'Diretor Presidente / C-Level',
     department: 'Diretoria Executiva',
     companyId: 'comp-1',
     branchId: 'branch-1',
-    approvalLimitAmount: 500000
+    approvalLimitAmount: 500000,
+    accessibleModules: [
+      'inicio', 'crm', 'finance', 'accounting', 'fiscal', 'purchasing', 'suppliers',
+      'inventory', 'assets', 'hr', 'payroll', 'projects', 'operations', 'contracts',
+      'legal', 'service-desk', 'documents', 'governance', 'reports', 'admin'
+    ]
   },
   {
-    id: 'user-cfo',
+    id: 'user-gestor',
+    fullName: 'Eduardo Martins Fontes',
+    email: 'eduardo.martins@diskingressos.com.br',
+    registrationNumber: 'MAT-0015',
+    roleLevel: 'GESTOR',
+    roleTitle: 'Gestor Departamental de Operações',
+    department: 'Operações de Eventos',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 50000,
+    accessibleModules: [
+      'inicio', 'purchasing', 'suppliers', 'inventory', 'assets', 'projects',
+      'operations', 'service-desk', 'documents', 'reports'
+    ]
+  },
+  {
+    id: 'user-financeiro',
     fullName: 'Helena Silveira Ramos',
     email: 'helena.silveira@diskingressos.com.br',
-    roleLevel: 'GESTOR_DEPARTAMENTO',
-    roleTitle: 'Gerente Financeira & Controladoria',
+    registrationNumber: 'MAT-0045',
+    roleLevel: 'FINANCEIRO',
+    roleTitle: 'Gerente Financeira & Tesouraria',
     department: 'Financeiro',
     companyId: 'comp-1',
     branchId: 'branch-1',
-    approvalLimitAmount: 75000
+    approvalLimitAmount: 75000,
+    accessibleModules: [
+      'inicio', 'finance', 'purchasing', 'contracts', 'service-desk', 'documents', 'reports'
+    ]
+  },
+  {
+    id: 'user-contabilidade',
+    fullName: 'Marcelo Rezende Pinto',
+    email: 'marcelo.rezende@diskingressos.com.br',
+    registrationNumber: 'MAT-0062',
+    roleLevel: 'CONTABILIDADE',
+    roleTitle: 'Coordenador Contábil',
+    department: 'Contabilidade',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 20000,
+    accessibleModules: [
+      'inicio', 'accounting', 'finance', 'fiscal', 'documents', 'reports'
+    ]
+  },
+  {
+    id: 'user-fiscal',
+    fullName: 'Camila Zanin Ribeiro',
+    email: 'camila.zanin@diskingressos.com.br',
+    registrationNumber: 'MAT-0078',
+    roleLevel: 'FISCAL',
+    roleTitle: 'Especialista Fiscal & Tributário',
+    department: 'Fiscal',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 15000,
+    accessibleModules: [
+      'inicio', 'fiscal', 'accounting', 'finance', 'documents'
+    ]
+  },
+  {
+    id: 'user-comercial',
+    fullName: 'Lucas Bertolli Costa',
+    email: 'lucas.bertolli@diskingressos.com.br',
+    registrationNumber: 'MAT-0130',
+    roleLevel: 'COMERCIAL',
+    roleTitle: 'Líder Comercial & CRM',
+    department: 'Comercial',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 25000,
+    accessibleModules: [
+      'inicio', 'crm', 'contracts', 'service-desk', 'documents', 'reports'
+    ]
   },
   {
     id: 'user-rh',
     fullName: 'Rafael Medeiros Pires',
     email: 'rafael.medeiros@diskingressos.com.br',
-    roleLevel: 'GESTOR_DEPARTAMENTO',
+    registrationNumber: 'MAT-0089',
+    roleLevel: 'RH',
     roleTitle: 'Coordenador de RH & DP',
     department: 'Recursos Humanos',
     companyId: 'comp-1',
     branchId: 'branch-1',
-    approvalLimitAmount: 20000
+    approvalLimitAmount: 20000,
+    accessibleModules: [
+      'inicio', 'hr', 'payroll', 'service-desk', 'documents', 'reports'
+    ]
   },
   {
     id: 'user-compras',
     fullName: 'Mariana Fontes Prado',
     email: 'mariana.fontes@diskingressos.com.br',
-    roleLevel: 'GESTOR_DEPARTAMENTO',
+    registrationNumber: 'MAT-0112',
+    roleLevel: 'COMPRAS',
     roleTitle: 'Gestora de Compras & Suprimentos',
     department: 'Compras',
     companyId: 'comp-1',
     branchId: 'branch-1',
-    approvalLimitAmount: 30000
+    approvalLimitAmount: 30000,
+    accessibleModules: [
+      'inicio', 'purchasing', 'suppliers', 'inventory', 'assets', 'contracts', 'service-desk', 'documents'
+    ]
   },
   {
-    id: 'user-crm',
-    fullName: 'Lucas Bertolli Costa',
-    email: 'lucas.bertolli@diskingressos.com.br',
-    roleLevel: 'GESTOR_DEPARTAMENTO',
-    roleTitle: 'Líder Comercial & CRM',
-    department: 'Comercial',
+    id: 'user-juridico',
+    fullName: 'Dr. Fernando Araripe',
+    email: 'fernando.araripe@diskingressos.com.br',
+    registrationNumber: 'MAT-0033',
+    roleLevel: 'JURIDICO',
+    roleTitle: 'Diretor Jurídico & Contratos',
+    department: 'Jurídico',
     companyId: 'comp-1',
     branchId: 'branch-1',
-    approvalLimitAmount: 25000
+    approvalLimitAmount: 100000,
+    accessibleModules: [
+      'inicio', 'contracts', 'legal', 'governance', 'documents', 'service-desk', 'reports'
+    ]
   },
   {
-    id: 'user-operacional',
+    id: 'user-ti',
+    fullName: 'Gabriel Vasconcelos',
+    email: 'gabriel.ti@diskingressos.com.br',
+    registrationNumber: 'MAT-0094',
+    roleLevel: 'TI',
+    roleTitle: 'Tech Lead & Service Desk',
+    department: 'Tecnologia da Informação',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 35000,
+    accessibleModules: [
+      'inicio', 'service-desk', 'inventory', 'assets', 'projects', 'documents', 'admin'
+    ]
+  },
+  {
+    id: 'user-auditoria',
+    fullName: 'Patrícia Lins Dourado',
+    email: 'patricia.lins@diskingressos.com.br',
+    registrationNumber: 'MAT-0050',
+    roleLevel: 'AUDITORIA',
+    roleTitle: 'Auditora Chefe & Compliance',
+    department: 'Governança & Riscos',
+    companyId: 'comp-1',
+    branchId: 'branch-1',
+    approvalLimitAmount: 0,
+    accessibleModules: [
+      'inicio', 'governance', 'reports', 'admin-audit', 'documents', 'contracts', 'finance'
+    ]
+  },
+  {
+    id: 'user-colaborador',
     fullName: 'Beatriz Castro Lima',
     email: 'beatriz.castro@diskingressos.com.br',
-    roleLevel: 'OPERACIONAL',
+    registrationNumber: 'MAT-0164',
+    roleLevel: 'COLABORADOR',
     roleTitle: 'Analista de Operações Pleno',
     department: 'Operações de Eventos',
     companyId: 'comp-1',
     branchId: 'branch-1',
-    approvalLimitAmount: 1500
+    approvalLimitAmount: 1500,
+    accessibleModules: [
+      'inicio', 'service-desk', 'documents'
+    ]
   }
+];
+
+export const INITIAL_NOTIFICATIONS: CorporateNotification[] = [
+  {
+    id: 'notif-1',
+    title: 'Nova Solicitação para sua Alçada',
+    message: 'Aquisição de 15 Leitores Biométricos (R$ 18.450,00) aguarda seu parecer.',
+    type: 'APPROVAL',
+    linkRoute: 'approvals',
+    read: false,
+    createdAt: 'Há 15 minutos'
+  },
+  {
+    id: 'notif-2',
+    title: 'Alerta Preventivo de Contrato',
+    message: 'Contrato CT-2024-0089 (Allianz Parque) vence em 27 dias.',
+    type: 'CONTRACT',
+    linkRoute: 'contracts',
+    read: false,
+    createdAt: 'Há 2 horas'
+  },
+  {
+    id: 'notif-3',
+    title: 'SLA Crítico no Service Desk',
+    message: 'Chamado CH-2026-0881 possui menos de 4 horas de SLA restante.',
+    type: 'SLA_ALERT',
+    linkRoute: 'service-desk',
+    read: false,
+    createdAt: 'Hoje, 09:30'
+  }
+];
+
+export const INITIAL_FAVORITES: UserFavorite[] = [
+  { id: 'fav-1', moduleCode: 'my-workstation', title: 'Central de Trabalho', route: 'my-workstation' },
+  { id: 'fav-2', moduleCode: 'approvals', title: 'Minhas Aprovações', route: 'approvals' },
+  { id: 'fav-3', moduleCode: 'finance', title: 'Painel Financeiro', route: 'finance' }
+];
+
+export const AGENDA_EVENTS = [
+  { id: 'ev-1', title: 'Reunião de Diretoria: Fechamento Q3 e Forecast Q4', date: 'Hoje, 15:00', type: 'DIRETORIA' },
+  { id: 'ev-2', title: 'Alinhamento Operacional: Festival Curitiba Sounds', date: 'Amanhã, 10:30', type: 'OPERACAO' },
+  { id: 'ev-3', title: 'Vencimento Apuração Impostos Retidos (DARF/ISS)', date: '10/10/2026', type: 'FISCAL' },
+  { id: 'ev-4', title: 'Comitê Semanal de Riscos & Governança', date: '14/10/2026, 14:00', type: 'COMPLIANCE' }
 ];
 
 export const INITIAL_APPROVALS: ApprovalItem[] = [
@@ -168,7 +346,7 @@ export const INITIAL_APPROVALS: ApprovalItem[] = [
       {
         stepNumber: 1,
         label: 'Aprovação do Gestor do Departamento (Compras)',
-        requiredLevel: 'GESTOR_DEPARTAMENTO',
+        requiredLevel: 'GESTOR',
         status: 'APROVADO',
         deciderName: 'Mariana Fontes Prado',
         decisionDate: '2026-10-04 16:10',
@@ -177,7 +355,7 @@ export const INITIAL_APPROVALS: ApprovalItem[] = [
       {
         stepNumber: 2,
         label: 'Alçada Financeira & Orçamento',
-        requiredLevel: 'GESTOR_DEPARTAMENTO',
+        requiredLevel: 'FINANCEIRO',
         status: 'PENDENTE'
       },
       {
@@ -206,7 +384,7 @@ export const INITIAL_APPROVALS: ApprovalItem[] = [
       {
         stepNumber: 1,
         label: 'Validação Técnica e Jurídica',
-        requiredLevel: 'GESTOR_DEPARTAMENTO',
+        requiredLevel: 'JURIDICO',
         status: 'APROVADO',
         deciderName: 'Dr. Fernando Araripe (Jurídico)',
         decisionDate: '2026-10-03 17:45',
@@ -238,7 +416,7 @@ export const INITIAL_APPROVALS: ApprovalItem[] = [
       {
         stepNumber: 1,
         label: 'Aprovação da Gerência Financeira',
-        requiredLevel: 'GESTOR_DEPARTAMENTO',
+        requiredLevel: 'FINANCEIRO',
         status: 'PENDENTE'
       }
     ]
@@ -261,7 +439,7 @@ export const INITIAL_APPROVALS: ApprovalItem[] = [
       {
         stepNumber: 1,
         label: 'Aprovação Gestora Financeira',
-        requiredLevel: 'GESTOR_DEPARTAMENTO',
+        requiredLevel: 'FINANCEIRO',
         status: 'APROVADO',
         deciderName: 'Helena Silveira Ramos',
         decisionDate: '2026-10-02 17:30',
@@ -270,7 +448,7 @@ export const INITIAL_APPROVALS: ApprovalItem[] = [
       {
         stepNumber: 2,
         label: 'Homologação RH / Departamento Pessoal',
-        requiredLevel: 'GESTOR_DEPARTAMENTO',
+        requiredLevel: 'RH',
         status: 'APROVADO',
         deciderName: 'Rafael Medeiros Pires',
         decisionDate: '2026-10-03 09:00',
@@ -529,10 +707,10 @@ export const CRM_OPPORTUNITIES: CrmOpportunity[] = [
 export const EMPLOYEES: EmployeeProfile[] = [
   {
     id: 'emp-01',
-    registrationNumber: 'MAT-0012',
+    registrationNumber: 'MAT-0001',
     fullName: 'Carlos Drummond de Castro',
-    jobTitle: 'Diretor Presidente / CEO',
-    department: 'Diretoria Executiva',
+    jobTitle: 'Administrador Geral',
+    department: 'Tecnologia & Governança',
     branch: 'Curitiba (Sede / Matriz)',
     regime: 'CLT',
     admissionDate: '2015-03-01',
@@ -544,7 +722,7 @@ export const EMPLOYEES: EmployeeProfile[] = [
     id: 'emp-02',
     registrationNumber: 'MAT-0045',
     fullName: 'Helena Silveira Ramos',
-    jobTitle: 'Gerente Financeira & Controladoria',
+    jobTitle: 'Gerente Financeira & Tesouraria',
     department: 'Financeiro',
     branch: 'Curitiba (Sede / Matriz)',
     regime: 'CLT',
@@ -571,7 +749,7 @@ export const EMPLOYEES: EmployeeProfile[] = [
     registrationNumber: 'MAT-0112',
     fullName: 'Mariana Fontes Prado',
     jobTitle: 'Gestora de Compras & Suprimentos',
-    department: 'Compras & Suprimentos',
+    department: 'Compras',
     branch: 'Curitiba (Sede / Matriz)',
     regime: 'CLT',
     admissionDate: '2020-09-01',
@@ -650,7 +828,7 @@ export const ASSETS_RECORDS: AssetRecord[] = [
     description: 'Servidor Dell PowerEdge R750 64GB SSD NVMe',
     category: 'TI',
     location: 'Datacenter Curitiba Rack 02',
-    responsibleName: 'Eduardo Martins (TI)',
+    responsibleName: 'Gabriel Vasconcelos (TI)',
     acquisitionCost: 48000.00,
     currentBookValue: 36000.00,
     status: 'ATIVO'
@@ -723,7 +901,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     id: 'aud-01',
     timestamp: '2026-10-05 16:20:12',
     userName: 'Carlos Drummond de Castro',
-    userRole: 'Diretor Presidente / CEO',
+    userRole: 'Administrador Geral',
     action: 'APPROVE',
     module: 'Financeiro',
     entity: 'Orçamento Trimestral Q4',
