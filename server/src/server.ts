@@ -140,6 +140,6 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[SEEK Core API] Servidor corporativo operacional rodando em http://localhost:${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`[SEEK Core API] Servidor corporativo operacional rodando em http://0.0.0.0:${PORT}`);
 });
