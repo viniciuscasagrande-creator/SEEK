@@ -798,9 +798,9 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO risks_compliance (id, code, category, title, description, probability, impact, risk_level, mitigation_plan, status)
       VALUES
-        ('rsk-01', 'RSK-LGPD-01', 'LGPD', 'Vazamento acidental de dados de compradores de ingressos', 'BAIXA', 'ALTO', 'ALTO', 'Anonimização de CPF, logs de acesso auditados e criptografia de ponta a ponta.', 'MONITORADO'),
-        ('rsk-02', 'RSK-OPE-02', 'OPERACIONAL', 'Queda de link de internet durante validação em festivais', 'MEDIA', 'ALTO', 'CRITICO', 'Scanners operam em modo offline com sincronização assíncrona local por Wi-Fi redundante.', 'MONITORADO'),
-        ('rsk-03', 'RSK-FIN-03', 'FINANCEIRO', 'Inadimplência de taxa de bilheteria de promotores terceiros', 'BAIXA', 'MEDIO', 'MEDIO', 'Retenção automática no split bancário antes do repasse final do evento.', 'MITIGADO')
+        ('rsk-01', 'RSK-LGPD-01', 'LGPD', 'Vazamento acidental de dados de compradores de ingressos', 'Incidentes de segurança ou acessos indevidos a dados de clientes.', 'BAIXA', 'ALTO', 'ALTO', 'Anonimização de CPF, logs de acesso auditados e criptografia de ponta a ponta.', 'MONITORADO'),
+        ('rsk-02', 'RSK-OPE-02', 'OPERACIONAL', 'Queda de link de internet durante validação em festivais', 'Instabilidade de conexão em locais abertos de grandes eventos.', 'MEDIA', 'ALTO', 'CRITICO', 'Scanners operam em modo offline com sincronização assíncrona local por Wi-Fi redundante.', 'MONITORADO'),
+        ('rsk-03', 'RSK-FIN-03', 'FINANCEIRO', 'Inadimplência de taxa de bilheteria de promotores terceiros', 'Risco de crédito em repasses de borderô final de eventos.', 'BAIXA', 'MEDIO', 'MEDIO', 'Retenção automática no split bancário antes do repasse final do evento.', 'MITIGADO')
     `).run();
 
     // Notificações Iniciais
