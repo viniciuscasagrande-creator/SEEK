@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db.js';
+import { requireRole } from '../middleware/auth.js';
 
 export const coreRouter = Router();
 
@@ -54,7 +55,8 @@ coreRouter.get('/parameters', (_req: Request, res: Response) => {
   }
 });
 
-coreRouter.get('/audit-logs', (_req: Request, res: Response) => {
+// Acesso restrito a auditoria e governança C-Level
+coreRouter.get('/audit-logs', requireRole(['ADMIN_GERAL', 'AUDITORIA', 'DIRETORIA']), (_req: Request, res: Response) => {
   try {
     const logs = db.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200').all();
     return res.json({ total: logs.length, logs });

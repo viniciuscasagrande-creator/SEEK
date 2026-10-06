@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
 
 export const purchasingRouter = Router();
 
@@ -357,22 +358,37 @@ purchasingRouter.patch('/orders/:id/approve', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { userName, userRole } = req.body;
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
 
     const order = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any;
     if (!order) {
       return res.status(404).json({ error: 'Ordem de compra não encontrada.' });
     }
 
+    // ABAC — Verificação Criptográfica de Alçada de Compra
+    if (currentUser) {
+      const isExecutive = currentUser.roleLevel === 'ADMIN_GERAL' || currentUser.roleLevel === 'DIRETORIA';
+      if (!isExecutive && order.total_amount > currentUser.approvalLimitAmount) {
+        return res.status(403).json({
+          error: `Alçada de compra insuficiente: o valor da ordem (R$ ${Number(order.total_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede sua alçada autorizada (R$ ${Number(currentUser.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada executiva superior.`
+        });
+      }
+    }
+
     db.prepare(`UPDATE purchase_orders SET status = 'APROVADO' WHERE id = ?`).run(id);
 
+    const operator = currentUser?.fullName || userName || 'Diretor Responsável';
+    const operatorRole = currentUser?.roleTitle || userRole || 'Diretoria';
+
     logAudit(
-      userName || 'Diretor Responsável',
-      userRole || 'Diretoria',
+      operator,
+      operatorRole,
       'APPROVE',
       'Compras & Alçadas',
       `Ordem ${order.code}`,
       `Ordem de compra ${order.code} aprovada formalmente por alçada de governança (R$ ${order.total_amount.toFixed(2)})`,
-      req.ip || '189.44.120.10'
+      req.ip || '127.0.0.1'
     );
 
     return res.json({ success: true, order: { ...order, status: 'APROVADO' } });

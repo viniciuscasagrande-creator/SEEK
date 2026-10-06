@@ -33,8 +33,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return typeof window !== 'undefined' && Boolean(localStorage.getItem('seek_token'));
   });
-  const [activeCompany, setActiveCompany] = useState<Company>(COMPANIES[0]);
-  const [activeBranch, setActiveBranch] = useState<Branch>(BRANCHES[0]);
+  const [activeCompany, setActiveCompanyState] = useState<Company>(() => {
+    if (typeof window !== 'undefined') {
+      const savedId = localStorage.getItem('seek_company_id');
+      const found = COMPANIES.find(c => c.id === savedId);
+      if (found) return found;
+    }
+    return COMPANIES[0];
+  });
+  const [activeBranch, setActiveBranchState] = useState<Branch>(() => {
+    if (typeof window !== 'undefined') {
+      const savedId = localStorage.getItem('seek_branch_id');
+      const found = BRANCHES.find(b => b.id === savedId);
+      if (found) return found;
+    }
+    return BRANCHES[0];
+  });
+
+  const setActiveCompany = (comp: Company) => {
+    setActiveCompanyState(comp);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('seek_company_id', comp.id);
+    }
+  };
+
+  const setActiveBranch = (branch: Branch) => {
+    setActiveBranchState(branch);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('seek_branch_id', branch.id);
+    }
+  };
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('seek_user');
@@ -148,39 +176,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'O e-mail ou matrícula corporativa é obrigatório.' };
     }
 
-    // 1. Tenta autenticação real no backend via JWT (RFC 7519) se disponível
+    if (!cleanPass) {
+      return { success: false, error: 'A senha de acesso corporativo é obrigatória.' };
+    }
+
+    // 1. Autenticação criptográfica real no backend via JWT (RFC 7519)
     try {
-      const res = await api.login(cleanEmail, cleanPass || 'Seek@2026');
+      const res = await api.login(cleanEmail, cleanPass);
       if (res && res.success && res.user) {
         setCurrentUser(res.user);
         setIsAuthenticated(true);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('seek_company_id', res.user.companyId || 'comp-1');
+        }
         return { success: true };
       }
-      if (res && !res.isNetworkOr405 && res.error && cleanPass && cleanPass !== 'Seek@2026') {
+      // Se o backend rejeitou as credenciais (400 ou 401), não bypassa: exibe o erro real!
+      if (res && !res.isNetworkOr405 && res.error) {
         return { success: false, error: res.error };
       }
     } catch {
-      // Ignora erro de rede/Vercel estático e cai no resolvedor local resiliente
+      // Ignora erro de conexão com API externa e cai no resolvedor de contingência
     }
 
-    // 2. Mapeamento inteligente e resiliente dos 13 Perfis Oficiais
+    // 2. Validação corporativa de contingência (ambiente estático Vercel sem API Express ativa)
+    // Validação estrita de senha padrão corporativa
+    if (cleanPass !== 'Seek@2026') {
+      return { success: false, error: 'Credenciais corporativas inválidas: senha incorreta.' };
+    }
+
+    // Busca perfil oficial correspondente aos 13 Perfis Oficiais
     let foundProfile = DEMO_PROFILES.find(p => 
       p.email.toLowerCase() === cleanEmail ||
       p.registrationNumber?.toLowerCase() === cleanEmail ||
-      p.id.toLowerCase() === cleanEmail ||
-      p.fullName.toLowerCase().includes(cleanEmail) ||
-      p.roleTitle.toLowerCase().includes(cleanEmail) ||
-      p.roleLevel.toLowerCase() === cleanEmail ||
-      (cleanEmail === 'admin' && p.roleLevel === 'ADMIN_GERAL') ||
-      (cleanEmail.includes('diretor') && p.roleLevel === 'DIRETORIA') ||
-      (cleanEmail.includes('finan') && p.roleLevel === 'FINANCEIRO') ||
-      (cleanEmail.includes('compras') && p.roleLevel === 'COMPRAS') ||
-      (cleanEmail.includes('rh') && p.roleLevel === 'RH') ||
-      (cleanEmail.includes('ti') && p.roleLevel === 'TI')
+      p.id.toLowerCase() === cleanEmail
     );
 
     if (!foundProfile) {
-      if (cleanEmail === 'diretoria@seek.local') foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'DIRETORIA');
+      if (cleanEmail === 'admin' || cleanEmail === 'admin@seek.local') foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'ADMIN_GERAL');
+      else if (cleanEmail.includes('diretor')) foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'DIRETORIA');
       else if (cleanEmail.includes('finan')) foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'FINANCEIRO');
       else if (cleanEmail.includes('rh')) foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'RH');
       else if (cleanEmail.includes('compras')) foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'COMPRAS');
@@ -192,15 +226,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       else if (cleanEmail.includes('auditor')) foundProfile = DEMO_PROFILES.find(p => p.roleLevel === 'AUDITORIA');
     }
 
-    // Se nenhum perfil coincidir exatamente, adota Administrador Geral como fallback
     if (!foundProfile) {
-      foundProfile = DEMO_PROFILES[0];
+      return { success: false, error: 'Usuário corporativo não localizado no diretório ativo do SEEK Core.' };
     }
 
-    const demoToken = `seek_demo_${foundProfile.id}_${Date.now()}`;
+    const sessionToken = `seek_session_${foundProfile.id}_${Date.now()}`;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('seek_token', demoToken);
+      localStorage.setItem('seek_token', sessionToken);
       localStorage.setItem('seek_user', JSON.stringify(foundProfile));
+      localStorage.setItem('seek_company_id', foundProfile.companyId || 'comp-1');
     }
     setCurrentUser(foundProfile);
     setIsAuthenticated(true);

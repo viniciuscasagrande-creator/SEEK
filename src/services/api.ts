@@ -6,6 +6,8 @@ const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 
 async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('seek_token') : null;
+  const companyId = typeof window !== 'undefined' ? localStorage.getItem('seek_company_id') || 'comp-1' : 'comp-1';
+  const branchId = typeof window !== 'undefined' ? localStorage.getItem('seek_branch_id') || 'branch-1' : 'branch-1';
   const headers = new Headers(init?.headers || {});
 
   if (!headers.has('Content-Type') && !(init?.body instanceof FormData)) {
@@ -14,6 +16,13 @@ async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
 
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  if (!headers.has('x-company-id')) {
+    headers.set('x-company-id', companyId);
+  }
+  if (!headers.has('x-branch-id')) {
+    headers.set('x-branch-id', branchId);
   }
 
   const response = await fetch(input, { ...init, headers });

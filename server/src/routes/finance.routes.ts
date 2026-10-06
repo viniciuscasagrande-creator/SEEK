@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
 
 export const financeRouter = Router();
 
@@ -8,9 +9,17 @@ export const financeRouter = Router();
 // ========================================================
 financeRouter.get('/records', (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = (req.query.companyId as string) || authReq.companyId;
+
     const { type, status, originType, search } = req.query;
     let query = 'SELECT * FROM financial_records WHERE 1=1';
     const params: any[] = [];
+
+    if (companyId) {
+      query += ' AND (company_id = ? OR company_id IS NULL)';
+      params.push(companyId);
+    }
 
     if (type && type !== 'ALL') {
       query += ' AND type = ?';
@@ -61,6 +70,10 @@ financeRouter.get('/records', (req: Request, res: Response) => {
 
 financeRouter.post('/records', (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
+    const targetCompanyId = authReq.companyId || currentUser?.companyId || 'comp-1';
+
     const { type, title, entityName, costCenter, category, amount, dueDate, paymentMethod, originType, originId, userName, userRole } = req.body;
 
     if (!title || !amount || !dueDate) {
@@ -82,17 +95,20 @@ financeRouter.post('/records', (req: Request, res: Response) => {
 
     db.prepare(`
       INSERT INTO financial_records (id, company_id, code, type, title, entity_name, cost_center, category, amount, due_date, status, payment_method, origin_type, origin_id)
-      VALUES (?, 'comp-1', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, code, recType, title, recEntity, recCostCenter, recCategory, parsedAmount, dueDate, recStatus, recMethod, recOrigin, recOriginId);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, targetCompanyId, code, recType, title, recEntity, recCostCenter, recCategory, parsedAmount, dueDate, recStatus, recMethod, recOrigin, recOriginId);
+
+    const operator = currentUser?.fullName || userName || 'Operador Financeiro';
+    const operatorRole = currentUser?.roleTitle || userRole || 'Financeiro';
 
     logAudit(
-      userName || 'Operador Financeiro',
-      userRole || 'Financeiro',
+      operator,
+      operatorRole,
       'CREATE',
       'Financeiro',
       `Lançamento ${code}`,
       `Criado lançamento ${recType} (${recOrigin}) no valor de R$ ${parsedAmount.toFixed(2)} (${title})`,
-      req.ip || '189.44.120.10'
+      req.ip || '127.0.0.1'
     );
 
     const newRecord = {
@@ -122,10 +138,22 @@ financeRouter.patch('/records/:id/pay', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { userName, userRole, bankId, paymentMethod, paymentDate: customDate } = req.body;
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
 
     const record = db.prepare('SELECT * FROM financial_records WHERE id = ?').get(id) as any;
     if (!record) {
       return res.status(404).json({ error: 'Lançamento financeiro não encontrado.' });
+    }
+
+    // ABAC — Verificação de Alçada para Liquidação Financeira
+    if (currentUser) {
+      const isExecutive = currentUser.roleLevel === 'ADMIN_GERAL' || currentUser.roleLevel === 'DIRETORIA';
+      if (!isExecutive && record.amount > currentUser.approvalLimitAmount) {
+        return res.status(403).json({
+          error: `Alçada financeira insuficiente: o valor da baixa (R$ ${Number(record.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede seu teto de alçada autorizado (R$ ${Number(currentUser.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada executiva superior.`
+        });
+      }
     }
 
     const paymentDate = customDate || new Date().toISOString().substring(0, 10);
@@ -142,6 +170,9 @@ financeRouter.patch('/records/:id/pay', (req: Request, res: Response) => {
       SET status = 'PAGO', payment_date = ?, payment_method = ?, bank_id = ?, bank_name = ?
       WHERE id = ?
     `).run(paymentDate, selectedMethod, bankId || null, bankInfo ? bankInfo.bank_name : null, id);
+
+    const operator = currentUser?.fullName || userName || 'Operador Financeiro';
+    const operatorRole = currentUser?.roleTitle || userRole || 'Financeiro';
 
     // Movimentação em conta bancária e geração de transação no extrato
     if (bankId && bankInfo) {
@@ -190,13 +221,13 @@ financeRouter.patch('/records/:id/pay', (req: Request, res: Response) => {
     }
 
     logAudit(
-      userName || 'Operador Financeiro',
-      userRole || 'Financeiro',
+      operator,
+      operatorRole,
       'UPDATE',
       'Financeiro',
       `Lançamento ${record.code}`,
       `Baixa / liquidação efetuada no valor de R$ ${record.amount.toFixed(2)}${bankInfo ? ` via ${bankInfo.bank_name}` : ''}`,
-      req.ip || '189.44.120.10'
+      req.ip || '127.0.0.1'
     );
 
     return res.json({

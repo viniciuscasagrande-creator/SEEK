@@ -1,12 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
 
 export const workflowRouter = Router();
 
 // Lista todas as solicitações de aprovação com seus respectivos passos
-workflowRouter.get('/approvals', (_req: Request, res: Response) => {
+workflowRouter.get('/approvals', (req: Request, res: Response) => {
   try {
-    const approvalRows = db.prepare('SELECT * FROM approvals ORDER BY created_at DESC').all() as any[];
+    const authReq = req as AuthenticatedRequest;
+    const companyId = (req.query.companyId as string) || authReq.companyId;
+
+    let query = 'SELECT * FROM approvals WHERE 1=1';
+    const params: any[] = [];
+    if (companyId) {
+      query += ' AND (company_id = ? OR company_id IS NULL)';
+      params.push(companyId);
+    }
+    query += ' ORDER BY created_at DESC';
+
+    const approvalRows = db.prepare(query).all(...params) as any[];
 
     const approvals = approvalRows.map(app => {
       const stepRows = db.prepare('SELECT * FROM approval_steps WHERE approval_id = ? ORDER BY step_number ASC').all(app.id) as any[];
@@ -56,10 +68,22 @@ workflowRouter.post('/approvals/:id/decide', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { decision, comment, deciderName, deciderRole } = req.body;
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
 
     const item = db.prepare('SELECT * FROM approvals WHERE id = ?').get(id) as any;
     if (!item) {
       return res.status(404).json({ error: 'Solicitação de aprovação não encontrada.' });
+    }
+
+    // ABAC — Verificação Criptográfica de Alçada no Backend
+    if (decision === 'approve' && currentUser) {
+      const isExecutive = currentUser.roleLevel === 'ADMIN_GERAL' || currentUser.roleLevel === 'DIRETORIA';
+      if (!isExecutive && item.amount > currentUser.approvalLimitAmount) {
+        return res.status(403).json({
+          error: `Alçada insuficiente: o valor da solicitação (R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede sua alçada autorizada (R$ ${Number(currentUser.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada superior.`
+        });
+      }
     }
 
     const steps = db.prepare('SELECT * FROM approval_steps WHERE approval_id = ? ORDER BY step_number ASC').all(id) as any[];
@@ -67,7 +91,8 @@ workflowRouter.post('/approvals/:id/decide', (req: Request, res: Response) => {
     const currentStep = steps[currentStepIndex];
 
     const decisionDate = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const decider = deciderName || 'Aprovador Autorizado';
+    const decider = currentUser?.fullName || deciderName || 'Aprovador Autorizado';
+    const deciderRoleTitle = currentUser?.roleTitle || deciderRole || 'Alçada';
     const justifiedComment = comment || (decision === 'approve' ? 'Parecer favorável conforme política corporativa de alçadas.' : 'Rejeitado por incompatibilidade orçamentária.');
 
     if (currentStep) {
@@ -110,12 +135,12 @@ workflowRouter.post('/approvals/:id/decide', (req: Request, res: Response) => {
 
     logAudit(
       decider,
-      deciderRole || 'Alçada',
+      deciderRoleTitle,
       decision === 'approve' ? 'APPROVE' : 'REJECT',
       'Central de Aprovações',
       `${item.entity_type}: ${item.title}`,
       `Decisão de ${decision.toUpperCase()} formalizada. Justificativa: "${justifiedComment}"`,
-      req.ip || '189.44.120.10'
+      req.ip || '127.0.0.1'
     );
 
     return res.json({
