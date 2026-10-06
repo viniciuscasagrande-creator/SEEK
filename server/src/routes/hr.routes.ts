@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { isPrivilegedRole, maskSalary } from '../utils/security.js';
+import { payrollService } from '../services/payroll.service.js';
 
 export const hrRouter = Router();
 
@@ -233,3 +234,116 @@ hrRouter.get('/organogram', (_req: Request, res: Response) => {
     return res.status(500).json({ error: error.message });
   }
 });
+
+// ========================================================
+// FOLHA DE PAGAMENTO (PAYROLL HCM & HOLERITES)
+// ========================================================
+
+// Listagem de folhas de pagamento
+hrRouter.get('/payroll/runs', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = authReq.companyId || 'comp-1';
+    const runs = payrollService.listRuns(companyId);
+    return res.json({ total: runs.length, runs });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Detalhes e holerites de uma folha
+hrRouter.get('/payroll/runs/:id', (req: Request, res: Response) => {
+  try {
+    const run = payrollService.getRun(String(req.params.id));
+    if (!run) return res.status(404).json({ error: 'Folha de pagamento não encontrada.' });
+    return res.json(run);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Simulação de holerite em tempo real
+hrRouter.post('/payroll/simulate', (req: Request, res: Response) => {
+  try {
+    const { employeeId, overtimeHours, dependentsCount } = req.body;
+    if (!employeeId) return res.status(400).json({ error: 'ID do colaborador obrigatório.' });
+    const simulation = payrollService.simulatePayslip(employeeId, {
+      overtimeHours: parseFloat(overtimeHours) || 0,
+      dependentsCount: parseInt(dependentsCount) || 0
+    });
+    return res.json(simulation);
+  } catch (error: any) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
+
+// Processamento da folha em lote para o período
+hrRouter.post('/payroll/process', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { period } = req.body;
+    const companyId = authReq.companyId || 'comp-1';
+    const result = payrollService.processPayrollRun(period, companyId, authReq.user, req.ip);
+    return res.status(201).json(result);
+  } catch (error: any) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
+
+// Aprovação e Integração Atômica da Folha com Financeiro e Contabilidade
+hrRouter.post('/payroll/runs/:id/integrate', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const result = payrollService.integrateRunWithFinanceAndAccounting(String(req.params.id), authReq.user, req.ip);
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
+
+// ========================================================
+// ATS (RECRUTAMENTO & SELEÇÃO) & AVALIAÇÃO DE DESEMPENHO
+// ========================================================
+
+hrRouter.get('/jobs', (req: Request, res: Response) => {
+  try {
+    const jobs = db.prepare('SELECT * FROM job_postings ORDER BY created_at DESC').all() as any[];
+    return res.json({ total: jobs.length, jobs });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/jobs', (req: Request, res: Response) => {
+  try {
+    const { title, department, regime, salaryMin, salaryMax, openingsCount } = req.body;
+    if (!title || !department) return res.status(400).json({ error: 'Título e Departamento obrigatórios.' });
+
+    const id = `job-${Date.now()}`;
+    const code = `VAG-${Math.floor(100 + Math.random() * 900)}`;
+
+    db.prepare(`
+      INSERT INTO job_postings (id, company_id, code, title, department, regime, salary_min, salary_max, openings_count, status)
+      VALUES (?, 'comp-1', ?, ?, ?, ?, ?, ?, ?, 'ABERTA')
+    `).run(id, code, title, department, regime || 'CLT', salaryMin || 0, salaryMax || 0, openingsCount || 1);
+
+    return res.status(201).json({ success: true, id, code, title });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.get('/performance', (req: Request, res: Response) => {
+  try {
+    const reviews = db.prepare(`
+      SELECT pr.*, e.full_name, e.job_title, e.department
+      FROM performance_reviews pr
+      JOIN employees e ON e.id = pr.employee_id
+      ORDER BY pr.created_at DESC
+    `).all() as any[];
+    return res.json({ total: reviews.length, reviews });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+

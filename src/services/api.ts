@@ -899,6 +899,102 @@ export const api = {
     }
   },
 
+  // RH HCM: Folha de Pagamento & Holerites
+  async getPayrollRuns(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/payroll/runs`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.runs || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getPayrollRunDetails(id: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/payroll/runs/${id}`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async processPayroll(period: string): Promise<any> {
+    const res = await authFetch(`${API_BASE_URL}/hr/payroll/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao processar folha de pagamento.');
+    return data;
+  },
+
+  async simulatePayslip(employeeId: string, overtimeHours: number = 0, dependentsCount: number = 0): Promise<any> {
+    const res = await authFetch(`${API_BASE_URL}/hr/payroll/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId, overtimeHours, dependentsCount })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao simular cálculo de holerite.');
+    return data;
+  },
+
+  async integratePayroll(runId: string): Promise<any> {
+    const res = await authFetch(`${API_BASE_URL}/hr/payroll/runs/${runId}/integrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao integrar folha com Financeiro e Contabilidade.');
+    return data;
+  },
+
+  async getJobPostings(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/jobs`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.jobs || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createJobPosting(job: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(job)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getPerformanceReviews(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/performance`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.reviews || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
   // PACOTE 4: Estoque & Patrimônio
   async getInventoryItems(): Promise<any[]> {
     try {

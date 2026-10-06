@@ -361,6 +361,96 @@ export function initializeDatabase() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- PACOTE 4: RH HCM - FOLHA DE PAGAMENTO, HOLERITES, ATS & DESEMPENHO
+    CREATE TABLE IF NOT EXISTS payroll_runs (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      period TEXT NOT NULL,
+      status TEXT DEFAULT 'ABERTO',
+      total_gross REAL DEFAULT 0.0,
+      total_inss REAL DEFAULT 0.0,
+      total_irrf REAL DEFAULT 0.0,
+      total_deductions REAL DEFAULT 0.0,
+      total_net REAL DEFAULT 0.0,
+      total_fgts REAL DEFAULT 0.0,
+      total_employees INTEGER DEFAULT 0,
+      financial_record_id TEXT,
+      accounting_entry_id TEXT,
+      processed_at TEXT,
+      processed_by TEXT,
+      approved_at TEXT,
+      approved_by TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(company_id, period)
+    );
+
+    CREATE TABLE IF NOT EXISTS payslips (
+      id TEXT PRIMARY KEY,
+      payroll_run_id TEXT REFERENCES payroll_runs(id) ON DELETE CASCADE,
+      company_id TEXT DEFAULT 'comp-1',
+      employee_id TEXT REFERENCES employees(id),
+      employee_name TEXT NOT NULL,
+      job_title TEXT NOT NULL,
+      department TEXT NOT NULL,
+      period TEXT NOT NULL,
+      base_salary REAL NOT NULL,
+      overtime_hours REAL DEFAULT 0.0,
+      overtime_amount REAL DEFAULT 0.0,
+      dsr_amount REAL DEFAULT 0.0,
+      gross_salary REAL NOT NULL,
+      inss_deduction REAL NOT NULL,
+      irrf_deduction REAL NOT NULL,
+      vt_deduction REAL DEFAULT 0.0,
+      other_deductions REAL DEFAULT 0.0,
+      total_deductions REAL NOT NULL,
+      net_salary REAL NOT NULL,
+      fgts_amount REAL NOT NULL,
+      dependents_count INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'CALCULADO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(payroll_run_id, employee_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS job_postings (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      code TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      department TEXT NOT NULL,
+      regime TEXT DEFAULT 'CLT',
+      salary_min REAL,
+      salary_max REAL,
+      openings_count INTEGER DEFAULT 1,
+      status TEXT DEFAULT 'ABERTA',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS job_candidates (
+      id TEXT PRIMARY KEY,
+      posting_id TEXT REFERENCES job_postings(id) ON DELETE CASCADE,
+      full_name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      stage TEXT DEFAULT 'TRIAGEM',
+      rating INTEGER DEFAULT 3,
+      resume_url TEXT,
+      applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS performance_reviews (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      employee_id TEXT REFERENCES employees(id),
+      cycle TEXT NOT NULL,
+      evaluator_name TEXT NOT NULL,
+      self_score REAL,
+      manager_score REAL,
+      final_score REAL,
+      feedback TEXT,
+      status TEXT DEFAULT 'CONCLUIDA',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- PACOTE 4: PATRIMÔNIO & ATIVOS IMOBILIZADOS
     CREATE TABLE IF NOT EXISTS assets (
       id TEXT PRIMARY KEY,
