@@ -1,0 +1,20 @@
+import React, { useEffect, useState } from 'react';
+import { Landmark, Tags, Network, CreditCard, ArrowLeftRight, Plus, Search, Settings2 } from 'lucide-react';
+import { api } from '../../services/api';
+
+const seed = {
+  categorias:['Despesas Operacionais','Receitas de Serviços','Impostos e Taxas','Pessoal e Encargos'],
+  centros:['Administrativo','Financeiro','Tecnologia','Operações & Serviços Corporativos'],
+  formas:['PIX','TED','Boleto','Cartão Corporativo']
+};
+export const FinanceSettingsModule: React.FC = () => {
+ const [tab,setTab]=useState('contas'); const [accounts,setAccounts]=useState<any[]>([]); const [search,setSearch]=useState('');
+ useEffect(()=>{api.getBankAccounts().then(setAccounts)},[]);
+ const tabs=[['contas','Contas Bancárias',Landmark],['categorias','Categorias',Tags],['centros','Centros de Custo',Network],['formas','Formas de Pagamento',CreditCard],['regras','Recebido de / Pago para',ArrowLeftRight]] as const;
+ const rows=tab==='categorias'?seed.categorias:tab==='centros'?seed.centros:tab==='formas'?seed.formas:[];
+ return <div className="space-y-5"><div className="border-b pb-4"><h1 className="text-xl font-black text-slate-900">Configurações Financeiras</h1><p className="text-xs text-slate-500 mt-1">Cadastros mestres utilizados pelo Financeiro, Tesouraria, Compras e Controladoria.</p></div>
+ <div className="rounded-xl border bg-white overflow-hidden"><div className="flex flex-wrap border-b bg-slate-50">{tabs.map(([k,l,I])=><button key={k} onClick={()=>setTab(k)} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 ${tab===k?'bg-white border-blue-700 text-blue-700':'border-transparent text-slate-500'}`}><I className="h-4 w-4"/>{l}</button>)}</div>
+ <div className="p-4"><div className="flex justify-between gap-3 mb-4"><button className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 text-white px-3 py-2 text-xs font-bold"><Plus className="h-4 w-4"/>Adicionar</button><div className="flex items-center gap-2 rounded-lg border px-3"><Search className="h-4 w-4 text-slate-400"/><input className="py-2 text-xs outline-none" placeholder="Pesquisar..." value={search} onChange={e=>setSearch(e.target.value)}/></div></div>
+ {tab==='contas'?<div className="overflow-auto"><table className="w-full text-xs"><thead className="bg-slate-700 text-white"><tr><th className="p-3 text-left">Banco / Conta</th><th>Agência</th><th>Tipo</th><th className="text-right">Saldo Atual</th><th className="text-center">Situação</th></tr></thead><tbody>{accounts.filter(a=>JSON.stringify(a).toLowerCase().includes(search.toLowerCase())).map(a=><tr key={a.id} className="border-b"><td className="p-3 font-bold">{a.bank_name||a.bankName} • {a.account_number||a.accountNumber}</td><td className="text-center">{a.agency}</td><td className="text-center">Conta corrente</td><td className="text-right font-bold">{Number(a.current_balance||a.currentBalance||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td className="text-center"><span className="rounded bg-emerald-50 text-emerald-700 px-2 py-1 font-bold">Ativa</span></td></tr>)}</tbody></table></div>:tab==='regras'?<div className="grid md:grid-cols-2 gap-4"><div className="rounded-lg border p-4"><h3 className="font-bold text-sm">Origem / Destino financeiro</h3><p className="text-xs text-slate-500 mt-1">Padronize contrapartes usadas nos lançamentos: clientes, fornecedores, colaboradores, bancos e órgãos públicos.</p></div><div className="rounded-lg border p-4"><h3 className="font-bold text-sm">Governança do cadastro</h3><p className="text-xs text-slate-500 mt-1">Alterações críticas devem respeitar permissões, auditoria e contexto de empresa/filial.</p></div></div>:<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">{rows.filter(x=>x.toLowerCase().includes(search.toLowerCase())).map(x=><div key={x} className="rounded-lg border p-4 flex items-center justify-between"><span className="text-xs font-bold">{x}</span><Settings2 className="h-4 w-4 text-slate-400"/></div>)}</div>}
+ </div></div></div>
+};

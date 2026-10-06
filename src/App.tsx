@@ -15,6 +15,8 @@ import { ApprovalsCenter } from './components/modules/ApprovalsCenter';
 import { AgendaModule } from './components/modules/AgendaModule';
 import { CRMModule } from './components/modules/CRMModule';
 import { FinanceModule } from './components/modules/FinanceModule';
+import { FinanceReconciliationModule } from './components/modules/FinanceReconciliationModule';
+import { FinanceSettingsModule } from './components/modules/FinanceSettingsModule';
 import { AccountingModule } from './components/modules/AccountingModule';
 import { FiscalModule } from './components/modules/FiscalModule';
 import { PurchasingModule } from './components/modules/PurchasingModule';
@@ -215,12 +217,15 @@ const MainLayout: React.FC = () => {
       case 'finance-receivables':
         return <FinanceModule initialTab="lancamentos" initialType="RECEBER" />;
       case 'finance-treasury':
-      case 'finance-reconciliation':
         return <FinanceModule initialTab="bancos" />;
+      case 'finance-reconciliation':
+        return <FinanceReconciliationModule />;
       case 'finance-dre':
         return <FinanceModule initialTab="dre" />;
       case 'finance-closing':
         return <FinanceModule initialTab="fechamento" />;
+      case 'finance-settings':
+        return <FinanceSettingsModule />;
 
       // Contabilidade com sub-abas sincronizadas
       case 'accounting':

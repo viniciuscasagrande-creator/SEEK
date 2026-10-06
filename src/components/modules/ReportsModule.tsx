@@ -1,59 +1,33 @@
-import React from 'react';
-import { BarChart3, FileSpreadsheet, Download, Filter, Calendar } from 'lucide-react';
-import { StatCard } from '../common/StatCard';
+import React, { useMemo, useState } from 'react';
+import { BarChart3, Download, Search, FileSpreadsheet, BookOpen, Receipt, ShoppingCart, Users2, Briefcase, ShieldCheck } from 'lucide-react';
 
+const reports = [
+ ['Financeiro','Fluxo de Caixa por Período','Receitas, despesas, resultado e projeção por competência.'],
+ ['Financeiro','Extrato Financeiro','Lançamentos por conta, categoria, centro de custo e contraparte.'],
+ ['Financeiro','Conciliação Bancária','Movimentos conciliados, pendências e diferenças por conta bancária.'],
+ ['Financeiro','Contas a Pagar e Receber','Vencidos, a vencer, liquidados e previsões.'],
+ ['Financeiro','DRE Gerencial','Resultado consolidado e por centro de custo.'],
+ ['Contabilidade','Balancete de Verificação','Saldos e movimentos do plano de contas.'],
+ ['Contabilidade','Livro Diário e Razão','Lançamentos contábeis com rastreabilidade de origem.'],
+ ['Fiscal','Notas Fiscais','Documentos fiscais por período, situação e tomador/prestador.'],
+ ['Fiscal','Apuração e Obrigações','Tributos apurados e calendário de obrigações.'],
+ ['Compras','Compras por Fornecedor','Pedidos, valores, prazos e saving por fornecedor.'],
+ ['Compras','Mapa Comparativo','Comparativo de cotações e decisões de compra.'],
+ ['RH','Folha, Encargos e Benefícios','Consolidação mensal de custos de pessoal.'],
+ ['RH','Freelance / Taxas','Convocações, presença, fechamento de taxa e pagamento.'],
+ ['CRM & Comercial','Funil Comercial','Oportunidades, conversão, propostas e previsão.'],
+ ['Projetos','Custos por Projeto','Planejado, comprometido e realizado por projeto.'],
+ ['Governança','Auditoria e Aprovações','Trilha de auditoria, decisões, usuários e datas.'],
+ ['Administração','Acessos e Permissões','Usuários, perfis e permissões efetivas.']
+] as const;
+const iconMap:any={Financeiro:FileSpreadsheet,Contabilidade:BookOpen,Fiscal:Receipt,Compras:ShoppingCart,RH:Users2,'CRM & Comercial':Briefcase,Projetos:BarChart3,Governança:ShieldCheck,Administração:ShieldCheck};
 export const ReportsModule: React.FC = () => {
-  const reportsList = [
-    { title: 'DRE Consolidada por Centro de Custo', category: 'Financeiro', format: 'Excel / PDF', lastRun: 'Hoje, 09:30' },
-    { title: 'Relatório de Saving e SLA de Fornecedores', category: 'Compras', format: 'Excel', lastRun: 'Ontem, 18:00' },
-    { title: 'Previsão de Faturamento & Funil Comercial', category: 'CRM', format: 'PDF Executivo', lastRun: '04/10/2026' },
-    { title: 'Fechamento de Ponto, Horas Extras e Encargos', category: 'RH / DP', format: 'Excel', lastRun: '03/10/2026' },
-    { title: 'Mapa de Vencimento de Contratos Corporativos', category: 'Jurídico', format: 'PDF', lastRun: '02/10/2026' },
-    { title: 'Log Consolidado de Auditoria e Aprovações', category: 'Compliance', format: 'CSV Seguro', lastRun: 'Hoje, 14:00' }
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Top Banner BI & Relatórios */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-black text-slate-900">BI & Relatórios Executivos</h1>
-            <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
-              SEEK Inteligência de Dados
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Geração de relatórios analíticos, comparativos históricos, exportação para Excel/PDF e dashboards departamentais.
-          </p>
-        </div>
-      </div>
-
-      {/* Grid de Relatórios Disponíveis */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {reportsList.map((rep, idx) => (
-          <div
-            key={idx}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                  {rep.category}
-                </span>
-                <span className="text-[10px] text-slate-400 font-medium">Formato: {rep.format}</span>
-              </div>
-              <h4 className="text-xs font-bold text-slate-900">{rep.title}</h4>
-              <span className="text-[10px] text-slate-400 block mt-1">Última emissão: {rep.lastRun}</span>
-            </div>
-
-            <button className="flex items-center justify-center space-x-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 py-2 text-xs font-bold text-slate-700 hover:bg-blue-700 hover:text-white hover:border-blue-700 transition-all">
-              <Download className="h-3.5 w-3.5" />
-              <span>Gerar & Baixar Relatório</span>
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+ const [search,setSearch]=useState(''); const [category,setCategory]=useState('Todos');
+ const categories=['Todos',...Array.from(new Set(reports.map(r=>r[0])))];
+ const visible=useMemo(()=>reports.filter(r=>(category==='Todos'||r[0]===category)&&(`${r[0]} ${r[1]} ${r[2]}`.toLowerCase().includes(search.toLowerCase()))),[search,category]);
+ const exportCsv=(r:readonly string[])=>{ const csv=`Relatório;Categoria;Descrição\n"${r[1]}";"${r[0]}";"${r[2]}"\n`; const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download=`seek-${r[1].toLowerCase().replace(/[^a-z0-9]+/g,'-')}.csv`; a.click(); URL.revokeObjectURL(a.href); };
+ return <div className="space-y-5"><div className="border-b pb-4"><h1 className="text-xl font-black text-slate-900">Central de Relatórios</h1><p className="text-xs text-slate-500 mt-1">Catálogo corporativo de relatórios do SEEK, organizado por área e processo.</p></div>
+ <div className="rounded-xl border bg-white p-4"><div className="grid md:grid-cols-[1fr_240px] gap-3"><div className="flex items-center gap-2 rounded-lg border px-3"><Search className="h-4 w-4 text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} className="w-full py-2 text-xs outline-none" placeholder="Buscar relatório por nome, área ou finalidade..."/></div><select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-lg border px-3 py-2 text-xs bg-white">{categories.map(c=><option key={c}>{c}</option>)}</select></div></div>
+ {categories.filter(c=>c!=='Todos'&&(category==='Todos'||category===c)).map(c=>{const group=visible.filter(r=>r[0]===c); if(!group.length)return null; const I=iconMap[c]||BarChart3; return <section key={c} className="rounded-xl border bg-white overflow-hidden"><div className="flex items-center gap-2 border-b bg-slate-50 px-4 py-3"><I className="h-4 w-4 text-blue-700"/><h2 className="text-sm font-black">{c}</h2><span className="text-[10px] text-slate-400">{group.length} relatórios</span></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3 p-4">{group.map((r,i)=><div key={i} className="rounded-lg border p-4 hover:border-blue-300 transition"><h3 className="text-xs font-bold text-slate-900">{r[1]}</h3><p className="text-[11px] text-slate-500 mt-1 min-h-8">{r[2]}</p><button onClick={()=>exportCsv(r)} className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-700"><Download className="h-3.5 w-3.5"/>Gerar / Exportar</button></div>)}</div></section>})}
+ {visible.length===0&&<div className="rounded-xl border bg-white p-10 text-center text-xs text-slate-400">Nenhum relatório encontrado para os filtros informados.</div>}</div>;
 };

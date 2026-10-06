@@ -55,6 +55,7 @@ export type ActiveView =
   | 'finance-reconciliation'
   | 'finance-dre'
   | 'finance-closing'
+  | 'finance-settings'
   | 'accounting'
   | 'accounting-journal'
   | 'accounting-trial'
@@ -129,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Helper para determinar qual módulo é dono de cada view
   const getModuleForView = (view: ActiveView): string | null => {
-    if (['finance', 'finance-payables', 'finance-receivables', 'finance-treasury', 'finance-reconciliation', 'finance-dre', 'finance-closing'].includes(view)) return 'finance';
+    if (['finance', 'finance-payables', 'finance-receivables', 'finance-treasury', 'finance-reconciliation', 'finance-dre', 'finance-closing', 'finance-settings'].includes(view)) return 'finance';
     if (['accounting', 'accounting-journal', 'accounting-trial', 'accounting-statements', 'accounting-closing'].includes(view)) return 'accounting';
     if (['fiscal', 'fiscal-calc', 'fiscal-calendar', 'fiscal-invoices'].includes(view)) return 'fiscal';
     if (['purchasing', 'purchasing-comparison', 'purchasing-orders', 'suppliers'].includes(view)) return 'purchasing';
@@ -208,7 +209,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { label: 'Tesouraria & Bancos', view: 'finance-treasury' },
         { label: 'Conciliação OFX', view: 'finance-reconciliation' },
         { label: 'Fluxo de Caixa & DRE', view: 'finance-dre' },
-        { label: 'Fechamento Mensal', view: 'finance-closing' }
+        { label: 'Fechamento Mensal', view: 'finance-closing' },
+        { label: 'Configurações Financeiras', view: 'finance-settings' }
       ]
     },
     {
