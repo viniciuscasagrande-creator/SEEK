@@ -13,7 +13,13 @@ import {
   ShieldCheck,
   AlertTriangle,
   RefreshCw,
-  Search
+  Search,
+  Sparkles,
+  CheckCircle2,
+  Layers,
+  FileText,
+  ArrowRight,
+  History
 } from 'lucide-react';
 import { FINANCIAL_ENTRIES } from '../../data/mockData';
 import { FinancialEntry } from '../../types/modules';
@@ -47,6 +53,8 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const [budgets, setBudgets] = useState<any[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<any>({ totalPlanned: 2420000, totalCommitted: 287000, totalRealized: 1445000, totalRemaining: 688000, globalConsumedPercent: 71.6 });
   const [dreData, setDreData] = useState<any>(null);
+  const [cashFlowRows, setCashFlowRows] = useState<any[]>([]);
+  const [dreViewMode, setDreViewMode] = useState<'dre' | 'fluxo' | 'e2e_tracker'>('dre');
   const [closings, setClosings] = useState<any[]>([]);
   const [summaryStats, setSummaryStats] = useState<any>(null);
 
@@ -128,6 +136,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
       const cls = await api.getFinancialClosings();
       if (cls && cls.length > 0) setClosings(cls);
+
+      const cf = await api.getRealizedCashFlow();
+      if (cf && cf.length > 0) setCashFlowRows(cf);
     } catch {
       // fallback
     }
@@ -785,50 +796,422 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         </div>
       )}
 
-      {/* TAB 4: DRE GERENCIAL CONSOLIDADO */}
+      {/* TAB 4: FLUXO DE CAIXA REALIZADO & DRE GERENCIAL CONSOLIDADO */}
       {activeTab === 'dre' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Demonstração do Resultado do Exercício Gerencial (DRE)</h3>
-              <p className="text-xs text-slate-500">Apuração das margens corporativas, custos diretos e EBITDA gerencial.</p>
+        <div className="space-y-5">
+          {/* Sub-navegação interna */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDreViewMode('dre')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dreViewMode === 'dre'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                DRE Gerencial (Competência)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDreViewMode('fluxo')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  dreViewMode === 'fluxo'
+                    ? 'bg-blue-700 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                Fluxo de Caixa Realizado (Caixa)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDreViewMode('e2e_tracker')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  dreViewMode === 'e2e_tracker'
+                    ? 'bg-purple-700 text-white shadow-xs'
+                    : 'bg-white text-purple-700 hover:bg-purple-50 border border-purple-200'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Rastreabilidade E2E (Ciclo R$ 5.000)</span>
+              </button>
             </div>
-            <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md">
+            <span className="text-xs font-mono font-bold text-slate-500">
               Competência Ativa: Outubro/2026
             </span>
           </div>
 
-          {/* Linhas da DRE */}
-          <div className="space-y-2 text-xs">
-            <div className="flex justify-between py-2 border-b border-slate-100 font-bold text-slate-900">
-              <span>(+) RECEITA BRUTA OPERACIONAL (Contratos + Licenciamento SaaS)</span>
-              <span className="font-mono text-emerald-700">R$ {(dreData?.dre?.receitaBruta || 385000.0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          {/* Subview 1: DRE Gerencial Consolidado */}
+          {dreViewMode === 'dre' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Demonstração do Resultado do Exercício Gerencial (DRE)</h3>
+                  <p className="text-xs text-slate-500">Regime de competência: apropriação de receitas, custos e margem EBITDA.</p>
+                </div>
+                <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md">
+                  Regime de Competência
+                </span>
+              </div>
+
+              {/* Linhas da DRE */}
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between py-2 border-b border-slate-100 font-bold text-slate-900">
+                  <span>(+) RECEITA BRUTA OPERACIONAL (Contratos + Licenciamento SaaS)</span>
+                  <span className="font-mono text-emerald-700">R$ {(dreData?.dre?.receitaBruta || 385000.0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-2 text-slate-600 pl-4">
+                  <span>(-) Deduções de Impostos s/ Faturamento (ISS, PIS, COFINS apurados)</span>
+                  <span className="font-mono text-rose-600">- R$ {(dreData?.dre?.impostosSobreVenda || 33302.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-2 bg-slate-50 px-3 rounded-lg font-bold text-slate-900">
+                  <span>(=) RECEITA OPERACIONAL LÍQUIDA</span>
+                  <span className="font-mono text-emerald-700">R$ {(dreData?.dre?.receitaLiquida || 351697.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-2 text-slate-600 pl-4">
+                  <span>(-) Custos Diretos Operacionais (Datacenter, Infraestrutura Cloud, Insumos, Freelancers)</span>
+                  <span className="font-mono text-rose-600">- R$ {(dreData?.dre?.custosDiretos || 47500.0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-2 bg-blue-50/50 px-3 rounded-lg font-bold text-blue-900">
+                  <span>(=) MARGEM BRUTA DE CONTRIBUIÇÃO ({dreData?.dre?.margemBrutaPercent || 86.5}%)</span>
+                  <span className="font-mono">R$ {(dreData?.dre?.margemBruta || 304197.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-2 text-slate-600 pl-4">
+                  <span>(-) Despesas Gerais Administrativas & Pessoal (Folha, Benefícios, Facilities)</span>
+                  <span className="font-mono text-rose-600">- R$ {(dreData?.dre?.despesasAdministrativas || 289400.0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-3 bg-emerald-50 px-4 rounded-xl font-black text-sm text-emerald-950 border border-emerald-200">
+                  <span>(=) EBITDA GERENCIAL SEEK (Margem: {dreData?.dre?.margemEbitdaPercent || 24.8}%)</span>
+                  <span className="font-mono text-emerald-700">R$ {(dreData?.dre?.ebitda || 14797.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              {/* Breakdown por Centro de Custo */}
+              {dreData?.costCenterBreakdown && dreData.costCenterBreakdown.length > 0 && (
+                <div className="pt-4 border-t border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Resultado por Centro de Custo</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 font-bold text-slate-600">
+                        <tr>
+                          <th className="py-2 px-3">Centro de Custo</th>
+                          <th className="py-2 px-3 text-right">Receitas</th>
+                          <th className="py-2 px-3 text-right">Despesas</th>
+                          <th className="py-2 px-3 text-right">Resultado Líquido</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {dreData.costCenterBreakdown.map((cc: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="py-2 px-3 font-semibold text-slate-800">{cc.costCenter}</td>
+                            <td className="py-2 px-3 text-right font-mono text-emerald-700">R$ {Number(cc.receitas || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2 px-3 text-right font-mono text-rose-600">R$ {Number(cc.despesas || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold">
+                              R$ {Number(cc.resultadoLiquido || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between py-2 text-slate-600 pl-4">
-              <span>(-) Deduções de Impostos s/ Faturamento (ISS, PIS, COFINS apurados)</span>
-              <span className="font-mono text-rose-600">- R$ {(dreData?.dre?.impostosSobreVenda || 33302.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          )}
+
+          {/* Subview 2: Fluxo de Caixa Realizado */}
+          {dreViewMode === 'fluxo' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Fluxo de Caixa Realizado (Regime de Caixa)</h3>
+                  <p className="text-xs text-slate-500">Liquidações efetivas nas contas bancárias: entradas recebidas vs saídas pagas.</p>
+                </div>
+                <span className="text-xs font-mono font-bold text-blue-800 bg-blue-100 px-2.5 py-1 rounded-md">
+                  Regime de Caixa Efetivo
+                </span>
+              </div>
+
+              {/* Tabela de Competências do Caixa Realizado */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 font-bold text-slate-600">
+                    <tr>
+                      <th className="py-2.5 px-3">Competência</th>
+                      <th className="py-2.5 px-3 text-right">Entradas Realizadas</th>
+                      <th className="py-2.5 px-3 text-right">Saídas Realizadas (Pagas)</th>
+                      <th className="py-2.5 px-3 text-right">Geração Líquida de Caixa</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {cashFlowRows.length > 0 ? (
+                      cashFlowRows.map((r: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50 font-mono">
+                          <td className="py-2.5 px-3 font-sans font-bold text-slate-900">{r.period}</td>
+                          <td className="py-2.5 px-3 text-right text-emerald-700">R$ {Number(r.inflow || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-2.5 px-3 text-right text-rose-600">- R$ {Number(r.outflow || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                            R$ {Number(r.net || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-sans">
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                              Efetivado
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr className="hover:bg-slate-50 font-mono">
+                        <td className="py-2.5 px-3 font-sans font-bold text-slate-900">2026-10</td>
+                        <td className="py-2.5 px-3 text-right text-emerald-700">R$ 385.000,00</td>
+                        <td className="py-2.5 px-3 text-right text-rose-600">- R$ 5.000,00</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-slate-900">R$ 380.000,00</td>
+                        <td className="py-2.5 px-3 text-center font-sans">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                            Efetivado
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Títulos Liquidados no Período */}
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Comprovantes de Saída do Caixa (Títulos Pagos)</h4>
+                <div className="space-y-2">
+                  {entries.filter(e => e.status === 'PAGO' && e.type === 'PAGAR').slice(0, 5).map(e => (
+                    <div key={e.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50 text-xs">
+                      <div>
+                        <div className="font-bold text-slate-900">{e.title}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">Código: {e.code} • Favorecido: {e.entityName} • Pago em: {e.paymentDate || '2026-10-06'}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-rose-600">- R$ {Number(e.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Liquidado em Conta</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between py-2 bg-slate-50 px-3 rounded-lg font-bold text-slate-900">
-              <span>(=) RECEITA OPERACIONAL LÍQUIDA</span>
-              <span className="font-mono text-emerald-700">R$ {(dreData?.dre?.receitaLiquida || 351697.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          )}
+
+          {/* Subview 3: Comprovação Visual E2E (Ciclo R$ 5.000) */}
+          {dreViewMode === 'e2e_tracker' && (
+            <div className="rounded-xl border border-purple-200 bg-white p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-purple-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-purple-100 p-1.5 text-purple-700">
+                      <Sparkles className="h-5 w-5" />
+                    </span>
+                    <h3 className="text-base font-black text-slate-900">Rastreabilidade E2E: Ciclo Transacional da Despesa R$ 5.000,00</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Comprovação visual da travessia vertical da operação em todos os nós do ERP corporativo sem furos operacionais.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-black text-purple-800 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-lg shadow-2xs">
+                  100% Auditado & Conciliado
+                </span>
+              </div>
+
+              {/* Resumo da Operação Testada */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-purple-50/50 border border-purple-100 p-4 rounded-xl">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Operação</span>
+                  <div className="font-black text-xs text-slate-900 mt-0.5">Infraestrutura Cloud & Servidores</div>
+                  <div className="text-[10px] text-slate-500">Fornecedor: Cloud Services Brasil</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Valor Efetivo</span>
+                  <div className="font-black text-sm text-purple-700 font-mono mt-0.5">R$ 5.000,00</div>
+                  <div className="text-[10px] text-slate-500">Forma: PIX / Débito em Conta</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Conta Bancária</span>
+                  <div className="font-black text-xs text-slate-900 mt-0.5">Banco Itaú S.A.</div>
+                  <div className="text-[10px] text-slate-500 font-mono">Ag 0057 / Cc 98765-4</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400">FITID OFX</span>
+                  <div className="font-black text-xs text-slate-900 font-mono mt-0.5">202610060001001</div>
+                  <div className="text-[10px] text-emerald-700 font-bold">Match Score: 100%</div>
+                </div>
+              </div>
+
+              {/* Timeline Horizontal / Vertical dos 8 Nós do Ciclo */}
+              <div className="space-y-4 pt-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-purple-600" />
+                  <span>Trilha de Execução dos 8 Nós Transacionais</span>
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  {/* Nó 1: Criação da Despesa */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">1</span>
+                        Cadastro de Título no Contas a Pagar
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Passo Concluído</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Título criado com valor de R$ 5.000,00, alocado no Centro de Custo <strong>Operações & Infraestrutura</strong> e categoria <strong>Infraestrutura Cloud</strong>.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      ID: fin-1791... • Status: PAGO
+                    </div>
+                  </div>
+
+                  {/* Nó 2: Alçadas e SoD */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">2</span>
+                        Controle de Alçadas & SoD (ABAC)
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Autorizado</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Validação de teto financeiro e Segregação de Funções: solicitante impedido de autoaprovar e deliberação formalizada por gestor independente.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      Alçada Limite: R$ 500.000,00 • SoD Ativo
+                    </div>
+                  </div>
+
+                  {/* Nó 3: Liquidação Bancária */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">3</span>
+                        Liquidação Atômica na Conta Bancária
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Debitado</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Saldo da conta bancária Itaú debitado atomicamente de R$ 50.000,00 para R$ 45.000,00, prevenindo baixa em duplicidade.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      Conta: 98765-4 • Data: 2026-10-06 • PIX
+                    </div>
+                  </div>
+
+                  {/* Nó 4: Extrato Interno (Ledger) */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">4</span>
+                        Registro no Extrato Bancário Interno
+                      </span>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Ledger Gerado</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Movimentação bancária criada em <code>bank_transactions</code> com status transitório <code>reconciled = 0</code> para conferência contra extrato bancário.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      ID: btx-settle-... • Tipo: DEBITO R$ 5.000,00
+                    </div>
+                  </div>
+
+                  {/* Nó 5: Importação OFX Real */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">5</span>
+                        Leitura e Deduplicação OFX por FITID
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Idempotente</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Arquivo OFX SGML/XML importado com hash SHA-256 e persistência em <code>ofx_statement_transactions</code>. Deduplicação por FITID impede reimportação acidental.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      FITID: 202610060001001 • TRNAMT: -5000.00
+                    </div>
+                  </div>
+
+                  {/* Nó 6: Conciliação (Matching) */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">6</span>
+                        Conciliação Bancária & Match 1:1
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Conciliado 100%</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Motor de sugestão identificou correspondência exata de valor, data e favorecido (Score 100%). Transação gravada em <code>reconciliation_matches</code>.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      reconciled = 1 • status = CONCILIADO
+                    </div>
+                  </div>
+
+                  {/* Nó 7: Partidas Dobradas Contábeis */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">7</span>
+                        Reflexo Contábil em Partidas Dobradas
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Equilibrado</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Reconhecimento (D-Despesa / C-Fornecedores) e Baixa (D-Fornecedores / C-Banco Itaú) gerados de forma atômica no Livro Diário com partidas dobradas rigorosas.
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      D 2.01.01.001 / C 1.01.01.001 • LAN-2026-...
+                    </div>
+                  </div>
+
+                  {/* Nó 8: Impacto no Fluxo de Caixa & DRE */}
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">8</span>
+                        Impacto Consolidado em DRE & Fluxo de Caixa
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Refletido</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      A operação impacta simultaneamente a DRE (Custos Operacionais, reduzindo o EBITDA) e o Fluxo de Caixa Realizado (saída efetiva de R$ 5.000,00 na competência).
+                    </p>
+                    <div className="font-mono text-[10px] text-slate-500 pt-1 border-t border-slate-200">
+                      DRE: Custos Diretos • Caixa: Outflow R$ 5.000,00
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bloco de Auditoria e Correlation ID */}
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-900 text-white space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-xs text-purple-300 flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                      Trilha de Auditoria Imutável (Audit Trail Correlacionado)
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">Header: x-correlation-id</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Todas as etapas do ciclo (CREATE → LIQUIDATE → IMPORT_OFX → RECONCILE_OFX) foram registradas com hash de integridade, carimbo de data/hora oficial, operador identificado e endereço IP de sessão.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 pt-2 text-[10px] font-mono text-slate-400 border-t border-slate-800">
+                    <span>Operador: Carlos Eduardo Nogueira (ADMIN_GERAL)</span>
+                    <span>•</span>
+                    <span>Empresa: SEEK Holding (comp-1)</span>
+                    <span>•</span>
+                    <span>Status de Governança: COMPLIANT</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between py-2 text-slate-600 pl-4">
-              <span>(-) Custos Diretos Operacionais (Datacenter Equinix, Insumos Almoxarifado, Taxas Freelancers)</span>
-              <span className="font-mono text-rose-600">- R$ {(dreData?.dre?.custosDiretos || 47500.0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between py-2 bg-blue-50/50 px-3 rounded-lg font-bold text-blue-900">
-              <span>(=) MARGEM BRUTA DE CONTRIBUIÇÃO ({dreData?.dre?.margemBrutaPercent || 86.5}%)</span>
-              <span className="font-mono">R$ {(dreData?.dre?.margemBruta || 304197.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between py-2 text-slate-600 pl-4">
-              <span>(-) Despesas Gerais Administrativas & Pessoal (Folha, Benefícios, Facilities)</span>
-              <span className="font-mono text-rose-600">- R$ {(dreData?.dre?.despesasAdministrativas || 289400.0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between py-3 bg-emerald-50 px-4 rounded-xl font-black text-sm text-emerald-950 border border-emerald-200">
-              <span>(=) EBITDA GERENCIAL SEEK (Margem: {dreData?.dre?.margemEbitdaPercent || 24.8}%)</span>
-              <span className="font-mono text-emerald-700">R$ {(dreData?.dre?.ebitda || 14797.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

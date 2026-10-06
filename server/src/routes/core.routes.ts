@@ -68,9 +68,25 @@ coreRouter.get('/partners', (req: Request, res: Response) => {
 });
 
 // Acesso restrito a auditoria e governança C-Level via WorkflowRepository
-coreRouter.get('/audit-logs', requireRole(['ADMIN_GERAL', 'AUDITORIA', 'DIRETORIA']), (_req: Request, res: Response) => {
+coreRouter.get('/audit-logs', requireRole(['ADMIN_GERAL', 'AUDITORIA', 'DIRETORIA', 'FINANCEIRO', 'ADMIN']), (_req: Request, res: Response) => {
   try {
-    const logs = workflowRepository.listAuditLogs(200);
+    const rawLogs = workflowRepository.listAuditLogs(200);
+    const logs = rawLogs.map(l => ({
+      id: l.id,
+      timestamp: l.timestamp,
+      userName: l.user_name,
+      userRole: l.user_role,
+      user_name: l.user_name,
+      user_role: l.user_role,
+      action: l.action,
+      module: l.module,
+      entity: l.entity,
+      description: l.description,
+      ipAddress: l.ip_address,
+      ip_address: l.ip_address,
+      correlationId: l.correlation_id,
+      correlation_id: l.correlation_id
+    }));
     return res.json({ total: logs.length, logs });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

@@ -3,6 +3,7 @@ import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { financeService } from '../services/finance.service.js';
 import { financeRepository } from '../repositories/finance.repository.js';
+import { ofxReconciliationService } from '../services/ofx-reconciliation.service.js';
 
 export const financeRouter = Router();
 
@@ -234,90 +235,44 @@ financeRouter.patch('/transactions/:id/reconcile', (req: Request, res: Response)
   }
 });
 
-// Importação Real de Arquivo OFX com Deduplicação FITID e Auditoria
-financeRouter.post('/accounts/:id/ofx/import', (req: Request, res: Response) => {
-  try {
-    const id = String(req.params.id);
-    const { ofxContent, fileName } = req.body;
-    if (!ofxContent) {
-      return res.status(400).json({ error: 'Conteúdo OFX obrigatório (campo ofxContent).' });
-    }
 
-    const authReq = req as AuthenticatedRequest;
-    const result = financeService.importOfx(id, ofxContent, fileName || 'extrato.ofx', authReq.user, req.ip || '127.0.0.1');
-    return res.status(201).json(result);
-  } catch (error: any) {
-    const status = error.statusCode || 500;
-    return res.status(status).json({ error: error.message });
-  }
+// ========================================================
+// 3.1 OFX REAL — IMPORTAÇÃO, MATCHING E CONCILIAÇÃO ITEM A ITEM
+// ========================================================
+financeRouter.post('/ofx/import', (req: Request, res: Response) => {
+  try {
+    const authReq=req as AuthenticatedRequest;
+    return res.status(201).json(ofxReconciliationService.importOfx(req.body, authReq.user, req.ip));
+  } catch(error:any) { return res.status(error.statusCode||500).json({error:error.message}); }
 });
 
-// Listagem de Transações do Extrato OFX da Conta
-financeRouter.get('/accounts/:id/ofx/transactions', (req: Request, res: Response) => {
+financeRouter.get('/ofx/statement', (req: Request, res: Response) => {
   try {
-    const id = String(req.params.id);
-    const { status } = req.query;
-    const transactions = financeService.listOfxTransactions(id, status as string);
-    return res.json({ total: transactions.length, transactions });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
-  }
+    const {accountId,status}=req.query;
+    if(!accountId) return res.status(400).json({error:'accountId é obrigatório.'});
+    const transactions=ofxReconciliationService.listStatement(String(accountId), status ? String(status) : undefined);
+    return res.json({total:transactions.length,transactions,summary:ofxReconciliationService.reconciliationSummary(String(accountId))});
+  } catch(error:any) { return res.status(error.statusCode||500).json({error:error.message}); }
 });
 
-// Conciliação de Item OFX com Movimentação do Sistema
-financeRouter.post('/reconciliation/match', (req: Request, res: Response) => {
-  try {
-    const { ofxTxId, bankTxId } = req.body;
-    if (!ofxTxId || !bankTxId) {
-      return res.status(400).json({ error: 'Campos obrigatórios: ofxTxId, bankTxId.' });
-    }
-
-    const authReq = req as AuthenticatedRequest;
-    const result = financeService.matchAndReconcile(ofxTxId, bankTxId, authReq.user, req.ip || '127.0.0.1');
-    return res.json(result);
-  } catch (error: any) {
-    const status = error.statusCode || 500;
-    return res.status(status).json({ error: error.message });
-  }
+financeRouter.get('/ofx/statement/:id/suggestions', (req: Request, res: Response) => {
+  try { return res.json({suggestions:ofxReconciliationService.suggest(String(req.params.id))}); }
+  catch(error:any){ return res.status(error.statusCode||500).json({error:error.message}); }
 });
 
-// Reversão / Desconciliação de Item OFX
-financeRouter.post('/reconciliation/unmatch', (req: Request, res: Response) => {
+financeRouter.post('/ofx/statement/:id/reconcile', (req: Request, res: Response) => {
   try {
-    const { ofxTxId } = req.body;
-    if (!ofxTxId) {
-      return res.status(400).json({ error: 'Campo obrigatório: ofxTxId.' });
-    }
-
-    const authReq = req as AuthenticatedRequest;
-    const result = financeService.unmatchReconciliation(ofxTxId, authReq.user, req.ip || '127.0.0.1');
-    return res.json(result);
-  } catch (error: any) {
-    const status = error.statusCode || 500;
-    return res.status(status).json({ error: error.message });
-  }
+    const authReq=req as AuthenticatedRequest;
+    if(!req.body.bankTransactionId) return res.status(400).json({error:'bankTransactionId é obrigatório.'});
+    return res.json(ofxReconciliationService.reconcile(String(req.params.id),req.body.bankTransactionId,authReq.user,req.ip));
+  } catch(error:any){ return res.status(error.statusCode||500).json({error:error.message}); }
 });
 
-// Conciliação Avulsa (Tarifas, Encargos ou Rendimentos do Extrato OFX)
-financeRouter.post('/reconciliation/avulso', (req: Request, res: Response) => {
+financeRouter.post('/ofx/statement/:id/divergence', (req: Request, res: Response) => {
   try {
-    const { ofxTxId, category, costCenter, entityName, description } = req.body;
-    if (!ofxTxId) {
-      return res.status(400).json({ error: 'Campo obrigatório: ofxTxId.' });
-    }
-
-    const authReq = req as AuthenticatedRequest;
-    const result = financeService.createAndReconcileAvulso(ofxTxId, {
-      category,
-      costCenter,
-      entityName,
-      description
-    }, authReq.user, req.ip || '127.0.0.1');
-    return res.status(201).json(result);
-  } catch (error: any) {
-    const status = error.statusCode || 500;
-    return res.status(status).json({ error: error.message });
-  }
+    const authReq=req as AuthenticatedRequest;
+    return res.json(ofxReconciliationService.markDivergence(String(req.params.id),req.body.reason,authReq.user,req.ip));
+  } catch(error:any){ return res.status(error.statusCode||500).json({error:error.message}); }
 });
 
 // ========================================================
@@ -368,6 +323,26 @@ financeRouter.get('/budgets', (_req: Request, res: Response) => {
   }
 });
 
+
+// Fluxo de Caixa realizado baseado em liquidações reais
+financeRouter.get('/cash-flow/realized', (req: Request, res: Response) => {
+  try {
+    const authReq=req as AuthenticatedRequest;
+    const companyId=(req.query.companyId as string)||authReq.companyId;
+    const rows=db.prepare(`
+      SELECT substr(payment_date,1,7) period,
+        SUM(CASE WHEN type='RECEBER' AND status='PAGO' THEN amount ELSE 0 END) inflow,
+        SUM(CASE WHEN type='PAGAR' AND status='PAGO' THEN amount ELSE 0 END) outflow
+      FROM financial_records
+      WHERE (? IS NULL OR company_id=? OR company_id IS NULL)
+        AND payment_date IS NOT NULL
+      GROUP BY substr(payment_date,1,7)
+      ORDER BY period ASC
+    `).all(companyId||null,companyId||null) as any[];
+    return res.json({rows:rows.map(r=>({...r,net:Number(r.inflow)-Number(r.outflow)}))});
+  } catch(error:any){return res.status(500).json({error:error.message});}
+});
+
 // ========================================================
 // 5. DRE GERENCIAL CONSOLIDADO
 // ========================================================
@@ -375,7 +350,7 @@ financeRouter.get('/dre', (_req: Request, res: Response) => {
   try {
     // 1. Receita Bruta (Faturamento de Clientes, Contratos e SaaS)
     const recSum = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM financial_records WHERE type = 'RECEBER'`).get() as { total: number };
-    const receitaBruta = recSum.total || 385000.0;
+    const receitaBruta = recSum.total || 0;
 
     // 2. Deduções de Impostos s/ Faturamento (ISS 5% + PIS 0.65% + COFINS 3% = 8.65%)
     const impostosSobreVenda = Number((receitaBruta * 0.0865).toFixed(2));
@@ -387,7 +362,7 @@ financeRouter.get('/dre', (_req: Request, res: Response) => {
       FROM financial_records
       WHERE type = 'PAGAR' AND (category LIKE '%Infraestrutura%' OR category LIKE '%Insumos%' OR origin_type = 'TAXA')
     `).get() as { total: number };
-    const custosDiretos = custosOperacionaisQuery.total || 47500.0;
+    const custosDiretos = custosOperacionaisQuery.total || 0;
 
     const margemBruta = receitaLiquida - custosDiretos;
     const margemBrutaPercent = receitaLiquida > 0 ? Number(((margemBruta / receitaLiquida) * 100).toFixed(1)) : 0;
@@ -398,7 +373,7 @@ financeRouter.get('/dre', (_req: Request, res: Response) => {
       FROM financial_records
       WHERE type = 'PAGAR' AND (category LIKE '%Pessoal%' OR category LIKE '%Despesas Gerais%' OR category LIKE '%Administrativo%')
     `).get() as { total: number };
-    const despesasAdministrativas = despesasAdminQuery.total || 292000.0;
+    const despesasAdministrativas = despesasAdminQuery.total || 0;
 
     // 5. EBITDA Gerencial
     const ebitda = margemBruta - despesasAdministrativas;

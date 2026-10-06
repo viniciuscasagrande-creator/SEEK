@@ -221,12 +221,15 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
     setNewUserEmail('');
   };
 
-  const filteredLogs = auditLogs.filter(
-    l =>
-      l.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.module.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      l.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredLogs = auditLogs.filter(l => {
+    const u = l.userName || (l as any).user_name || '';
+    const m = l.module || '';
+    const d = l.description || '';
+    const a = l.action || '';
+    const cid = (l as any).correlationId || (l as any).correlation_id || '';
+    const s = searchTerm.toLowerCase();
+    return u.toLowerCase().includes(s) || m.toLowerCase().includes(s) || d.toLowerCase().includes(s) || a.toLowerCase().includes(s) || cid.toLowerCase().includes(s);
+  });
 
   return (
     <div className="space-y-6">
@@ -541,10 +544,10 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
               <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
                 {filteredLogs.map(log => (
                   <tr key={log.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-4 text-slate-500">{log.timestamp}</td>
+                    <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
                     <td className="py-2.5 px-4 font-sans font-bold text-slate-900">
-                      {log.userName}
-                      <span className="block text-[10px] text-slate-400 font-normal">{log.userRole}</span>
+                      {log.userName || (log as any).user_name || 'Usuário Corporativo'}
+                      <span className="block text-[10px] text-slate-400 font-normal">{log.userRole || (log as any).user_role || 'Operador'}</span>
                     </td>
                     <td className="py-2.5 px-4 text-center font-sans">
                       <StatusBadge status={log.action} />
@@ -553,10 +556,15 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
                       {log.module}
                       <span className="block text-[10px] text-slate-400 font-normal">{log.entity}</span>
                     </td>
-                    <td className="py-2.5 px-4 font-sans text-slate-600 max-w-xs truncate" title={log.description}>
-                      {log.description}
+                    <td className="py-2.5 px-4 font-sans text-slate-600 max-w-xs" title={log.description}>
+                      <div className="truncate">{log.description}</div>
+                      {((log as any).correlationId || (log as any).correlation_id) && (
+                        <div className="text-[9px] font-mono text-purple-600 mt-0.5">
+                          CID: {String((log as any).correlationId || (log as any).correlation_id).substring(0, 16)}...
+                        </div>
+                      )}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-slate-400">{log.ipAddress || '189.44.120.10'}</td>
+                    <td className="py-2.5 px-4 text-right text-slate-400 whitespace-nowrap">{log.ipAddress || (log as any).ip_address || '127.0.0.1'}</td>
                   </tr>
                 ))}
               </tbody>
