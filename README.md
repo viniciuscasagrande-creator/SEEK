@@ -46,10 +46,22 @@ SEEK Core → RH/DP → Freelance/Taxas → Financeiro → Controladoria → Com
    - **Compras & Procurement:** Solicitação de Compras (SC), Mapa Comparativo com 3 fornecedores homologados e cálculo automático de saving, alçadas de governança (Tiers 1, 2 e 3) e recebimento físico/fiscal com geração imediata do título no Contas a Pagar.
    - **Controladoria & Orçamento (Budgeting):** Matriz Orçado × Comprometido × Realizado por centro de custo e DRE Gerencial consolidado (EBITDA).
    - **Fechamento de Competência:** Trava operacional formal (*Period Lock*) com checklist auditado.
-8. **Patrimônio, Contratos, Jurídico, Projetos & BI (Pacotes 7 e 8):**
-   - Contratos com reajustes automáticos (IPCA/IGP-M), procurações jurídicas, alçadas de representação, portfólio de projetos estratégicos, base de conhecimento e BI Executivo C-Level.
+8. **Patrimônio, Contratos & Jurídico (Pacote 7):**
+   - Ciclo patrimonial, tombamento, depreciação linear (Classe 1.03), termos de responsabilidade, estoque de insumos, contratos corporativos, reajustes automáticos (IPCA/IGP-M) e procurações jurídicas.
+9. **Projetos, Service Desk, Governança & BI (Pacote 8):**
+   - Portfólio de projetos, Kanban de tarefas, Service Desk multidepartamental com SLA, base de conhecimento (POPs) e matriz de riscos corporativos (GRC).
+10. **CRM & Comercial Corporativo (Pacote 9):**
+    - Empresas e contatos B2B (`crm_empresas`, `crm_contatos`), pipeline com cálculo de probabilidade ponderada, propostas formais e agenda de atividades executivas.
+11. **Planejamento, Metas e Gestão Executiva (Pacote 10):**
+    - Ciclos estratégicos plurianuais, OKRs corporativos e metas mensuráveis (`planejamento_metas`), modelagem de cenários macroeconômicos e acompanhamento de desvios.
+12. **Administração, Segurança, Auditoria e Integrações (Pacote 11):**
+    - Matriz granular RBAC/ABAC por perfil e módulo, políticas corporativas com controle de versão, catálogo de integrações (SEFAZ, Open Banking, Vercel) e barramento de webhooks assíncronos.
 
----
+### 🔮 Roadmap das Próximas Fases
+* **Pacote 12:** Gestão Documental Avançada & Assinaturas Digitais
+* **Pacote 13:** Automação Corporativa & Workflows Enterprise
+* **Pacote 14:** Central Executiva & BI Avançado
+* **Pacote 15:** SEEK IA — Assistente Corporativo com RAG Interno e Permissões Seguras
 
 ## 🚀 Como Executar o Projeto Localmente
 

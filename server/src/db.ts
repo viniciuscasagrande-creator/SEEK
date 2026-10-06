@@ -597,6 +597,180 @@ export function initializeDatabase() {
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- PACOTE 9: CRM & COMERCIAL CORPORATIVO
+    CREATE TABLE IF NOT EXISTS crm_empresas (
+      id TEXT PRIMARY KEY,
+      razao_social TEXT NOT NULL,
+      nome_fantasia TEXT NOT NULL,
+      cnpj TEXT UNIQUE,
+      setor TEXT,
+      porte TEXT DEFAULT 'GRANDE',
+      cidade TEXT,
+      estado TEXT,
+      status TEXT NOT NULL DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_contatos (
+      id TEXT PRIMARY KEY,
+      empresa_id TEXT REFERENCES crm_empresas(id),
+      nome TEXT NOT NULL,
+      cargo TEXT,
+      email TEXT,
+      telefone TEXT,
+      status TEXT NOT NULL DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_oportunidades (
+      id TEXT PRIMARY KEY,
+      empresa_id TEXT REFERENCES crm_empresas(id),
+      titulo TEXT NOT NULL,
+      valor REAL NOT NULL,
+      estagio TEXT NOT NULL DEFAULT 'PROSPECCAO',
+      probabilidade INTEGER DEFAULT 50,
+      responsavel_nome TEXT NOT NULL,
+      previsao_fechamento TEXT,
+      status TEXT NOT NULL DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_propostas (
+      id TEXT PRIMARY KEY,
+      oportunidade_id TEXT REFERENCES crm_oportunidades(id),
+      numero_proposta TEXT UNIQUE NOT NULL,
+      valor_total REAL NOT NULL,
+      validade TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ENVIADA',
+      itens_json TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_atividades (
+      id TEXT PRIMARY KEY,
+      oportunidade_id TEXT REFERENCES crm_oportunidades(id),
+      tipo TEXT NOT NULL,
+      titulo TEXT NOT NULL,
+      data_agendada TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDENTE',
+      responsavel TEXT NOT NULL,
+      notas TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 10: PLANEJAMENTO, METAS E GESTÃO EXECUTIVA
+    CREATE TABLE IF NOT EXISTS planejamento_ciclos (
+      id TEXT PRIMARY KEY,
+      ano INTEGER NOT NULL DEFAULT 2026,
+      titulo TEXT NOT NULL,
+      data_inicio TEXT NOT NULL,
+      data_fim TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'EM_ANDAMENTO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS planejamento_objetivos (
+      id TEXT PRIMARY KEY,
+      ciclo_id TEXT REFERENCES planejamento_ciclos(id),
+      codigo TEXT NOT NULL,
+      titulo TEXT NOT NULL,
+      departamento TEXT NOT NULL,
+      peso REAL DEFAULT 1.0,
+      progresso_percent REAL DEFAULT 0.0,
+      status TEXT NOT NULL DEFAULT 'EM_ANDAMENTO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS planejamento_metas (
+      id TEXT PRIMARY KEY,
+      objetivo_id TEXT REFERENCES planejamento_objetivos(id),
+      codigo TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      valor_meta REAL NOT NULL,
+      valor_atual REAL NOT NULL DEFAULT 0.0,
+      unidade TEXT NOT NULL DEFAULT 'R$',
+      responsavel TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'NO_PRAZO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS planejamento_cenarios (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      receita_projetada REAL NOT NULL,
+      ebitda_projetado REAL NOT NULL,
+      premissas TEXT,
+      status TEXT NOT NULL DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS planejamento_acompanhamentos (
+      id TEXT PRIMARY KEY,
+      meta_id TEXT REFERENCES planejamento_metas(id),
+      mes INTEGER NOT NULL,
+      valor_realizado REAL NOT NULL,
+      desvio REAL NOT NULL,
+      comentario TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 11: ADMINISTRAÇÃO, SEGURANÇA, AUDITORIA E INTEGRAÇÕES
+    CREATE TABLE IF NOT EXISTS seguranca_politicas (
+      id TEXT PRIMARY KEY,
+      codigo TEXT UNIQUE NOT NULL,
+      titulo TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      obrigatoria INTEGER DEFAULT 1,
+      versao TEXT DEFAULT '1.0',
+      status TEXT NOT NULL DEFAULT 'VIGENTE',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS seguranca_regras_acesso (
+      id TEXT PRIMARY KEY,
+      perfil_nome TEXT NOT NULL,
+      modulo TEXT NOT NULL,
+      permissao_leitura INTEGER DEFAULT 1,
+      permissao_escrita INTEGER DEFAULT 0,
+      permissao_aprovacao INTEGER DEFAULT 0,
+      permissao_exclusao INTEGER DEFAULT 0,
+      condicao_abac TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS integracoes_catalogo (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      categoria TEXT NOT NULL,
+      tipo_comunicacao TEXT NOT NULL DEFAULT 'REST_API',
+      endpoint_url TEXT,
+      status TEXT NOT NULL DEFAULT 'CONFIGURADO',
+      auth_type TEXT DEFAULT 'BEARER_TOKEN',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS integracoes_webhooks (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      evento TEXT NOT NULL,
+      url_destino TEXT NOT NULL,
+      metodo TEXT DEFAULT 'POST',
+      ativo INTEGER DEFAULT 1,
+      total_disparos INTEGER DEFAULT 0,
+      ultimo_disparo TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS auditoria_eventos_avancados (
+      id TEXT PRIMARY KEY,
+      evento_tipo TEXT NOT NULL,
+      severidade TEXT NOT NULL DEFAULT 'INFO',
+      ip_origem TEXT,
+      user_agent TEXT,
+      detalhes_json TEXT,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Migrações seguras de colunas em tabelas existentes
@@ -1249,6 +1423,98 @@ export function seedInitialData() {
         ('close-02', '2026-10', 'GERAL', 'ABERTO', NULL, NULL,
          '{"extratos_conciliados":true,"contas_pagar_baixadas":false,"tributos_apurados":true,"folha_fechada":false,"balancete_verificado":false}',
          'Competência de Outubro/2026 em andamento. Aguardando finalização do ciclo mensal.')
+    `).run();
+  }
+
+  // 10. SEED PACOTE 9: CRM & COMERCIAL CORPORATIVO
+  const crmEmpCheck = db.prepare('SELECT COUNT(*) as count FROM crm_empresas').get() as { count: number };
+  if (crmEmpCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO crm_empresas (id, razao_social, nome_fantasia, cnpj, setor, porte, cidade, estado, status)
+      VALUES
+        ('emp-01', 'Grupo Votorantim Participações S.A.', 'Votorantim', '01.123.456/0001-99', 'Indústria & Cimento', 'GRANDE', 'São Paulo', 'SP', 'ATIVO'),
+        ('emp-02', 'Suzano Papel e Celulose S.A.', 'Suzano', '16.404.287/0001-55', 'Papel & Celulose', 'GRANDE', 'Salvador', 'BA', 'ATIVO'),
+        ('emp-03', 'Klabin S.A. Embalagens', 'Klabin', '89.637.490/0001-45', 'Embalagens & Papel', 'GRANDE', 'Curitiba', 'PR', 'ATIVO'),
+        ('emp-04', 'Gerdau Aços Longos S.A.', 'Gerdau', '33.611.500/0001-19', 'Siderurgia', 'GRANDE', 'Porto Alegre', 'RS', 'ATIVO')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO crm_contatos (id, empresa_id, nome, cargo, email, telefone, status)
+      VALUES
+        ('ctt-01', 'emp-01', 'Roberto Albuquerque', 'Diretor de Suprimentos & TI', 'roberto.albuquerque@votorantim.com', '(11) 3456-7890', 'ATIVO'),
+        ('ctt-02', 'emp-02', 'Juliana Magalhães', 'Head de Transformação Digital', 'juliana.m@suzano.com.br', '(11) 98765-4321', 'ATIVO'),
+        ('ctt-03', 'emp-03', 'Paulo Sérgio Rezende', 'Gerente Administrativo', 'paulo.rezende@klabin.com.br', '(41) 3322-1100', 'ATIVO')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO crm_oportunidades (id, empresa_id, titulo, valor, estagio, probabilidade, responsavel_nome, previsao_fechamento, status)
+      VALUES
+        ('opp-01', 'emp-01', 'Expansão Plataforma SEEK para 4 Novas Filiais', 650000.00, 'NEGOCIACAO', 85, 'Lucas Bertolli Costa', '2026-11-15', 'ATIVO'),
+        ('opp-02', 'emp-02', 'Implantação Módulo de Controladoria & DRE Enterprise', 380000.00, 'PROPOSTA', 60, 'Lucas Bertolli Costa', '2026-11-20', 'ATIVO'),
+        ('opp-03', 'emp-03', 'Consultoria e Mapeamento de Processos de Suprimentos', 240000.00, 'QUALIFICACAO', 40, 'Lucas Bertolli Costa', '2026-12-05', 'ATIVO'),
+        ('opp-04', 'emp-04', 'Piloto de Gestão de Freelancers e Taxas Operacionais', 180000.00, 'PROSPECCAO', 25, 'Lucas Bertolli Costa', '2026-12-15', 'ATIVO')
+    `).run();
+  }
+
+  // 11. SEED PACOTE 10: PLANEJAMENTO, METAS E GESTÃO EXECUTIVA
+  const planCheck = db.prepare('SELECT COUNT(*) as count FROM planejamento_ciclos').get() as { count: number };
+  if (planCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO planejamento_ciclos (id, ano, titulo, data_inicio, data_fim, status)
+      VALUES
+        ('ciclo-2026', 2026, 'Plano Estratégico SEEK 2026 — Expansão Corporativa', '2026-01-01', '2026-12-31', 'EM_ANDAMENTO')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO planejamento_objetivos (id, ciclo_id, codigo, titulo, departamento, peso, progresso_percent, status)
+      VALUES
+        ('obj-01', 'ciclo-2026', 'OBJ-01', 'Consolidar Liderança em ERP Corporativo B2B', 'Comercial & Novos Negócios', 1.5, 78.5, 'EM_ANDAMENTO'),
+        ('obj-02', 'ciclo-2026', 'OBJ-02', 'Atingir Excelência Operacional e SLA de 99.5% em TI', 'Tecnologia da Informação & Nuvem', 1.2, 94.0, 'EM_ANDAMENTO'),
+        ('obj-03', 'ciclo-2026', 'OBJ-03', 'Otimizar Margem EBITDA e Reduzir Desperdício em Compras', 'Financeiro & Controladoria', 1.3, 82.0, 'EM_ANDAMENTO')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO planejamento_metas (id, objetivo_id, codigo, descricao, valor_meta, valor_atual, unidade, responsavel, status)
+      VALUES
+        ('kr-01', 'obj-01', 'KR-1.1', 'Atingir R$ 5.0M de ARR em Licenciamento SEEK', 5000000.00, 4200000.00, 'R$', 'Lucas Bertolli Costa', 'NO_PRAZO'),
+        ('kr-02', 'obj-02', 'KR-2.1', 'SLA de Disponibilidade Datacenter Curitiba Matriz', 99.90, 99.95, '%', 'Eduardo Martins Fontes', 'ATINGIDO'),
+        ('kr-03', 'obj-03', 'KR-3.1', 'Saving Médio em Cotações de Compras Acima de 15%', 15.00, 18.40, '%', 'Mariana Fontes Prado', 'ATINGIDO')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO planejamento_cenarios (id, nome, receita_projetada, ebitda_projetado, premissas, status)
+      VALUES
+        ('cen-01', 'Cenário Realista (Base)', 5400000.00, 1339200.00, 'Crescimento de 28% no pipeline corporativo e taxa SELIC média de 10.5%.', 'ATIVO'),
+        ('cen-02', 'Cenário Otimista (Expansão SP)', 6800000.00, 1836000.00, 'Fechamento de 3 novos contratos enterprise no primeiro trimestre.', 'ATIVO'),
+        ('cen-03', 'Cenário Conservador', 4600000.00, 966000.00, 'Manutenção da carteira atual com reajustes inflacionários pelo IPCA.', 'ATIVO')
+    `).run();
+  }
+
+  // 12. SEED PACOTE 11: ADMINISTRAÇÃO, SEGURANÇA, AUDITORIA E INTEGRAÇÕES
+  const secCheck = db.prepare('SELECT COUNT(*) as count FROM seguranca_politicas').get() as { count: number };
+  if (secCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO seguranca_politicas (id, codigo, titulo, descricao, obrigatoria, versao, status)
+      VALUES
+        ('pol-01', 'POL-SEC-01', 'Política de Acesso e Autenticação Multifator (MFA)', 'Obrigatoriedade de 2FA para perfis executivos, administradores e operadores financeiros.', 1, '2.1', 'VIGENTE'),
+        ('pol-02', 'POL-SEC-02', 'Política de Retenção e Imutabilidade de Logs de Auditoria', 'Retenção legal de 5 anos de todos os registros de criação, aprovação e exclusão.', 1, '1.4', 'VIGENTE'),
+        ('pol-03', 'POL-SEC-03', 'Política de Alçadas de Governança para Compras e Contratos', 'Regras de limites monetários por faixa de autoridade corporativa.', 1, '2.0', 'VIGENTE')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO integracoes_catalogo (id, nome, categoria, tipo_comunicacao, endpoint_url, status, auth_type)
+      VALUES
+        ('int-01', 'SEFAZ Nacional — Emissão e Consulta de NF-e', 'ERP_FISCAL', 'REST_API', 'https://nfe.fazenda.gov.br/ws', 'ATIVO', 'CERTIFICADO_DIGITAL_A1'),
+        ('int-02', 'Banco Bradesco — Webhook e Conciliação CNAB/API', 'BANCOS', 'REST_API', 'https://api.bradesco.com.br/v1/open-banking', 'ATIVO', 'OAUTH2_MUTUAL_TLS'),
+        ('int-03', 'Banco Itaú — API Pix Cobrança e Extrato', 'BANCOS', 'REST_API', 'https://api.itau.com.br/pix/v2', 'ATIVO', 'OAUTH2_MUTUAL_TLS'),
+        ('int-04', 'Vercel Deployment Webhook — Produção Frontend', 'CLOUD', 'WEBHOOK', 'https://api.vercel.com/v1/integrations/deploy', 'ATIVO', 'BEARER_TOKEN')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO integracoes_webhooks (id, nome, evento, url_destino, metodo, ativo, total_disparos, ultimo_disparo)
+      VALUES
+        ('whk-01', 'Notificação de Liquidação Financeira', 'FINANCEIRO_BAIXA', 'https://seek-xi.vercel.app/api/webhooks/payment', 'POST', 1, 48, '2026-10-06 09:30:00'),
+        ('whk-02', 'Notificação de Ordem de Compra Aprovada', 'COMPRA_APROVADA', 'https://seek-xi.vercel.app/api/webhooks/po-approved', 'POST', 1, 12, '2026-10-05 16:45:00')
     `).run();
   }
 }
