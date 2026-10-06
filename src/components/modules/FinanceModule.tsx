@@ -24,11 +24,19 @@ import { useWorkflow } from '../../context/WorkflowContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 
-export const FinanceModule: React.FC = () => {
+export interface FinanceModuleProps {
+  initialTab?: 'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento';
+  initialType?: 'ALL' | 'PAGAR' | 'RECEBER';
+}
+
+export const FinanceModule: React.FC<FinanceModuleProps> = ({
+  initialTab = 'lancamentos',
+  initialType = 'ALL'
+}) => {
   const { addAuditLog } = useWorkflow();
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento'>('lancamentos');
+  const [activeTab, setActiveTab] = useState<'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento'>(initialTab);
   const [entries, setEntries] = useState<FinancialEntry[]>(FINANCIAL_ENTRIES);
   const [bankAccounts, setBankAccounts] = useState<any[]>([
     { id: 'bank-1', bank_name: 'Banco Bradesco S.A.', bank_code: '237', agency: '1204', account_number: '45890-1', current_balance: 1250000.0, transaction_count: 4, pending_reconcile_count: 1 },
@@ -43,7 +51,19 @@ export const FinanceModule: React.FC = () => {
   const [summaryStats, setSummaryStats] = useState<any>(null);
 
   // Filters
-  const [filterType, setFilterType] = useState<string>('ALL');
+  const [filterType, setFilterType] = useState<string>(initialType);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (initialType) {
+      setFilterType(initialType);
+    }
+  }, [initialType]);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [filterOrigin, setFilterOrigin] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');

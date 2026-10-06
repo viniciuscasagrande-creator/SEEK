@@ -29,11 +29,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
 
-export const PurchasingModule: React.FC = () => {
+export interface PurchasingModuleProps {
+  initialTab?: 'requisitions' | 'comparison' | 'orders' | 'suppliers';
+}
+
+export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab = 'requisitions' }) => {
   const { currentUser } = useAuth();
   const { refreshApprovals, addAuditLog } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'requisitions' | 'comparison' | 'orders' | 'suppliers'>('requisitions');
+  const [activeTab, setActiveTab] = useState<'requisitions' | 'comparison' | 'orders' | 'suppliers'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [requisitions, setRequisitions] = useState<any[]>([]);
   const [selectedReqForQuotation, setSelectedReqForQuotation] = useState<any>(null);
   const [quotations, setQuotations] = useState<any[]>([]);

@@ -19,11 +19,22 @@ import { StatusBadge } from '../common/StatusBadge';
 import { Modal } from '../common/Modal';
 import { UserRoleLevel } from '../../types/core';
 
-export const AdminModule: React.FC = () => {
+export interface AdminModuleProps {
+  initialTab?: 'empresas' | 'rbac' | 'alcadas' | 'auditoria';
+}
+
+export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' }) => {
   const { companies, branches, availableProfiles } = useAuth();
   const { auditLogs, addAuditLog } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'empresas' | 'rbac' | 'alcadas' | 'auditoria'>('rbac');
+  const [activeTab, setActiveTab] = useState<'empresas' | 'rbac' | 'alcadas' | 'auditoria'>(initialTab);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
 

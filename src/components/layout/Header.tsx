@@ -10,7 +10,8 @@ import {
   LogOut,
   Check,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  Menu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
@@ -21,6 +22,7 @@ interface HeaderProps {
   onNavigateToApprovals: () => void;
   onOpenCommandCenter: () => void;
   onNavigate: (route: any) => void;
+  onToggleMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,7 +30,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSeekAI,
   onNavigateToApprovals,
   onOpenCommandCenter,
-  onNavigate
+  onNavigate,
+  onToggleMobileMenu
 }) => {
   const {
     activeCompany,
@@ -52,9 +55,19 @@ export const Header: React.FC<HeaderProps> = ({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-5 shadow-xs">
-      {/* Esquerda: Identidade SEEK & Busca Global (Ctrl+K) */}
-      <div className="flex items-center space-x-6">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-5 shadow-xs">
+      {/* Esquerda: Identidade SEEK, Botão Mobile & Busca Global (Ctrl+K) */}
+      <div className="flex items-center space-x-3 sm:space-x-6">
+        {onToggleMobileMenu && (
+          <button
+            onClick={onToggleMobileMenu}
+            className="md:hidden flex items-center justify-center p-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+            title="Abrir menu lateral"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+
         <div className="flex items-center space-x-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 via-slate-900 to-blue-950 text-white shadow-md shadow-blue-950/20">
             <span className="text-xl font-black tracking-widest text-blue-400">S</span>

@@ -20,10 +20,21 @@ import { Modal } from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 
-export const ProjectsModule: React.FC = () => {
+export interface ProjectsModuleProps {
+  initialTab?: 'projects' | 'kanban';
+}
+
+export const ProjectsModule: React.FC<ProjectsModuleProps> = ({ initialTab = 'projects' }) => {
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'projects' | 'kanban'>('projects');
+  const [activeTab, setActiveTab] = useState<'projects' | 'kanban'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');

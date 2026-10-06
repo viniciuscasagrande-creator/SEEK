@@ -25,12 +25,22 @@ import {
   FiscalInvoice
 } from '../../types/fiscal';
 
-export const FiscalModule: React.FC = () => {
+export interface FiscalModuleProps {
+  initialTab?: 'taxes' | 'calculator' | 'calendar' | 'invoices';
+}
+
+export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes' }) => {
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'taxes' | 'calculator' | 'calendar' | 'invoices'>('taxes');
+  const [activeTab, setActiveTab] = useState<'taxes' | 'calculator' | 'calendar' | 'invoices'>(initialTab);
   const [loading, setLoading] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Dados
   const [obligations, setObligations] = useState<TaxObligation[]>([]);

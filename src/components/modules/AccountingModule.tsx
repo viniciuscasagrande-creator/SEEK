@@ -28,12 +28,22 @@ import {
   AccountingPeriod
 } from '../../types/accounting';
 
-export const AccountingModule: React.FC = () => {
+export interface AccountingModuleProps {
+  initialTab?: 'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing';
+}
+
+export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab = 'coa' }) => {
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing'>('coa');
+  const [activeTab, setActiveTab] = useState<'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing'>(initialTab);
   const [loading, setLoading] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Dados
   const [accounts, setAccounts] = useState<ChartOfAccount[]>([]);

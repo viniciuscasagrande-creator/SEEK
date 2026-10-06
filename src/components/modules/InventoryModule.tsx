@@ -22,10 +22,21 @@ import { Modal } from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 
-export const InventoryModule: React.FC = () => {
+export interface InventoryModuleProps {
+  initialTab?: 'assets' | 'stock';
+}
+
+export const InventoryModule: React.FC<InventoryModuleProps> = ({ initialTab = 'stock' }) => {
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'assets' | 'stock'>('assets');
+  const [activeTab, setActiveTab] = useState<'assets' | 'stock'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [assets, setAssets] = useState<any[]>(ASSETS_RECORDS);
   const [stockItems, setStockItems] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
