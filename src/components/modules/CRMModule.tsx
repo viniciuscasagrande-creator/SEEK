@@ -409,7 +409,7 @@ export const CRMModule: React.FC = () => {
               required
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="Ex: Operação de Bilheteria & Controle de Acesso 2027"
+              placeholder="Ex: Contrato Anual de Gestão ERP & Cloud Corporativo"
               className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>

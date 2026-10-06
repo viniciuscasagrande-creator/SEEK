@@ -187,7 +187,7 @@ export const FinanceModule: React.FC = () => {
           value={`R$ ${(totalReceitas / 1000).toFixed(1)}k`}
           change="+8.5%"
           changeType="positive"
-          subtitle="Receitas de ingressos e taxas"
+          subtitle="Receitas contratuais e serviços corporativos"
           icon={ArrowUpRight}
           iconColor="text-emerald-600"
           iconBg="bg-emerald-50"
@@ -503,7 +503,7 @@ export const FinanceModule: React.FC = () => {
               required
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="Ex: Fornecimento de ingressos ou Taxa de serviço"
+              placeholder="Ex: Faturamento de serviços de TI ou Licenciamento SaaS"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>
@@ -516,7 +516,7 @@ export const FinanceModule: React.FC = () => {
                 required
                 value={entityName}
                 onChange={e => setEntityName(e.target.value)}
-                placeholder="Ex: Live Nation Brasil"
+                placeholder="Ex: Grupo Votorantim S.A."
                 className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               />
             </div>

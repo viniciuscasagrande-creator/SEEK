@@ -399,7 +399,7 @@ export const ContractsModule: React.FC = () => {
               required
               value={newContract.partyName}
               onChange={e => setNewContract({ ...newContract, partyName: e.target.value })}
-              placeholder="Ex: Allianz Parque Gestão de Arenas"
+              placeholder="Ex: Grupo Votorantim S.A."
               className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>

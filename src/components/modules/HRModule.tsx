@@ -44,7 +44,7 @@ export const HRModule: React.FC = () => {
   const [newEmployee, setNewEmployee] = useState({
     fullName: '',
     jobTitle: '',
-    department: 'Operações de Eventos',
+    department: 'Operações & Logística',
     branch: 'Curitiba (Matriz)',
     regime: 'CLT',
     salary: '',
@@ -103,7 +103,7 @@ export const HRModule: React.FC = () => {
       setNewEmployee({
         fullName: '',
         jobTitle: '',
-        department: 'Operações de Eventos',
+        department: 'Operações & Logística',
         branch: 'Curitiba (Matriz)',
         regime: 'CLT',
         salary: '',
@@ -565,7 +565,7 @@ export const HRModule: React.FC = () => {
                 required
                 value={newEmployee.jobTitle}
                 onChange={e => setNewEmployee({ ...newEmployee, jobTitle: e.target.value })}
-                placeholder="Ex: Analista de Bilheteria Jr"
+                placeholder="Ex: Analista de Operações Jr"
                 className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               />
             </div>
@@ -592,7 +592,7 @@ export const HRModule: React.FC = () => {
                 onChange={e => setNewEmployee({ ...newEmployee, department: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               >
-                <option value="Operações de Eventos">Operações de Eventos</option>
+                <option value="Operações & Logística">Operações & Logística</option>
                 <option value="Tecnologia da Informação">Tecnologia da Informação</option>
                 <option value="Financeiro & Controladoria">Financeiro & Controladoria</option>
                 <option value="Comercial & CRM">Comercial & CRM</option>

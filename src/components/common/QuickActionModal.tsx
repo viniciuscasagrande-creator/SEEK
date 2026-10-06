@@ -131,7 +131,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({ isOpen, onCl
                   : activeTab === 'financeiro'
                   ? 'Título do Pagamento / Reembolso'
                   : activeTab === 'crm'
-                  ? 'Nome do Cliente / Evento'
+                  ? 'Nome do Cliente Corporativo / Oportunidade'
                   : 'Assunto do Chamado Interno'}
               </label>
               <input
@@ -139,7 +139,7 @@ export const QuickActionModal: React.FC<QuickActionModalProps> = ({ isOpen, onCl
                 required
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="Ex: Aquisição de 10 impressoras térmicas para bilheteria"
+                placeholder="Ex: Aquisição de 10 estações de trabalho Dell OptiPlex"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-hidden"
               />
             </div>

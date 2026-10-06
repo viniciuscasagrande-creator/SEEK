@@ -83,8 +83,8 @@ export const DocumentsModule: React.FC = () => {
     {
       id: 'MANUAIS_OPERACIONAIS',
       name: '06 - Manuais & Procedimentos',
-      description: 'Manuais técnicos de catracas, bilheterias móveis e fluxos de caixa.',
-      access: 'Operações de Eventos',
+      description: 'Manuais técnicos de infraestrutura de rede, servidores e fluxos corporativos.',
+      access: 'Operações & Logística',
       color: 'text-teal-600',
       bg: 'bg-teal-50'
     }
@@ -125,7 +125,7 @@ export const DocumentsModule: React.FC = () => {
           {
             id: 'doc-03',
             code: 'DOC-2026-003',
-            title: 'Contrato Social Consolidado - SEEK Entretenimento e Gestão S.A.',
+            title: 'Contrato Social Consolidado - SEEK Gestão Integrada & Participações S.A.',
             category: 'CONTRATOS_SOCIETARIOS',
             version: '4.0',
             accessLevel: 'DIRETORIA',
@@ -149,11 +149,11 @@ export const DocumentsModule: React.FC = () => {
           {
             id: 'doc-05',
             code: 'DOC-2026-005',
-            title: 'Manual de Operação de Catracas RFID e Contingência Offline',
+            title: 'Manual de Operação de Redes Corporativas e Datacenter',
             category: 'MANUAIS_OPERACIONAIS',
             version: '3.0',
             accessLevel: 'GERAL',
-            department: 'Operações de Eventos',
+            department: 'Tecnologia & Infraestrutura',
             uploadedByName: 'Beatriz Castro Lima',
             createdAt: '05/08/2026',
             fileSize: '4.2 MB'

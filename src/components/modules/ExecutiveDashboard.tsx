@@ -139,16 +139,16 @@ export const ExecutiveDashboard: React.FC = () => {
           </div>
 
           <div className="mt-5 space-y-4">
-            {/* Departamento 1: Operações de Eventos */}
+            {/* Departamento 1: Operações & Serviços */}
             <div>
               <div className="flex justify-between text-xs font-semibold text-slate-800 mb-1">
-                <span>Operações de Eventos (Festivais & Bilheteria)</span>
+                <span>Operações & Serviços Corporativos</span>
                 <span className="text-rose-600 font-bold">104.2% (R$ 312.600 / R$ 300.000)</span>
               </div>
               <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                 <div className="h-full bg-rose-500 rounded-full" style={{ width: '100%' }} />
               </div>
-              <span className="text-[10px] text-slate-600 block mt-0.5">Alerta: Excedeu R$ 12.600 devido à compra emergencial de catracas</span>
+              <span className="text-[10px] text-slate-600 block mt-0.5">Alerta: Excedeu R$ 12.600 devido à expansão emergencial de capacidade de Datacenter</span>
             </div>
 
             {/* Departamento 2: Tecnologia da Informação */}
@@ -202,7 +202,7 @@ export const ExecutiveDashboard: React.FC = () => {
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-amber-800 leading-tight">
-                <strong>Allianz Parque</strong> (R$ 85k/mês) entra na janela de renovação e reajuste por IPCA.
+                <strong>Grupo Votorantim</strong> (R$ 85k/mês) entra na janela de renovação e reajuste por IPCA.
               </p>
             </div>
 

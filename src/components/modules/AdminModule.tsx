@@ -419,7 +419,7 @@ export const AdminModule: React.FC = () => {
               required
               value={newUserEmail}
               onChange={e => setNewUserEmail(e.target.value)}
-              placeholder="amanda.ferreira@diskingressos.com.br"
+              placeholder="amanda.ferreira@seek.local"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>
@@ -468,7 +468,7 @@ export const AdminModule: React.FC = () => {
               required
               value={newUserDept}
               onChange={e => setNewUserDept(e.target.value)}
-              placeholder="Ex: Operações de Bilheteria"
+              placeholder="Ex: Operações & Logística"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>

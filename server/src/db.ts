@@ -380,16 +380,16 @@ export function initializeDatabase() {
 }
 
 // 2. SEED DOS DADOS CORPORATIVOS INICIAIS
-function seedInitialData() {
+export function seedInitialData() {
   const companyCheck = db.prepare('SELECT COUNT(*) as count FROM companies').get() as { count: number };
   if (companyCheck.count === 0) {
     // Empresas
     db.prepare(`
       INSERT INTO companies (id, code, trade_name, legal_name, document_number, is_holding)
       VALUES
-        ('comp-1', 'SEEK-CORP', 'DiskIngressos Matriz', 'DiskIngressos Serviços de Bilheteria e Eventos S.A.', '08.123.456/0001-90', 1),
-        ('comp-2', 'SEEK-SP', 'DiskIngressos SP', 'DiskIngressos Operações São Paulo Ltda.', '08.123.456/0002-71', 0),
-        ('comp-3', 'SEEK-RJ', 'DiskIngressos Rio', 'DiskIngressos Entretenimento Rio de Janeiro Ltda.', '08.123.456/0003-52', 0)
+        ('comp-1', 'SEEK-CORP', 'SEEK Corporativo Matriz', 'SEEK Gestão Integrada & Participações S.A.', '08.123.456/0001-90', 1),
+        ('comp-2', 'SEEK-SP', 'SEEK São Paulo', 'SEEK Soluções Corporativas São Paulo Ltda.', '08.123.456/0002-71', 0),
+        ('comp-3', 'SEEK-RJ', 'SEEK Rio de Janeiro', 'SEEK Serviços Administrativos Rio de Janeiro Ltda.', '08.123.456/0003-52', 0)
     `).run();
 
     // Filiais
@@ -397,9 +397,9 @@ function seedInitialData() {
       INSERT INTO branches (id, company_id, code, name, city, state, is_headquarter)
       VALUES
         ('branch-1', 'comp-1', 'FIL-01', 'Curitiba (Sede / Matriz)', 'Curitiba', 'PR', 1),
-        ('branch-2', 'comp-1', 'FIL-02', 'Curitiba (Centro de Distribuição & PDV)', 'Curitiba', 'PR', 0),
-        ('branch-3', 'comp-2', 'FIL-03', 'São Paulo (Faria Lima / Operações)', 'São Paulo', 'SP', 0),
-        ('branch-4', 'comp-3', 'FIL-04', 'Rio de Janeiro (Barra da Tijuca)', 'Rio de Janeiro', 'RJ', 0)
+        ('branch-2', 'comp-1', 'FIL-02', 'Curitiba (Hub Operacional & Datacenter)', 'Curitiba', 'PR', 0),
+        ('branch-3', 'comp-2', 'FIL-03', 'São Paulo (Faria Lima / Corporativo)', 'São Paulo', 'SP', 0),
+        ('branch-4', 'comp-3', 'FIL-04', 'Rio de Janeiro (Porto Maravilha)', 'Rio de Janeiro', 'RJ', 0)
     `).run();
 
     // Departamentos
@@ -407,21 +407,21 @@ function seedInitialData() {
       INSERT INTO departments (id, company_id, code, name, budget_limit)
       VALUES
         ('dep-1', 'comp-1', 'FIN', 'Financeiro & Controladoria', 250000),
-        ('dep-2', 'comp-1', 'COM', 'Comercial & CRM', 200000),
-        ('dep-3', 'comp-1', 'OPE', 'Operações de Eventos', 350000),
-        ('dep-4', 'comp-1', 'TI', 'Tecnologia da Informação', 300000),
+        ('dep-2', 'comp-1', 'COM', 'Comercial & Novos Negócios', 200000),
+        ('dep-3', 'comp-1', 'OPE', 'Operações & Logística Corporativa', 350000),
+        ('dep-4', 'comp-1', 'TI', 'Tecnologia da Informação & Nuvem', 300000),
         ('dep-5', 'comp-1', 'RH', 'Recursos Humanos & DP', 180000),
         ('dep-6', 'comp-1', 'CMP', 'Compras & Suprimentos', 150000),
-        ('dep-7', 'comp-1', 'JUR', 'Jurídico & Contratos', 120000)
+        ('dep-7', 'comp-1', 'JUR', 'Jurídico & Compliance', 120000)
     `).run();
 
     // Centros de Custo
     db.prepare(`
       INSERT INTO cost_centers (id, company_id, code, name)
       VALUES
-        ('cc-1', 'comp-1', '1.01.001', 'Operações de Bilheteria & Arenas'),
+        ('cc-1', 'comp-1', '1.01.001', 'Operações & Serviços Corporativos'),
         ('cc-2', 'comp-1', '1.01.002', 'Tecnologia & Infraestrutura Cloud'),
-        ('cc-3', 'comp-1', '1.02.001', 'Comercial & Marketing'),
+        ('cc-3', 'comp-1', '1.02.001', 'Comercial & Novos Negócios B2B'),
         ('cc-4', 'comp-1', '1.03.001', 'Administrativo & Recursos Humanos')
     `).run();
 
@@ -482,7 +482,7 @@ function seedInitialData() {
         full_name: 'Eduardo Martins Fontes',
         role_level: 'GESTOR',
         role_title: 'Gestor Departamental',
-        department: 'Operações de Eventos',
+        department: 'Operações & Logística',
         approval_limit: 50000,
         accessible_modules: 'inicio,purchasing,suppliers,inventory,assets,projects,operations,service-desk,documents,reports'
       },
@@ -612,7 +612,7 @@ function seedInitialData() {
         full_name: 'Beatriz Castro Lima',
         role_level: 'COLABORADOR',
         role_title: 'Analista Operacional Pleno',
-        department: 'Operações de Eventos',
+        department: 'Operações & Logística',
         approval_limit: 1500,
         accessible_modules: 'inicio,service-desk,documents'
       }
@@ -629,12 +629,12 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO business_partners (id, company_id, type, legal_name, trade_name, document_number, category, contact_name, email, city, state, rating, sla_percent)
       VALUES
-        ('part-1', 'comp-1', 'FORNECEDOR', 'Digicon Controle de Acesso S.A.', 'Digicon Catracas & Scanners', '01.234.567/0001-89', 'Equipamentos de Acesso', 'Marcos Silva', 'contato@digicon.com.br', 'Porto Alegre', 'RS', 5, 98.5),
-        ('part-2', 'comp-1', 'FORNECEDOR', 'Identifica Eventos Brasil Ltda.', 'Identifica Pulseiras RFID', '02.345.678/0001-90', 'Insumos & Credenciamento', 'Cláudia Peixoto', 'vendas@identificaeventos.com.br', 'São Paulo', 'SP', 4, 96.0),
+        ('part-1', 'comp-1', 'FORNECEDOR', 'Cisco Systems Brasil Ltda.', 'Cisco Redes & Conectividade', '01.234.567/0001-89', 'Equipamentos de Rede', 'Marcos Silva', 'contato@cisco.com.br', 'Porto Alegre', 'RS', 5, 98.5),
+        ('part-2', 'comp-1', 'FORNECEDOR', 'Kalunga Comércio & Indústria Gráfica S.A.', 'Kalunga Suprimentos', '02.345.678/0001-90', 'Suprimentos Corporativos', 'Cláudia Peixoto', 'corporativo@kalunga.com.br', 'São Paulo', 'SP', 4, 96.0),
         ('part-3', 'comp-1', 'FORNECEDOR', 'Dell Computadores do Brasil Ltda.', 'Dell Brasil', '72.381.189/0001-10', 'Equipamentos de TI', 'Rodrigo Mendes', 'corporativo@dell.com.br', 'Eldorado do Sul', 'RS', 5, 99.2),
         ('part-4', 'comp-1', 'FORNECEDOR', 'Equinix Brasil Soluções de TI', 'Equinix Datacenter', '04.567.890/0001-12', 'Infraestrutura Cloud & Hosting', 'Patricia Meirelles', 'noc@equinix.com.br', 'Barueri', 'SP', 5, 99.9),
-        ('part-5', 'comp-1', 'CLIENTE', 'Allianz Parque Gestão de Arenas', 'Allianz Parque', '12.987.654/0001-33', 'Arenas & Estádios', 'Felipe Massaferro', 'eventos@allianzparque.com.br', 'São Paulo', 'SP', 5, 100.0),
-        ('part-6', 'comp-1', 'CLIENTE', 'Teatro Positivo Curitiba Ltda.', 'Teatro Positivo', '15.432.109/0001-55', 'Teatros & Cultura', 'Sueli Gusmão', 'diretoria@teatropositivo.com.br', 'Curitiba', 'PR', 5, 100.0)
+        ('part-5', 'comp-1', 'CLIENTE', 'Grupo Votorantim Participações S.A.', 'Grupo Votorantim', '12.987.654/0001-33', 'Serviços Corporativos B2B', 'Felipe Massaferro', 'corporativo@votorantim.com.br', 'São Paulo', 'SP', 5, 100.0),
+        ('part-6', 'comp-1', 'CLIENTE', 'Suzano Papel & Celulose S.A.', 'Suzano S.A.', '15.432.109/0001-55', 'Indústria & Manufatura', 'Sueli Gusmão', 'diretoria@suzano.com.br', 'Curitiba', 'PR', 5, 100.0)
     `).run();
   }
 
@@ -644,21 +644,21 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO crm_deals (id, company_id, client_name, title, value, stage, probability, owner_name, expected_close_date)
       VALUES
-        ('crm-1', 'comp-1', 'Allianz Parque Eventos', 'Gestão Exclusiva de Bilheteria Turnê Stadium 2027', 650000.00, 'NEGOCIACAO', 80, 'Lucas Bertolli Costa', '2026-10-28'),
-        ('crm-2', 'comp-1', 'Festival Lollapalooza Brasil', 'Operação de Controle de Acesso e PDVs Físicos', 380000.00, 'PROPOSTA', 60, 'Lucas Bertolli Costa', '2026-11-05'),
-        ('crm-3', 'comp-1', 'Teatro Bradesco SP', 'Renovação Trienal Sistema SEEK Bilheteria', 240000.00, 'CLIENTE', 100, 'Lucas Bertolli Costa', '2026-10-01'),
-        ('crm-4', 'comp-1', 'Maracanã Tour & Museu do Futebol', 'Venda de Ingressos Online com Catracas Faciais', 410000.00, 'QUALIFICACAO', 40, 'Lucas Bertolli Costa', '2026-11-20'),
-        ('crm-5', 'comp-1', 'Arena do Grêmio', 'Sistema de Acessos e Sócios Torcedores', 520000.00, 'LEAD', 20, 'Lucas Bertolli Costa', '2026-12-15')
+        ('crm-1', 'comp-1', 'Grupo Votorantim Participações', 'Contrato Corporativo de Gestão de Infraestrutura & Facilities', 650000.00, 'NEGOCIACAO', 80, 'Lucas Bertolli Costa', '2026-10-28'),
+        ('crm-2', 'comp-1', 'Suzano S.A.', 'Implantação de Plataforma Integrada de Operações ERP', 380000.00, 'PROPOSTA', 60, 'Lucas Bertolli Costa', '2026-11-05'),
+        ('crm-3', 'comp-1', 'Banco Safra S.A.', 'Renovação Licenciamento Corporativo SEEK Enterprise', 240000.00, 'CLIENTE', 100, 'Lucas Bertolli Costa', '2026-10-01'),
+        ('crm-4', 'comp-1', 'Klabin S.A.', 'Consultoria e Mapeamento de Processos Administrativos', 410000.00, 'QUALIFICACAO', 40, 'Lucas Bertolli Costa', '2026-11-20'),
+        ('crm-5', 'comp-1', 'Gerdau S.A.', 'Módulo Integrado de Suprimentos & Almoxarifado', 520000.00, 'LEAD', 20, 'Lucas Bertolli Costa', '2026-12-15')
     `).run();
 
     db.prepare(`
       INSERT INTO financial_records (id, company_id, code, type, title, entity_name, cost_center, category, amount, due_date, status, payment_method)
       VALUES
         ('fin-01', 'comp-1', 'CP-2026-1044', 'PAGAR', 'Licenciamento de Datacenter & Servidores Dedicados', 'Equinix Brasil Soluções de TI', 'Tecnologia & Infraestrutura Cloud', 'Infraestrutura Tecnológica', 34800.00, '2026-10-10', 'CONFIRMADO', 'Boleto Bancário'),
-        ('fin-02', 'comp-1', 'CR-2026-0941', 'RECEBER', 'Taxa de Conveniência e Bilheteria Festival Curitiba Sounds', 'Live Nation Entretenimento Brasil', 'Operações de Bilheteria & Arenas', 'Receita Operacional Bruta', 185600.00, '2026-10-12', 'PREVISTO', 'PIX Cobrança'),
-        ('fin-03', 'comp-1', 'CP-2026-1045', 'PAGAR', 'Fornecimento de Bobinas Térmicas e Pulseiras RFID', 'Gráfica Segurança do Sul Ltda.', 'Operações de Bilheteria & Arenas', 'Custos Diretos de Ingressos', 12450.00, '2026-10-15', 'PREVISTO', 'TED Bancária'),
-        ('fin-04', 'comp-1', 'CR-2026-0942', 'RECEBER', 'Faturamento Mensal Teatro Positivo (Contrato Anual)', 'Teatro Positivo Curitiba', 'Operações de Bilheteria & Arenas', 'Receita Recorrente SaaS/Taxa', 45000.00, '2026-10-20', 'CONFIRMADO', 'Boleto Registrado'),
-        ('fin-05', 'comp-1', 'CP-2026-1046', 'PAGAR', 'Folha de Pagamento Consolidada + Encargos FGTS/INSS', 'Colaboradores DiskIngressos Matriz', 'Administrativo & Recursos Humanos', 'Despesas com Pessoal', 289400.00, '2026-10-05', 'PAGO', 'Folha Automática Itaú')
+        ('fin-02', 'comp-1', 'CR-2026-0941', 'RECEBER', 'Faturamento Mensal Contrato de Gestão Corporativa', 'Grupo Votorantim Participações', 'Operações & Serviços Corporativos', 'Receita Operacional Bruta', 185600.00, '2026-10-12', 'PREVISTO', 'PIX Cobrança'),
+        ('fin-03', 'comp-1', 'CP-2026-1045', 'PAGAR', 'Fornecimento Trimestral de Suprimentos Corporativos', 'Kalunga Suprimentos', 'Operações & Serviços Corporativos', 'Insumos Administrativos', 12450.00, '2026-10-15', 'PREVISTO', 'TED Bancária'),
+        ('fin-04', 'comp-1', 'CR-2026-0942', 'RECEBER', 'Faturamento Mensal Licenciamento Corporativo SEEK', 'Suzano S.A.', 'Operações & Serviços Corporativos', 'Receita Recorrente SaaS', 45000.00, '2026-10-20', 'CONFIRMADO', 'Boleto Registrado'),
+        ('fin-05', 'comp-1', 'CP-2026-1046', 'PAGAR', 'Folha de Pagamento Consolidada + Encargos FGTS/INSS', 'Colaboradores SEEK Matriz', 'Administrativo & Recursos Humanos', 'Despesas com Pessoal', 289400.00, '2026-10-05', 'PAGO', 'Folha Automática Itaú')
     `).run();
 
     db.prepare(`
@@ -671,24 +671,24 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO purchase_orders (id, code, title, department, requester_name, supplier_name, total_amount, status, required_date)
       VALUES
-        ('po-01', 'OC-2026-0042', '15 Catracas Portáteis & Scanners Ópticos', 'Operações de Eventos', 'Beatriz Castro Lima', 'Digicon Controle de Acesso S.A.', 18450.00, 'PENDENTE_APROVACAO', '2026-10-25'),
-        ('po-02', 'OC-2026-0041', '50.000 Pulseiras Tyvek com Chip RFID', 'Operações de Eventos', 'Mariana Fontes Prado', 'Identifica Eventos Brasil Ltda.', 32000.00, 'APROVADO', '2026-10-18'),
-        ('po-03', 'OC-2026-0040', '5 Laptops Dell Latitude i7 para Equipe Comercial SP', 'Tecnologia da Informação', 'Eduardo Martins', 'Dell Computadores do Brasil Ltda.', 26500.00, 'RECEBIDO', '2026-10-15')
+        ('po-01', 'OC-2026-0042', '10 Switches Gerenciáveis 48 Portas Gigabit Cisco', 'Tecnologia da Informação & Nuvem', 'Beatriz Castro Lima', 'Cisco Systems Brasil Ltda.', 18450.00, 'PENDENTE_APROVACAO', '2026-10-25'),
+        ('po-02', 'OC-2026-0041', 'Lote de Cartuchos de Toner & Resmas Sulfite A4', 'Operações & Logística Corporativa', 'Mariana Fontes Prado', 'Kalunga Comércio & Indústria Gráfica S.A.', 12450.00, 'APROVADO', '2026-10-18'),
+        ('po-03', 'OC-2026-0040', '5 Laptops Dell Latitude i7 para Equipe Comercial SP', 'Tecnologia da Informação & Nuvem', 'Eduardo Martins', 'Dell Computadores do Brasil Ltda.', 26500.00, 'RECEBIDO', '2026-10-15')
     `).run();
 
     db.prepare(`
       INSERT INTO contracts (id, contract_number, party_name, type, monthly_value, start_date, end_date, days_remaining, readjustment_index, status)
       VALUES
-        ('ct-01', 'CT-2024-0089', 'Allianz Parque Gestão de Arenas', 'CLIENTE', 85000.00, '2024-11-01', '2026-11-01', 27, 'IPCA', 'VENCENDO'),
+        ('ct-01', 'CT-2024-0089', 'Grupo Votorantim Participações S.A.', 'CLIENTE', 85000.00, '2024-11-01', '2026-11-01', 27, 'IPCA', 'VENCENDO'),
         ('ct-02', 'CT-2025-0142', 'Equinix Brasil Soluções de TI', 'FORNECEDOR', 38000.00, '2025-01-15', '2027-01-15', 467, 'FIXO', 'VIGENTE'),
-        ('ct-03', 'CT-2023-0056', 'Teatro Positivo Curitiba Ltda.', 'CLIENTE', 32000.00, '2023-08-01', '2026-12-31', 87, 'IGP-M', 'VIGENTE')
+        ('ct-03', 'CT-2023-0056', 'Suzano S.A.', 'CLIENTE', 32000.00, '2023-08-01', '2026-12-31', 87, 'IGP-M', 'VIGENTE')
     `).run();
 
     db.prepare(`
       INSERT INTO approvals (id, company_id, entity_type, title, description, department, requester_name, requester_role, amount, status, priority, current_step, total_steps)
       VALUES
-        ('app-01', 'comp-1', 'COMPRA', 'Aquisição de 15 Leitores Biométricos e Catracas Portáteis', 'Equipamentos para grandes festivais com validação facial e NFC.', 'Operações de Eventos', 'Beatriz Castro Lima', 'Analista Operacional Pleno', 18450.00, 'PENDENTE', 'ALTA', 2, 3),
-        ('app-02', 'comp-1', 'CONTRATO', 'Renovação Contrato Master Infraestrutura Cloud AWS', 'Acordo corporativo anual com reserva de instâncias e SLA de 99.99%.', 'Tecnologia da Informação', 'Eduardo Martins', 'Tech Lead Infraestrutura', 142000.00, 'PENDENTE', 'CRITICA', 2, 2)
+        ('app-01', 'comp-1', 'COMPRA', 'Aquisição de Switches de Rede Gerenciáveis Cisco', 'Equipamentos para expansão do datacenter e conectividade das filiais.', 'Tecnologia da Informação & Nuvem', 'Beatriz Castro Lima', 'Analista de Infraestrutura', 18450.00, 'PENDENTE', 'ALTA', 2, 3),
+        ('app-02', 'comp-1', 'CONTRATO', 'Renovação Contrato Master Infraestrutura Cloud AWS', 'Acordo corporativo anual com reserva de instâncias e SLA de 99.99%.', 'Tecnologia da Informação & Nuvem', 'Eduardo Martins', 'Tech Lead Infraestrutura', 142000.00, 'PENDENTE', 'CRITICA', 2, 2)
     `).run();
 
     db.prepare(`
@@ -705,8 +705,8 @@ function seedInitialData() {
       INSERT INTO audit_logs (id, timestamp, user_name, user_role, action, module, entity, description)
       VALUES
         ('aud-01', '2026-10-05 16:20:12', 'Administrador Geral SEEK', 'Administrador Geral', 'APPROVE', 'Financeiro', 'Orçamento Q4', 'Aprovado teto orçamentário para expansão Filial SP no valor de R$ 450.000,00'),
-        ('aud-02', '2026-10-05 15:45:00', 'Mariana Fontes Prado', 'Gestora de Compras', 'CREATE', 'Compras', 'OC-2026-0042', 'Criada ordem de compra para 15 catracas e submetida ao fluxo de alçadas'),
-        ('aud-03', '2026-10-05 14:10:30', 'Lucas Bertolli Costa', 'Líder Comercial & CRM', 'UPDATE', 'CRM & Comercial', 'Allianz Parque Stadium', 'Avançou estágio de Proposta para Negociação (R$ 650.000,00)')
+        ('aud-02', '2026-10-05 15:45:00', 'Mariana Fontes Prado', 'Gestora de Compras', 'CREATE', 'Compras', 'OC-2026-0042', 'Criada ordem de compra para 12 switches Cisco Catalyst e submetida ao fluxo de alçadas'),
+        ('aud-03', '2026-10-05 14:10:30', 'Lucas Bertolli Costa', 'Líder Comercial & CRM', 'UPDATE', 'CRM & Comercial', 'Grupo Votorantim S.A.', 'Avançou estágio de Proposta para Negociação (R$ 650.000,00)')
     `).run();
   }
 
@@ -719,11 +719,11 @@ function seedInitialData() {
       VALUES
         ('emp-01', 'comp-1', 'MAT-0001', 'Administrador Geral', 'Administrador Geral', 'Tecnologia & Governança', 'Curitiba (Matriz)', 'CLT', '2021-03-01', 28500.00, 30, 0, 'Conselho de Administração'),
         ('emp-02', 'comp-1', 'MAT-0002', 'Roberto Vianna Guimarães', 'Diretor Presidente / C-Level', 'Diretoria Executiva', 'Curitiba (Matriz)', 'CLT', '2020-01-15', 38000.00, 20, 0, 'Conselho de Administração'),
-        ('emp-03', 'comp-1', 'MAT-0015', 'Eduardo Martins Fontes', 'Gestor de Operações & TI', 'Operações de Eventos', 'Curitiba (Matriz)', 'CLT', '2022-04-10', 14500.00, 15, 12.5, 'Roberto Vianna Guimarães'),
+        ('emp-03', 'comp-1', 'MAT-0015', 'Eduardo Martins Fontes', 'Gestor de Operações & TI', 'Operações & Logística', 'Curitiba (Matriz)', 'CLT', '2022-04-10', 14500.00, 15, 12.5, 'Roberto Vianna Guimarães'),
         ('emp-04', 'comp-1', 'MAT-0045', 'Helena Silveira Ramos', 'Gerente Financeira', 'Financeiro & Controladoria', 'Curitiba (Matriz)', 'CLT', '2022-08-01', 16000.00, 22, -2.0, 'Roberto Vianna Guimarães'),
         ('emp-05', 'comp-1', 'MAT-0130', 'Lucas Bertolli Costa', 'Líder Comercial & CRM', 'Comercial & CRM', 'São Paulo (Faria Lima)', 'PJ', '2023-01-10', 17500.00, 0, 0, 'Roberto Vianna Guimarães'),
         ('emp-06', 'comp-1', 'MAT-0088', 'Camila Duarte', 'Gerente de RH & DP', 'Recursos Humanos & DP', 'Curitiba (Matriz)', 'CLT', '2022-11-15', 13800.00, 18, 4.0, 'Roberto Vianna Guimarães'),
-        ('emp-07', 'comp-1', 'MAT-0164', 'Beatriz Castro Lima', 'Analista Operacional Pleno', 'Operações de Eventos', 'Curitiba (Matriz)', 'CLT', '2023-06-01', 5800.00, 25, 8.5, 'Eduardo Martins Fontes')
+        ('emp-07', 'comp-1', 'MAT-0164', 'Beatriz Castro Lima', 'Analista Operacional Pleno', 'Operações & Logística', 'Curitiba (Matriz)', 'CLT', '2023-06-01', 5800.00, 25, 8.5, 'Eduardo Martins Fontes')
     `).run();
 
     // Espelho de Ponto
@@ -740,7 +740,7 @@ function seedInitialData() {
       INSERT INTO assets (id, tag_number, description, category, location, responsible_name, acquisition_cost, current_book_value, custodian_signed, status)
       VALUES
         ('ast-01', 'PAT-2024-0012', 'Servidor Rack Dell PowerEdge R750xs Dual Xeon', 'TI', 'Datacenter Curitiba Matriz', 'Alexandre Magno (TI)', 45800.00, 32060.00, 1, 'ATIVO'),
-        ('ast-02', 'PAT-2025-0089', 'Lote de 20 Catracas Eletrônicas Portáteis Digicon', 'EQUIPAMENTO', 'Galpão de Eventos Curitiba', 'Beatriz Castro Lima', 48900.00, 41565.00, 1, 'ATIVO'),
+        ('ast-02', 'PAT-2025-0089', 'Lote de 20 Monitores Dell UltraSharp 27 4K', 'TI', 'Hub Operacional Curitiba', 'Beatriz Castro Lima', 48900.00, 41565.00, 1, 'ATIVO'),
         ('ast-03', 'PAT-2026-0045', 'MacBook Pro 16 M3 Max 36GB para Líder Comercial', 'TI', 'Filial São Paulo (Faria Lima)', 'Lucas Bertolli Costa', 24500.00, 22050.00, 1, 'ATIVO'),
         ('ast-04', 'PAT-2023-0104', 'Mobiliário Estações de Trabalho Open Space (12 posições)', 'MOBILIARIO', 'Sede Curitiba 3º Andar', 'Camila Duarte (RH)', 18000.00, 10800.00, 1, 'ATIVO')
     `).run();
@@ -749,10 +749,10 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO inventory_items (id, code, name, category, current_stock, min_stock, unit, unit_cost, location, status)
       VALUES
-        ('inv-01', 'MAT-BOB-01', 'Bobinas Térmicas Ticket 80x40mm (Caixa 30 un)', 'Insumos de Bilheteria', 450, 100, 'CX', 120.00, 'Curitiba Almoxarifado A', 'NORMAL'),
-        ('inv-02', 'MAT-RFID-02', 'Pulseiras Tyvek com Chip RFID NTAG213 Homologado', 'Insumos de Controle', 85000, 20000, 'UN', 0.65, 'Curitiba Almoxarifado A', 'NORMAL'),
-        ('inv-03', 'MAT-SCN-03', 'Scanners Ópticos Manuais QR Code / Barcode USB', 'Equipamentos Portáteis', 18, 25, 'UN', 340.00, 'Curitiba Almoxarifado B', 'BAIXO'),
-        ('inv-04', 'MAT-CRD-04', 'Cordões e Crachás VIP com Presilha Jacaré', 'Credenciamento', 12000, 3000, 'UN', 1.80, 'Curitiba Almoxarifado A', 'NORMAL')
+        ('inv-01', 'MAT-TON-01', 'Cartuchos de Toner HP LaserJet Enterprise (Cx 5 un)', 'Insumos de Impressão', 450, 100, 'CX', 120.00, 'Curitiba Almoxarifado A', 'NORMAL'),
+        ('inv-02', 'MAT-SUL-02', 'Caixas de Papel Sulfite A4 75g (10 resmas)', 'Papelaria & Escritório', 850, 200, 'CX', 145.00, 'Curitiba Almoxarifado A', 'NORMAL'),
+        ('inv-03', 'MAT-HD-03', 'Discos Rígidos Enterprise SAS 4TB para Storage', 'Infraestrutura & Peças', 18, 25, 'UN', 780.00, 'Curitiba Almoxarifado B', 'BAIXO'),
+        ('inv-04', 'MAT-CRD-04', 'Cordões e Crachás Corporativos com Presilha', 'Identificação Funcional', 1200, 300, 'UN', 4.50, 'Curitiba Almoxarifado A', 'NORMAL')
     `).run();
 
     // Projetos Estratégicos
@@ -761,7 +761,7 @@ function seedInitialData() {
       VALUES
         ('prj-01', 'PRJ-2026-01', 'Implantação da Plataforma Integrada SEEK V1', 'Tecnologia & Operações', 'Eduardo Martins Fontes', 90, 150000.00, 124500.00, '2026-11-15', 'EM_ANDAMENTO'),
         ('prj-02', 'PRJ-2026-02', 'Expansão Operacional Filial São Paulo (Faria Lima)', 'Diretoria & Comercial', 'Lucas Bertolli Costa', 65, 450000.00, 298000.00, '2026-12-30', 'EM_ANDAMENTO'),
-        ('prj-03', 'PRJ-2026-03', 'Operação de Bilheteria & Acessos Festival Curitiba Sounds', 'Operações de Eventos', 'Beatriz Castro Lima', 95, 80000.00, 78500.00, '2026-10-20', 'EM_ANDAMENTO')
+        ('prj-03', 'PRJ-2026-03', 'Migração de Datacenter e Consolidação Cloud Híbrida', 'Tecnologia da Informação & Nuvem', 'Eduardo Martins Fontes', 95, 80000.00, 78500.00, '2026-10-20', 'EM_ANDAMENTO')
     `).run();
 
     // Tarefas de Projetos
@@ -771,7 +771,7 @@ function seedInitialData() {
         ('tsk-01', 'prj-01', 'Validação das 13 Alçadas de Segurança no Core SQLite', 'Alexandre Magno', '2026-10-10', 'ALTA', 'CONCLUIDA', 16, 14),
         ('tsk-02', 'prj-01', 'Treinamento de Gestores nos Módulos de Compras e Contratos', 'Camila Duarte', '2026-10-18', 'MEDIA', 'EM_ANDAMENTO', 20, 8),
         ('tsk-03', 'prj-02', 'Contratação e Onboarding da Equipe Comercial SP', 'Camila Duarte', '2026-10-25', 'ALTA', 'EM_ANDAMENTO', 40, 28),
-        ('tsk-04', 'prj-03', 'Homologação e Carga das 45 Catracas Faciais na Arena', 'Beatriz Castro Lima', '2026-10-14', 'CRITICA', 'A_FAZER', 24, 0)
+        ('tsk-04', 'prj-03', 'Homologação e Instalação dos Switches Cisco na Matriz', 'Eduardo Martins Fontes', '2026-10-14', 'CRITICA', 'A_FAZER', 24, 0)
     `).run();
 
     // Service Desk Interno
@@ -780,8 +780,8 @@ function seedInitialData() {
       VALUES
         ('tkt-01', 'CH-2026-0882', 'Configuração de VPN e Certificado Digital A1 Filial SP', 'TI', 'EM_ATENDIMENTO', 'ALTA', 6, 'Lucas Bertolli Costa', 'Alexandre Magno'),
         ('tkt-02', 'CH-2026-0883', 'Solicitação de Declaração de Rendimentos e Ponto 2026', 'RH', 'ABERTO', 'MEDIA', 22, 'Beatriz Castro Lima', 'Camila Duarte'),
-        ('tkt-03', 'CH-2026-0884', 'Revisão de Minuta de Aditivo Contratual Allianz Parque', 'Jurídico', 'EM_ATENDIMENTO', 'CRITICA', 3, 'Lucas Bertolli Costa', 'Dr. Fernando Araripe'),
-        ('tkt-04', 'CH-2026-0885', 'Liberação de Orçamento Emergencial para Pulseiras RFID', 'Financeiro', 'RESOLVIDO', 'ALTA', 0, 'Mariana Fontes Prado', 'Helena Silveira Ramos')
+        ('tkt-03', 'CH-2026-0884', 'Revisão de Minuta de Aditivo Contratual Grupo Votorantim', 'Jurídico', 'EM_ATENDIMENTO', 'CRITICA', 3, 'Lucas Bertolli Costa', 'Dr. Fernando Araripe'),
+        ('tkt-04', 'CH-2026-0885', 'Liberação de Orçamento para Expansão de Armazenamento Storage', 'Financeiro', 'RESOLVIDO', 'ALTA', 0, 'Mariana Fontes Prado', 'Helena Silveira Ramos')
     `).run();
 
     // GED Corporativo
@@ -790,7 +790,7 @@ function seedInitialData() {
       VALUES
         ('doc-01', 'DOC-POL-001', 'Política Geral de Governança, Alçadas e Aprovações SEEK', 'POLITICA', 'Diretoria & Compliance', 'v2.1', '1.8 MB', 'CORPORATIVO', 'VIGENTE'),
         ('doc-02', 'DOC-LGPD-004', 'Manual de Boas Práticas e Proteção de Dados (LGPD)', 'POLITICA', 'Jurídico & TI', 'v1.4', '2.4 MB', 'CORPORATIVO', 'VIGENTE'),
-        ('doc-03', 'DOC-SOC-012', 'Estatuto Social Consolidado DiskIngressos S.A.', 'ATA', 'Jurídico', 'v3.0', '4.2 MB', 'RESTRITO', 'VIGENTE'),
+        ('doc-03', 'DOC-SOC-012', 'Estatuto Social Consolidado SEEK Corporativo S.A.', 'ATA', 'Jurídico', 'v3.0', '4.2 MB', 'RESTRITO', 'VIGENTE'),
         ('doc-04', 'DOC-RH-008', 'Acordo Coletivo de Trabalho e Banco de Horas 2026/2027', 'TERMO', 'Recursos Humanos', 'v1.0', '950 KB', 'COLABORADORES', 'VIGENTE')
     `).run();
 
@@ -798,17 +798,17 @@ function seedInitialData() {
     db.prepare(`
       INSERT INTO risks_compliance (id, code, category, title, description, probability, impact, risk_level, mitigation_plan, status)
       VALUES
-        ('rsk-01', 'RSK-LGPD-01', 'LGPD', 'Vazamento acidental de dados de compradores de ingressos', 'Incidentes de segurança ou acessos indevidos a dados de clientes.', 'BAIXA', 'ALTO', 'ALTO', 'Anonimização de CPF, logs de acesso auditados e criptografia de ponta a ponta.', 'MONITORADO'),
-        ('rsk-02', 'RSK-OPE-02', 'OPERACIONAL', 'Queda de link de internet durante validação em festivais', 'Instabilidade de conexão em locais abertos de grandes eventos.', 'MEDIA', 'ALTO', 'CRITICO', 'Scanners operam em modo offline com sincronização assíncrona local por Wi-Fi redundante.', 'MONITORADO'),
-        ('rsk-03', 'RSK-FIN-03', 'FINANCEIRO', 'Inadimplência de taxa de bilheteria de promotores terceiros', 'Risco de crédito em repasses de borderô final de eventos.', 'BAIXA', 'MEDIO', 'MEDIO', 'Retenção automática no split bancário antes do repasse final do evento.', 'MITIGADO')
+        ('rsk-01', 'RSK-LGPD-01', 'LGPD', 'Vazamento ou incidente de dados corporativos e cadastrais', 'Incidentes de segurança ou acessos indevidos a dados corporativos.', 'BAIXA', 'ALTO', 'ALTO', 'Anonimização de dados, logs de acesso auditados e criptografia de ponta a ponta.', 'MONITORADO'),
+        ('rsk-02', 'RSK-OPE-02', 'OPERACIONAL', 'Indisponibilidade temporária de link dedicado de dados', 'Falha de rota de operadora de telecomunicações no datacenter.', 'MEDIA', 'ALTO', 'CRITICO', 'Links redundantes BGP de fibra óptica com operadoras distintas.', 'MONITORADO'),
+        ('rsk-03', 'RSK-FIN-03', 'FINANCEIRO', 'Inadimplência em contratos corporativos de clientes', 'Risco de crédito em recebíveis de contratos B2B.', 'BAIXA', 'MEDIO', 'MEDIO', 'Garantias contratuais, caução e régua preventiva de cobrança.', 'MITIGADO')
     `).run();
 
     // Notificações Iniciais
     db.prepare(`
       INSERT INTO notifications (id, user_id, title, message, type, link_route, read)
       VALUES
-        ('notif-01', 'user-admin', 'Ordem de Compra OC-2026-0042 aguardando alçada', 'Aquisição de 15 catracas requer validação financeira e diretoria.', 'APROVACAO', 'approvals', 0),
-        ('notif-02', 'user-admin', 'Contrato CT-2024-0089 (Allianz Parque) vencendo em 27 dias', 'Janela de negociação do índice IPCA aberta.', 'ALERTA', 'contracts', 0),
+        ('notif-01', 'user-admin', 'Ordem de Compra OC-2026-0042 aguardando alçada', 'Aquisição de equipamentos de rede requer validação financeira e diretoria.', 'APROVACAO', 'approvals', 0),
+        ('notif-02', 'user-admin', 'Contrato CT-2024-0089 (Grupo Votorantim) vencendo em 27 dias', 'Janela de negociação do índice IPCA aberta.', 'ALERTA', 'contracts', 0),
         ('notif-03', 'user-admin', 'Chamado CH-2026-0884 com SLA crítico (3 horas)', 'Revisão jurídica de minuta contratual.', 'PRAZO', 'service-desk', 0),
         ('notif-04', 'user-admin', 'SEEK V1 Hiper Pacote 4 implantado com sucesso', 'Todos os módulos empresariais ativos e integrados.', 'INFO', 'inicio', 0)
     `).run();

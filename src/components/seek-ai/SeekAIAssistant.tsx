@@ -85,7 +85,7 @@ export const SeekAIAssistant: React.FC<SeekAIAssistantProps> = ({ isOpen, onClos
             .join('\n');
       } else if (lower.includes('orçamento') || lower.includes('ultrapassou')) {
         aiResponseText = `📊 **Análise Orçamentária SEEK Controladoria:**\n\n` +
-          `• **Operações de Eventos**: Consumiu **104.2%** do orçamento previsto para Q3/Q4 devido à aquisição emergencial de catracas e logística para o Festival Curitiba.\n` +
+          `• **Operações & Serviços**: Consumiu **104.2%** do orçamento previsto para Q3/Q4 devido à expansão emergencial de capacidade de Datacenter e infraestrutura corporativa.\n` +
           `• **Marketing Corporativo**: Em 89% da dotação (dentro da margem).\n` +
           `• **TI & Infraestrutura**: Em 92% da dotação.\n\n` +
           `⚠️ *Ação recomendada:* A Gerente Financeira Helena Silveira já foi notificada na Central de Alertas para revisão de centros de custo.`;

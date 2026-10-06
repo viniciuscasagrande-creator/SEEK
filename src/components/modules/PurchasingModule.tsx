@@ -33,23 +33,23 @@ export const PurchasingModule: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([
     {
       id: 'part-1',
-      legalName: 'Digicon Controle de Acesso S.A.',
-      tradeName: 'Digicon Catracas & Scanners',
+      legalName: 'Cisco do Brasil Ltda.',
+      tradeName: 'Cisco Redes & Switches',
       documentNumber: '01.234.567/0001-89',
-      category: 'Equipamentos de Acesso',
+      category: 'Equipamentos de Rede',
       contactName: 'Marcos Silva',
-      email: 'contato@digicon.com.br',
+      email: 'contato@cisco.com.br',
       rating: 5,
       slaPercent: 98.5
     },
     {
       id: 'part-2',
-      legalName: 'Identifica Eventos Brasil Ltda.',
-      tradeName: 'Identifica Pulseiras RFID',
+      legalName: 'Kalunga Comércio e Indústria Gráfica Ltda.',
+      tradeName: 'Kalunga Suprimentos Corporativos',
       documentNumber: '02.345.678/0001-90',
-      category: 'Insumos & Credenciamento',
+      category: 'Papelaria & Insumos',
       contactName: 'Cláudia Peixoto',
-      email: 'vendas@identificaeventos.com.br',
+      email: 'vendas@kalunga.com.br',
       rating: 4,
       slaPercent: 96.0
     },
@@ -81,19 +81,19 @@ export const PurchasingModule: React.FC = () => {
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [newOrder, setNewOrder] = useState({
     title: '',
-    department: 'Operações de Eventos',
-    supplierName: 'Digicon Controle de Acesso S.A.',
+    department: 'Tecnologia & Infraestrutura',
+    supplierName: 'Cisco do Brasil Ltda.',
     totalAmount: '',
     requiredDate: '2026-11-10',
     justification: ''
   });
 
   // Quadro Comparativo Interativo
-  const [quotationItem, setQuotationItem] = useState('20 Catracas Eletrônicas com Leitor Facial');
+  const [quotationItem, setQuotationItem] = useState('12 Switches Cisco Catalyst Gigabit & Roteadores');
   const [quotations, setQuotations] = useState([
-    { supplierName: 'Digicon S.A.', price: 24500, deliveryDays: 7, warrantyMonths: 24, paymentTerms: '30/60 DDL' },
-    { supplierName: 'Wolpac Controles Ltda.', price: 28900, deliveryDays: 14, warrantyMonths: 12, paymentTerms: '28 DDL' },
-    { supplierName: 'Madis Rodbel S.A.', price: 31200, deliveryDays: 10, warrantyMonths: 12, paymentTerms: 'À vista com 5%' }
+    { supplierName: 'Cisco do Brasil Ltda.', price: 24500, deliveryDays: 7, warrantyMonths: 36, paymentTerms: '30/60 DDL' },
+    { supplierName: 'Hewlett Packard Enterprise Brasil', price: 28900, deliveryDays: 14, warrantyMonths: 24, paymentTerms: '28 DDL' },
+    { supplierName: 'Dell Computadores do Brasil', price: 31200, deliveryDays: 10, warrantyMonths: 36, paymentTerms: 'À vista com 5%' }
   ]);
   const [comparisonResult, setComparisonResult] = useState<any>(null);
 
@@ -165,8 +165,8 @@ export const PurchasingModule: React.FC = () => {
       setIsNewOrderOpen(false);
       setNewOrder({
         title: '',
-        department: 'Operações de Eventos',
-        supplierName: 'Digicon Controle de Acesso S.A.',
+        department: 'Tecnologia & Infraestrutura',
+        supplierName: 'Cisco do Brasil Ltda.',
         totalAmount: '',
         requiredDate: '2026-11-10',
         justification: ''
@@ -516,8 +516,8 @@ export const PurchasingModule: React.FC = () => {
                 onClick={() => {
                   setNewOrder({
                     title: `Aquisição: ${quotationItem}`,
-                    department: 'Operações de Eventos',
-                    supplierName: comparisonResult?.recommendedSupplier || 'Digicon S.A.',
+                    department: 'Tecnologia & Infraestrutura',
+                    supplierName: comparisonResult?.recommendedSupplier || 'Cisco do Brasil Ltda.',
                     totalAmount: String(comparisonResult?.lowestPrice || 24500),
                     requiredDate: '2026-11-15',
                     justification: `Vencedor pelo menor preço no quadro comparativo. Saving apurado de R$ ${comparisonResult?.savingAmount?.toFixed(2)} (${comparisonResult?.savingPercent}%).`
@@ -606,7 +606,7 @@ export const PurchasingModule: React.FC = () => {
                 onChange={e => setNewOrder({ ...newOrder, department: e.target.value })}
                 className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               >
-                <option value="Operações de Eventos">Operações de Eventos</option>
+                <option value="Operações & Logística">Operações & Logística</option>
                 <option value="Tecnologia da Informação">Tecnologia da Informação</option>
                 <option value="Comercial & Marketing">Comercial & Marketing</option>
                 <option value="Administrativo & RH">Administrativo & RH</option>

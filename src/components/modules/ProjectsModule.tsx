@@ -85,8 +85,8 @@ export const ProjectsModule: React.FC = () => {
           {
             id: 'prj-03',
             code: 'PRJ-2026-03',
-            name: 'Operação de Bilheteria & Acessos Festival Curitiba Sounds',
-            department: 'Operações de Eventos',
+            name: 'Migração de Datacenter & Redundância de Links Corporativos',
+            department: 'Tecnologia & Infraestrutura',
             progress: 95,
             budget: 80000.00,
             spent: 78500.00,
@@ -126,8 +126,8 @@ export const ProjectsModule: React.FC = () => {
           {
             id: 'tsk-03',
             projectId: 'prj-01',
-            title: 'Integração de hardware de catracas e credenciamento móvel',
-            assignedToName: 'Eduardo Martins',
+            title: 'Integração de roteadores SD-WAN e switches Cisco Catalyst',
+            assignedToName: 'Gabriel Vasconcelos',
             status: 'A_FAZER',
             estimatedHours: 30,
             spentHours: 0,
@@ -701,7 +701,7 @@ export const ProjectsModule: React.FC = () => {
               required
               value={taskForm.title}
               onChange={e => setTaskForm(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Ex: Configurar VPN e regras de firewall para bilheteria externa"
+              placeholder="Ex: Configurar VPN IPsec e regras de firewall para Filial SP"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-indigo-600 focus:outline-hidden"
             />
           </div>

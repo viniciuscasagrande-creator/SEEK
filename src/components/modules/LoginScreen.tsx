@@ -200,7 +200,7 @@ export const LoginScreen: React.FC = () => {
                 required
                 value={recoverEmail}
                 onChange={e => setRecoverEmail(e.target.value)}
-                placeholder="seu.email@diskingressos.com.br"
+                placeholder="seu.email@seek.local"
                 className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               />
             </div>

@@ -48,13 +48,13 @@ export const GovernanceModule: React.FC = () => {
         setRisks([
           {
             id: 'rsk-01',
-            title: 'Pico de Tráfego e Indisponibilidade de Bilheteria Online',
+            title: 'Interrupção em Datacenter e Indisponibilidade de Serviços Cloud',
             category: 'Tecnologia / Operações',
             probability: 'MEDIA',
             impact: 'CRITICO',
             status: 'MITIGADO',
-            mitigationPlan: 'Auto-scaling em cluster AWS + Fila virtual de espera implementada.',
-            responsibleName: 'Eduardo Martins'
+            mitigationPlan: 'Redundância geográfica de Datacenter + replicação síncrona com failover automático.',
+            responsibleName: 'Gabriel Vasconcelos'
           },
           {
             id: 'rsk-02',
@@ -63,28 +63,28 @@ export const GovernanceModule: React.FC = () => {
             probability: 'BAIXA',
             impact: 'CRITICO',
             status: 'MONITORADO',
-            mitigationPlan: 'Criptografia ponta a ponta, tokenização de cartões e DPO ativo.',
+            mitigationPlan: 'Criptografia ponta a ponta, tokenização de acessos e DPO ativo.',
             responsibleName: 'Roberto Vianna Guimarães'
           },
           {
             id: 'rsk-03',
-            title: 'Inadimplência de Produtor de Eventos em Fechamento de Lote',
+            title: 'Inadimplência de Cliente Corporativo em Faturamento Recorrente',
             category: 'Financeiro & Controladoria',
             probability: 'BAIXA',
             impact: 'ALTO',
             status: 'CONTROLADO',
-            mitigationPlan: 'Retenção automática de repasses e garantia caução em contrato.',
-            responsibleName: 'Camila Fernandes Souza'
+            mitigationPlan: 'Análise prévia de crédito (Serasa/Bacen), régua de cobrança automatizada e trava bancária.',
+            responsibleName: 'Helena Silveira Ramos'
           },
           {
             id: 'rsk-04',
-            title: 'Interrupção de Fornecimento Elétrico em Festival ao Vivo',
-            category: 'Operações de Eventos',
+            title: 'Falha em Links de Fibra Óptica e Redundância SD-WAN',
+            category: 'Infraestrutura & Operações',
             probability: 'MEDIA',
             impact: 'ALTO',
             status: 'MITIGADO',
-            mitigationPlan: 'Redundância com geradores a diesel em stand-by com chave de transferência automática.',
-            responsibleName: 'Beatriz Castro Lima'
+            mitigationPlan: 'Contratação de operadoras redundantes distintas com BGP dinâmico e SLA de 4 horas.',
+            responsibleName: 'Gabriel Vasconcelos'
           }
         ]);
       }
@@ -337,7 +337,7 @@ export const GovernanceModule: React.FC = () => {
               required
               value={riskForm.title}
               onChange={e => setRiskForm(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Ex: Falha de link dedicado de internet durante transmissão de festival"
+              placeholder="Ex: Falha de link dedicado de fibra óptica no Datacenter Principal"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
             />
           </div>
@@ -353,7 +353,7 @@ export const GovernanceModule: React.FC = () => {
                 <option value="Tecnologia / Operações">Tecnologia / Operações</option>
                 <option value="Segurança / Jurídico">Segurança / Jurídico</option>
                 <option value="Financeiro & Controladoria">Financeiro & Controladoria</option>
-                <option value="Operações de Eventos">Operações de Eventos</option>
+                <option value="Infraestrutura & Operações">Infraestrutura & Operações</option>
                 <option value="Compliance & Reputação">Compliance & Reputação</option>
               </select>
             </div>

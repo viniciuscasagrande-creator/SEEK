@@ -68,8 +68,8 @@ export const InventoryModule: React.FC = () => {
           {
             id: 'itm-01',
             sku: 'MAT-001',
-            name: 'Bobina Térmica 80mm p/ Catraca',
-            category: 'Insumos Operacionais',
+            name: 'Bobina Térmica 80mm p/ Relógio Ponto',
+            category: 'Suprimentos & Facilities',
             unit: 'un',
             minQuantity: 100,
             currentQuantity: 420,
@@ -79,8 +79,8 @@ export const InventoryModule: React.FC = () => {
           {
             id: 'itm-02',
             sku: 'MAT-002',
-            name: 'Pulseira RFID Prova d’Água (Lote 500)',
-            category: 'Credenciamento & Acesso',
+            name: 'Patch Cord UTP Cat6 2.5m (Lote 50)',
+            category: 'Infraestrutura de Rede',
             unit: 'pct',
             minQuantity: 200,
             currentQuantity: 140, // Alerta
@@ -564,7 +564,7 @@ export const InventoryModule: React.FC = () => {
                 className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
               >
                 <option value="TI & Hardware">TI & Hardware</option>
-                <option value="Equipamentos de Bilheteria">Equipamentos de Bilheteria</option>
+                <option value="Equipamentos de TI & Servidores">Equipamentos de TI & Servidores</option>
                 <option value="Mobiliário Corporativo">Mobiliário Corporativo</option>
                 <option value="Infraestrutura & Redes">Infraestrutura & Redes</option>
                 <option value="Veículos Operacionais">Veículos Operacionais</option>
@@ -696,7 +696,7 @@ export const InventoryModule: React.FC = () => {
               required
               value={movementForm.reason}
               onChange={e => setMovementForm(prev => ({ ...prev, reason: e.target.value }))}
-              placeholder="Ex: Fornecimento de pulseiras para Festival Curitiba"
+              placeholder="Ex: Fornecimento de cabos de rede e patch cords para Filial SP"
               className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-amber-600 focus:outline-hidden"
             />
           </div>

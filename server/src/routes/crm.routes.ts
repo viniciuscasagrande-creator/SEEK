@@ -145,7 +145,7 @@ crmRouter.patch('/deals/:id/stage', (req: Request, res: Response) => {
       const finCode = `CR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
       db.prepare(`
         INSERT INTO financial_records (id, company_id, code, type, title, entity_name, cost_center, category, amount, due_date, status, payment_method)
-        VALUES (?, 'comp-1', ?, 'RECEBER', ?, ?, 'Operações de Bilheteria & Arenas', 'Receita Operacional Bruta', ?, ?, 'CONFIRMADO', 'Boleto Registrado')
+        VALUES (?, 'comp-1', ?, 'RECEBER', ?, ?, 'Operações & Serviços Corporativos', 'Receita Operacional Bruta', ?, ?, 'CONFIRMADO', 'Boleto Registrado')
       `).run(finId, finCode, `Faturamento Inicial: ${deal.title}`, deal.client_name, deal.value / 12, startDate);
 
       createdFinance = { id: finId, code: finCode };
