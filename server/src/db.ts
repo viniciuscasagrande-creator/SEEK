@@ -451,6 +451,61 @@ export function initializeDatabase() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- PACOTE 4: RH - GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS
+    CREATE TABLE IF NOT EXISTS benefit_providers (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      trade_name TEXT NOT NULL,
+      legal_name TEXT NOT NULL,
+      cnpj TEXT UNIQUE NOT NULL,
+      integration_type TEXT DEFAULT 'API_REST',
+      api_endpoint TEXT,
+      status TEXT DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS benefit_plans (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      provider_id TEXT REFERENCES benefit_providers(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      deduction_rule TEXT NOT NULL,
+      default_daily_value REAL DEFAULT 0.0,
+      default_monthly_value REAL DEFAULT 0.0,
+      status TEXT DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS employee_benefits (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE,
+      benefit_plan_id TEXT REFERENCES benefit_plans(id) ON DELETE CASCADE,
+      daily_value REAL DEFAULT 0.0,
+      monthly_value REAL DEFAULT 0.0,
+      status TEXT DEFAULT 'ATIVO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(employee_id, benefit_plan_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS benefit_purchase_orders (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      provider_id TEXT REFERENCES benefit_providers(id),
+      period TEXT NOT NULL,
+      business_days INTEGER NOT NULL,
+      lives_count INTEGER NOT NULL,
+      total_amount REAL NOT NULL,
+      status TEXT DEFAULT 'AGUARDANDO_APROVACAO',
+      financial_record_id TEXT,
+      accounting_entry_id TEXT,
+      approved_by TEXT,
+      approved_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(company_id, provider_id, period)
+    );
+
     -- PACOTE 4: PATRIMÔNIO & ATIVOS IMOBILIZADOS
     CREATE TABLE IF NOT EXISTS assets (
       id TEXT PRIMARY KEY,

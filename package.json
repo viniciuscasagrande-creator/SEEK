@@ -19,7 +19,8 @@
     "server:test:fase2": "npm --prefix server run test:fase2",
     "server:test:finance": "npm --prefix server run test:finance",
     "server:test:ofx": "npm --prefix server run test:ofx",
-    "server:test:hr": "npm --prefix server run test:hr"
+    "server:test:hr": "npm --prefix server run test:hr",
+    "server:test:benefits": "npm --prefix server run test:benefits"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

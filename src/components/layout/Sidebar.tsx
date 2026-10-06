@@ -73,6 +73,7 @@ export type ActiveView =
   | 'assets'
   | 'hr'
   | 'payroll'
+  | 'benefits'
   | 'freelancers'
   | 'projects'
   | 'projects-timeline'
@@ -135,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (['fiscal', 'fiscal-calc', 'fiscal-calendar', 'fiscal-invoices'].includes(view)) return 'fiscal';
     if (['purchasing', 'purchasing-comparison', 'purchasing-orders', 'suppliers'].includes(view)) return 'purchasing';
     if (['inventory', 'assets'].includes(view)) return 'inventory';
-    if (['hr', 'payroll', 'freelancers'].includes(view)) return 'hr';
+    if (['hr', 'payroll', 'benefits', 'freelancers'].includes(view)) return 'hr';
     if (['contracts', 'legal'].includes(view)) return 'contracts';
     if (['crm', 'crm-pipeline', 'crm-companies', 'crm-proposals'].includes(view)) return 'crm';
     if (['service-desk', 'service-desk-kb'].includes(view)) return 'service-desk';
@@ -273,6 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { label: 'Colaboradores CLT', view: 'hr' },
         { label: 'Folha & Ponto', view: 'payroll' },
+        { label: 'Gestão de Benefícios', view: 'benefits' },
         {
           label: 'Freelance / Taxas',
           view: 'freelancers',

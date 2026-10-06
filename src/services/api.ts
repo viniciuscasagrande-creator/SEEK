@@ -955,6 +955,68 @@ export const api = {
     return data;
   },
 
+  // RH HCM: Gestão & Compra de Benefícios Corporativos
+  async getBenefitProviders(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/providers`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.providers || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getBenefitPlans(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/plans`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.plans || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getEmployeeBenefits(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/employees`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.employeeBenefits || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async calculateBenefitBatch(period: string, businessDays: number = 21): Promise<any> {
+    const res = await authFetch(`${API_BASE_URL}/hr/benefits/calculate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period, businessDays })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao calcular lote de benefícios.');
+    return data;
+  },
+
+  async integrateBenefitBatch(period: string, businessDays: number = 21): Promise<any> {
+    const res = await authFetch(`${API_BASE_URL}/hr/benefits/integrate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period, businessDays })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao integrar compra de benefícios ao Financeiro e Contabilidade.');
+    return data;
+  },
+
   async getJobPostings(): Promise<any[]> {
     try {
       const res = await authFetch(`${API_BASE_URL}/hr/jobs`);

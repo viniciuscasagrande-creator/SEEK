@@ -3,6 +3,7 @@ import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { isPrivilegedRole, maskSalary } from '../utils/security.js';
 import { payrollService } from '../services/payroll.service.js';
+import { benefitsService } from '../services/benefits.service.js';
 
 export const hrRouter = Router();
 
@@ -344,6 +345,73 @@ hrRouter.get('/performance', (req: Request, res: Response) => {
     return res.json({ total: reviews.length, reviews });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// ========================================================
+// GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS
+// ========================================================
+
+hrRouter.get('/benefits/providers', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = authReq.companyId || 'comp-1';
+    const providers = benefitsService.listProviders(companyId);
+    return res.json({ total: providers.length, providers });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.get('/benefits/plans', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = authReq.companyId || 'comp-1';
+    const plans = benefitsService.listPlans(companyId);
+    return res.json({ total: plans.length, plans });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.get('/benefits/employees', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = authReq.companyId || 'comp-1';
+    const employeeBenefits = benefitsService.listEmployeeBenefits(companyId);
+    return res.json({ total: employeeBenefits.length, employeeBenefits });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/calculate', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { period, businessDays } = req.body;
+    const companyId = authReq.companyId || 'comp-1';
+    const calculation = benefitsService.calculateBatch(period, parseInt(businessDays) || 21, companyId);
+    return res.json(calculation);
+  } catch (error: any) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/integrate', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { period, businessDays } = req.body;
+    const companyId = authReq.companyId || 'comp-1';
+    const result = benefitsService.approveAndIntegrateBatch(
+      period,
+      parseInt(businessDays) || 21,
+      companyId,
+      authReq.user,
+      req.ip
+    );
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 

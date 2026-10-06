@@ -269,7 +269,9 @@ const MainLayout: React.FC = () => {
       case 'hr':
         return <HRModule initialTab="employees" />;
       case 'payroll':
-        return <HRModule initialTab="ponto" />;
+        return <HRModule initialTab="payroll" />;
+      case 'benefits':
+        return <HRModule initialTab="benefits" />;
       case 'freelancers':
         return <HRModule initialTab="freelancers" />;
 

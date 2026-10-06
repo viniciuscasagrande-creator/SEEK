@@ -18,7 +18,8 @@ import {
   FileCheck,
   AlertCircle,
   Zap,
-  DollarSign
+  DollarSign,
+  CreditCard
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/mockData';
 import { EmployeeProfile } from '../../types/modules';
@@ -30,12 +31,13 @@ import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
 import { FreelanceTaxasSubmodule } from './FreelanceTaxasSubmodule';
 import { HRPayrollSection } from './HRPayrollSection';
+import { HRBenefitsSection } from './HRBenefitsSection';
 
-export const HRModule: React.FC<{ initialTab?: 'employees' | 'payroll' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' }> = ({ initialTab = 'employees' }) => {
+export const HRModule: React.FC<{ initialTab?: 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' }> = ({ initialTab = 'employees' }) => {
   const { currentUser } = useAuth();
   const { refreshApprovals } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'employees' | 'payroll' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(initialTab);
 
   useEffect(() => {
     if (initialTab) {
@@ -296,6 +298,21 @@ export const HRModule: React.FC<{ initialTab?: 'employees' | 'payroll' | 'ponto'
         </button>
 
         <button
+          onClick={() => setActiveTab('benefits')}
+          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+            activeTab === 'benefits'
+              ? 'border-blue-700 text-blue-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <CreditCard className="h-4 w-4 text-purple-600" />
+          <span>Gestão de Benefícios</span>
+          <span className="rounded-full bg-purple-100 px-1.5 py-0.2 text-[10px] font-bold text-purple-800">
+            VT/VR/Caju
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('ponto')}
           className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
             activeTab === 'ponto'
@@ -420,6 +437,9 @@ export const HRModule: React.FC<{ initialTab?: 'employees' | 'payroll' | 'ponto'
 
       {/* ABA: FOLHA DE PAGAMENTO & HOLERITES */}
       {activeTab === 'payroll' && <HRPayrollSection employees={employees} />}
+
+      {/* ABA: GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS */}
+      {activeTab === 'benefits' && <HRBenefitsSection />}
 
       {/* ABA 2: ESPELHO DE PONTO & BANCO DE HORAS */}
       {activeTab === 'ponto' && (
