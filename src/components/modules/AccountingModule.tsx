@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
+import { ScrollSpyNav } from '../common/ScrollSpyNav';
 import {
   ChartOfAccount,
   AccountingEntry,
@@ -230,8 +231,17 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
         </div>
       )}
 
+      {/* ScrollSpy: Navegador Seccional Contábil */}
+      <ScrollSpyNav
+        sections={[
+          ...(activeTab === 'dashboard' ? [{ id: 'acc-workspace', label: 'Central Contábil', icon: BookOpen }] : []),
+          { id: 'acc-tabs', label: 'Abas Contábeis', icon: Layers },
+          { id: 'acc-content', label: 'Livros & Relatórios', icon: FileText }
+        ]}
+      />
+
       {activeTab === 'dashboard' && (
-        <div className="space-y-5">
+        <div id="acc-workspace" className="space-y-5">
           <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
             <h2 className="text-base font-black text-slate-900">Central de Trabalho Contábil</h2>
             <p className="mt-1 text-xs text-slate-600">Visualize lançamentos, competências e demonstrações que precisam de conferência antes do fechamento.</p>
@@ -275,7 +285,7 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
       )}
 
       {/* Abas Superiores */}
-      <div className="flex space-x-2 border-b border-slate-200">
+      <div id="acc-tabs" className="flex space-x-2 border-b border-slate-200">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
@@ -347,10 +357,11 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
         </button>
       </div>
 
-      {/* ========================================================
-          ABA 1: PLANO DE CONTAS (COA)
-      ======================================================== */}
-      {activeTab === 'coa' && (
+      <div id="acc-content" className="space-y-4">
+        {/* ========================================================
+            ABA 1: PLANO DE CONTAS (COA)
+        ======================================================== */}
+        {activeTab === 'coa' && (
         <div className="space-y-4">
           {/* Barra de Filtro e Criação de Conta */}
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -860,6 +871,7 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
           </div>
         </div>
       )}
+      </div>
 
       {/* ========================================================
           MODAL: CADASTRAR CONTA ANALÍTICA

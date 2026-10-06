@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Building2,
   MapPin,
@@ -28,7 +28,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   onOpenQuickAction,
   onToggleSeekAI,
-  onNavigateToApprovals,
+  onNavigateToApprovals: _onNavigateToApprovals,
   onOpenCommandCenter,
   onNavigate,
   onToggleMobileMenu
@@ -39,7 +39,6 @@ export const Header: React.FC<HeaderProps> = ({
     activeBranch,
     setActiveBranch,
     currentUser,
-    setCurrentUser,
     companies,
     branches,
     availableProfiles,
@@ -51,13 +50,52 @@ export const Header: React.FC<HeaderProps> = ({
     markAllNotificationsAsRead
   } = useAuth();
 
-  const { pendingApprovalsCount } = useWorkflow();
+  const [companyMenuOpen, setCompanyMenuOpen] = useState(false);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  const companyRef = useRef<HTMLDivElement>(null);
+  const branchRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Fecha menus ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (companyRef.current && !companyRef.current.contains(target)) {
+        setCompanyMenuOpen(false);
+      }
+      if (branchRef.current && !branchRef.current.contains(target)) {
+        setBranchMenuOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(target)) {
+        setNotificationsOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Extrai iniciais do usuário para o avatar circular
+  const userInitials = currentUser?.fullName
+    ? currentUser.fullName
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(n => n[0].toUpperCase())
+        .join('')
+    : 'AD';
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-5 shadow-xs">
-      {/* Esquerda: Identidade SEEK, Botão Mobile & Busca Global (Ctrl+K) */}
-      <div className="flex items-center space-x-3 sm:space-x-6">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 shadow-2xs">
+      {/* Lado Esquerdo: Logo SEEK V1 CORE + Subtítulo + Busca Global (Ctrl+K) */}
+      <div className="flex items-center space-x-3 sm:space-x-5">
         {onToggleMobileMenu && (
           <button
             onClick={onToggleMobileMenu}
@@ -68,106 +106,159 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
+        {/* Marca Oficial SEEK */}
         <div className="flex items-center space-x-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-900 via-slate-900 to-blue-950 text-white shadow-md shadow-blue-950/20">
-            <span className="text-xl font-black tracking-widest text-blue-400">S</span>
+          <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-[#0B1528] text-white shadow-xs shrink-0">
+            <span className="text-xl font-extrabold tracking-wider text-white">S</span>
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-lg font-black tracking-wider text-slate-900">SEEK</span>
-              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider">
-                V1 Core
+              <span className="text-lg font-black tracking-wider text-slate-900 leading-none">
+                SEEK
+              </span>
+              <span className="rounded-full bg-blue-100/80 px-2 py-0.5 text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">
+                V1 CORE
               </span>
             </div>
-            <p className="text-[11px] font-medium text-slate-700">
+            <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-none">
               Gestão Corporativa Integrada
             </p>
           </div>
         </div>
 
-        {/* Global Search Bar (Ctrl+K trigger) */}
+        {/* Barra de Busca Global (Command Palette Trigger) */}
         <button
           onClick={onOpenCommandCenter}
-          className="hidden lg:flex items-center space-x-2 rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-3 text-xs text-slate-400 hover:border-blue-400 hover:bg-white hover:text-slate-600 transition-all cursor-pointer w-80 text-left"
+          className="hidden lg:flex items-center space-x-2.5 rounded-xl border border-slate-200 bg-slate-50/70 py-2 px-3 text-xs text-slate-400 hover:border-slate-300 hover:bg-white transition-all cursor-pointer w-64 xl:w-76 text-left shadow-2xs ml-2"
         >
           <Search className="h-4 w-4 text-slate-400 shrink-0" />
-          <span className="flex-1 truncate">Buscar ou digitar comando...</span>
-          <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.2 text-[10px] font-bold text-slate-500 shadow-2xs">
+          <span className="flex-1 truncate text-slate-400">Buscar ou digitar comando...</span>
+          <kbd className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 shadow-2xs">
             Ctrl+K
           </kbd>
         </button>
       </div>
 
-      {/* Centro / Direita: Multiempresa, Multifilial, Seletor de Perfil, Ações Rápidas & SEEK IA */}
-      <div className="flex items-center space-x-3">
-        {/* Seletor de Empresa */}
-        <div className="hidden md:flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
-          <Building2 className="h-4 w-4 text-blue-700" />
-          <select
-            aria-label="Selecionar Empresa"
-            className="bg-transparent font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
-            value={activeCompany.id}
-            onChange={e => {
-              const comp = companies.find(c => c.id === e.target.value);
-              if (comp) setActiveCompany(comp);
+      {/* Lado Direito: Empresa + Filial + Nova Ação + SEEK IA + Notificações + Perfil */}
+      <div className="flex items-center space-x-2.5 sm:space-x-3">
+        {/* Seletor de Empresa (Multiempresa / Matriz) */}
+        <div className="relative hidden md:block" ref={companyRef}>
+          <button
+            onClick={() => {
+              setCompanyMenuOpen(prev => !prev);
+              setBranchMenuOpen(false);
             }}
+            className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
-            {companies.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.tradeName}
-              </option>
-            ))}
-          </select>
+            <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+            <span className="truncate max-w-[150px]">{activeCompany.tradeName || 'SEEK Corporativo Matriz'}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+          </button>
+
+          {companyMenuOpen && (
+            <div className="absolute left-0 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl z-50 animate-in fade-in duration-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 block">
+                Empresa Ativa
+              </span>
+              <div className="space-y-1 mt-1">
+                {companies.map(c => {
+                  const isSelected = c.id === activeCompany.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setActiveCompany(c);
+                        setCompanyMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-50 text-blue-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{c.tradeName}</span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Seletor de Filial */}
-        <div className="hidden xl:flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
-          <MapPin className="h-4 w-4 text-emerald-700" />
-          <select
-            aria-label="Selecionar Filial"
-            className="bg-transparent font-medium text-slate-700 focus:outline-hidden cursor-pointer"
-            value={activeBranch.id}
-            onChange={e => {
-              const br = branches.find(b => b.id === e.target.value);
-              if (br) setActiveBranch(br);
+        {/* Seletor de Filial (Multifilial) */}
+        <div className="relative hidden xl:block" ref={branchRef}>
+          <button
+            onClick={() => {
+              setBranchMenuOpen(prev => !prev);
+              setCompanyMenuOpen(false);
             }}
+            className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+            <MapPin className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span className="truncate max-w-[150px]">{activeBranch.name || 'Curitiba (Sede / Matriz)'}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+          </button>
+
+          {branchMenuOpen && (
+            <div className="absolute left-0 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl z-50 animate-in fade-in duration-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 block">
+                Filial / Unidade
+              </span>
+              <div className="space-y-1 mt-1">
+                {branches.map(b => {
+                  const isSelected = b.id === activeBranch.id;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => {
+                        setActiveBranch(b);
+                        setBranchMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{b.name}</span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Botão de Ação Rápida */}
+        {/* Botão "+ Nova Ação" */}
         <button
           onClick={onOpenQuickAction}
-          className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-800 transition-colors cursor-pointer"
+          className="flex items-center space-x-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs transition-colors cursor-pointer"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4 stroke-[2.5]" />
           <span className="hidden sm:inline">Nova Ação</span>
         </button>
 
-        {/* Botão SEEK IA */}
+        {/* Botão "SEEK IA" */}
         <button
           onClick={onToggleSeekAI}
-          className="flex items-center space-x-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-indigo-50 to-blue-50 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs hover:from-indigo-100 hover:to-blue-100 transition-all cursor-pointer"
+          className="flex items-center space-x-1.5 rounded-xl border border-indigo-200/80 bg-indigo-50/80 hover:bg-indigo-100/70 px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-2xs transition-colors cursor-pointer"
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-600 animate-pulse" />
+          <Sparkles className="h-4 w-4 text-indigo-600" />
           <span>SEEK IA</span>
         </button>
 
         {/* Notificações / Pendências */}
-        <div className="relative">
+        <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             title="Central de Notificações"
-            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+            className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
           >
-            <Bell className="h-4 w-4" />
+            <Bell className="h-5 w-5 text-slate-600" />
             {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-xs animate-pulse">
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white shadow-xs">
                 {unreadNotificationsCount}
               </span>
             )}
@@ -254,45 +345,80 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Seletor dos 13 Perfis Oficiais (Demonstrar RBAC dinâmico) */}
-        <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white shadow-xs">
-            {currentUser.fullName.slice(0, 2).toUpperCase()}
-          </div>
-          <div className="hidden md:block text-left">
-            <div className="flex items-center space-x-1">
-              <span className="text-xs font-bold text-slate-800 leading-tight">
-                {currentUser.fullName.split(' ')[0]} {currentUser.fullName.split(' ')[1]}
-              </span>
-              <ShieldCheck className="h-3 w-3 text-blue-600" />
-            </div>
-            <select
-              aria-label="Alternar entre os 13 Perfis Oficiais"
-              className="block text-[11px] font-medium text-slate-700 bg-transparent focus:outline-hidden cursor-pointer border-0 p-0 max-w-[140px] truncate"
-              value={currentUser.id}
-              onChange={async e => {
-                const profile = availableProfiles.find(p => p.id === e.target.value);
-                if (profile) {
-                  await login(profile.email, 'Seek@2026');
-                }
-              }}
-            >
-              {availableProfiles.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.roleTitle} ({p.roleLevel})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Botão de Encerrar Sessão */}
+        {/* Perfil do Usuário Oficial com Avatar "AD" e Dropdown */}
+        <div className="relative pl-2.5 border-l border-slate-200" ref={profileRef}>
           <button
-            onClick={logout}
-            title="Encerrar Sessão"
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 transition-colors cursor-pointer"
+            onClick={() => setProfileMenuOpen(prev => !prev)}
+            className="flex items-center space-x-2 text-left cursor-pointer group p-1 rounded-xl hover:bg-slate-50 transition-colors"
           >
-            <LogOut className="h-4 w-4" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0B1528] text-white text-xs font-extrabold shadow-xs shrink-0">
+              {userInitials}
+            </div>
+            <div className="hidden md:block leading-tight">
+              <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 transition-colors truncate max-w-[140px]">
+                {currentUser?.fullName || 'Administrador Geral'}
+              </div>
+              <div className="text-[10px] text-slate-500 truncate max-w-[140px]">
+                {currentUser?.roleTitle || 'Administrador Geral (Diretoria)'}
+              </div>
+            </div>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-500 group-hover:text-slate-800 transition-colors shrink-0 ml-0.5" />
           </button>
+
+          {/* Dropdown de Perfis RBAC e Sessão */}
+          {profileMenuOpen && (
+            <div className="absolute right-0 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-xl z-50 animate-in fade-in duration-100">
+              <div className="border-b border-slate-100 pb-2 mb-2">
+                <div className="text-xs font-bold text-slate-900">{currentUser?.fullName}</div>
+                <div className="text-[11px] text-slate-500">{currentUser?.email}</div>
+                <div className="mt-1 flex items-center space-x-1 text-[10px] font-bold text-blue-700">
+                  <ShieldCheck className="h-3 w-3" />
+                  <span>{currentUser?.roleTitle} ({currentUser?.roleLevel})</span>
+                </div>
+              </div>
+
+              <div className="mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Alternar Perfil RBAC Oficial:
+                </span>
+                <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                  {availableProfiles.map(p => {
+                    const isSelected = p.id === currentUser.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={async () => {
+                          await login(p.email, 'Seek@2026');
+                          setProfileMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50 text-blue-800 font-bold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="truncate">{p.roleTitle} ({p.roleLevel})</span>
+                        {isSelected && <Check className="h-3 w-3 text-blue-600 shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    logout();
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                >
+                  <span>Encerrar Sessão</span>
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

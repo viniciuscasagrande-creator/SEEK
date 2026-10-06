@@ -17,13 +17,16 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
-  Eye
+  Eye,
+  BarChart3,
+  Layers
 } from 'lucide-react';
 import { FINANCIAL_ENTRIES } from '../../data/mockData';
 import { FinancialEntry } from '../../types/modules';
 import { StatusBadge } from '../common/StatusBadge';
 import { StatCard } from '../common/StatCard';
 import { Modal } from '../common/Modal';
+import { ScrollSpyNav } from '../common/ScrollSpyNav';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
@@ -351,8 +354,18 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         </div>
       )}
 
+      {/* ScrollSpy: Navegador Seccional Inteligente */}
+      <ScrollSpyNav
+        sections={[
+          { id: 'finance-kpis', label: 'Indicadores & KPIs', icon: BarChart3 },
+          ...(activeTab === 'dashboard' ? [{ id: 'finance-workspace', label: 'Central de Trabalho', icon: Landmark }] : []),
+          { id: 'finance-tabs-nav', label: 'Abas do Módulo', icon: Layers },
+          { id: 'finance-content-section', label: 'Títulos & Operações', icon: DollarSign }
+        ]}
+      />
+
       {/* Centrais Operacionais Financeiras (Interativas) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div id="finance-kpis" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Disponibilidade em Bancos */}
         <div
           onClick={() => setActiveTab('bancos')}
@@ -452,7 +465,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
       {/* CENTRAL OPERACIONAL FINANCEIRA */}
       {activeTab === 'dashboard' && (
-        <div className="space-y-5">
+        <div id="finance-workspace" className="space-y-5">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -546,7 +559,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       )}
 
       {/* Abas do Módulo Financeiro Enterprise */}
-      <div className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
+      <div id="finance-tabs-nav" className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer ${
@@ -606,8 +619,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         </button>
       </div>
 
-      {/* TAB 1: CONTAS A PAGAR & RECEBER */}
-      {activeTab === 'lancamentos' && (
+      {/* TAB CONTENTS (ScrollSpy Section) */}
+      <div id="finance-content-section" className="space-y-4">
+        {/* TAB 1: CONTAS A PAGAR & RECEBER */}
+        {activeTab === 'lancamentos' && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -1078,6 +1093,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
           </div>
         </div>
       )}
+      </div>
 
       {/* MODAL: NOVO TÍTULO FINANCEIRO */}
       <Modal isOpen={isNewEntryOpen} onClose={() => setIsNewEntryOpen(false)} title="Cadastrar Título Financeiro">

@@ -19,13 +19,16 @@ import {
   AlertCircle,
   Zap,
   DollarSign,
-  CreditCard
+  CreditCard,
+  BarChart3,
+  Layers
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/mockData';
 import { EmployeeProfile } from '../../types/modules';
 import { StatCard } from '../common/StatCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { Modal } from '../common/Modal';
+import { ScrollSpyNav } from '../common/ScrollSpyNav';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
@@ -227,8 +230,18 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
+      {/* ScrollSpy: Navegador Seccional de RH */}
+      <ScrollSpyNav
+        sections={[
+          { id: 'hr-kpis', label: 'Indicadores de Gente', icon: BarChart3 },
+          ...(activeTab === 'dashboard' ? [{ id: 'hr-workspace', label: 'Central de Trabalho', icon: UserCheck }] : []),
+          { id: 'hr-tabs', label: 'Abas do RH', icon: Layers },
+          { id: 'hr-content', label: 'Colaboradores & Folha', icon: Users }
+        ]}
+      />
+
       {/* KPIs do RH */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div id="hr-kpis" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Headcount Total Ativo"
           value={employees.length}
@@ -268,7 +281,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       </div>
 
       {activeTab === 'dashboard' && (
-        <div className="space-y-5">
+        <div id="hr-workspace" className="space-y-5">
           <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -353,7 +366,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       )}
 
       {/* Abas Internas */}
-      <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold overflow-x-auto">
+      <div id="hr-tabs" className="flex border-b border-slate-200 space-x-4 text-xs font-bold overflow-x-auto">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
@@ -463,8 +476,10 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </button>
       </div>
 
-      {/* ABA 1: COLABORADORES */}
-      {activeTab === 'employees' && (
+      {/* Conteúdo das Abas (ScrollSpy Section) */}
+      <div id="hr-content" className="space-y-4">
+        {/* ABA 1: COLABORADORES */}
+        {activeTab === 'employees' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="relative w-80">
@@ -697,8 +712,9 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
-      {/* ABA 4: FREELANCERS & CENTRAL DE TAXAS */}
-      {activeTab === 'freelancers' && <FreelanceTaxasSubmodule />}
+        {/* ABA 4: FREELANCERS & CENTRAL DE TAXAS */}
+        {activeTab === 'freelancers' && <FreelanceTaxasSubmodule />}
+      </div>
 
       {/* Modal Admitir Colaborador */}
       <Modal

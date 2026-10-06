@@ -357,8 +357,8 @@ const MainLayout: React.FC = () => {
           setIsMobileOpen={setIsMobileMenuOpen}
         />
 
-        {/* Área Principal de Trabalho */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50/70">
+        {/* Área Principal de Trabalho com ScrollSpy Container */}
+        <main id="seek-main-scroll-container" className="flex-1 overflow-y-auto scroll-smooth p-4 sm:p-6 lg:p-8 bg-slate-50/70">
           <div className="mx-auto max-w-7xl space-y-4">
             {/* Breadcrumb Navegável com botão de Favorito */}
             <div className="flex items-center justify-between text-xs text-slate-500">

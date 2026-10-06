@@ -2,13 +2,75 @@ import { Router, Request, Response } from 'express';
 
 export const seekAiRouter = Router();
 
-seekAiRouter.post('/query', (req: Request, res: Response) => {
+const SEEK_AI_API_KEY = process.env.SEEK_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+
+seekAiRouter.get('/status', (_req: Request, res: Response) => {
+  return res.json({
+    status: 'ACTIVE',
+    provider: 'Gemini / SEEK IA Core',
+    keyConfigured: Boolean(SEEK_AI_API_KEY),
+    keyPrefix: SEEK_AI_API_KEY ? `${SEEK_AI_API_KEY.slice(0, 6)}...` : null,
+    model: 'gemini-1.5-flash'
+  });
+});
+
+seekAiRouter.post('/query', async (req: Request, res: Response) => {
   const { query, userRole } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'A pergunta ou instrução é obrigatória.' });
   }
 
+  // 1. Tentar chamada à API do Gemini / Google AI Studio com a chave corporativa configurada
+  if (SEEK_AI_API_KEY) {
+    try {
+      const systemInstruction = `Você é o SEEK IA, assistente corporativo integrado de alta precisão do ERP SEEK V1.9. 
+Você opera com governança, conhecimento dos 15 módulos (Financeiro, Contábil, Compras, RH, Estoque, Fiscal, CRM, Governança, etc.),
+respondendo de forma executiva, objetiva e estruturada em Markdown. O usuário logado possui a função: ${userRole || 'Administrador Geral'}.`;
+
+      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${SEEK_AI_API_KEY}`;
+      
+      const response = await fetch(geminiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `${systemInstruction}\n\nPergunta do operador: "${query}"`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 1024
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (candidateText && candidateText.trim().length > 0) {
+          return res.json({
+            query,
+            answer: candidateText.trim(),
+            provider: 'Gemini 1.5 Flash (SEEK AI Key)',
+            generatedAt: new Date().toISOString()
+          });
+        }
+      }
+    } catch {
+      // Falha de rede ou timeout: prosseguir para o fallback determinístico do Core
+    }
+  }
+
+  // 2. Fallback determinístico inteligente do Motor de Regras Corporativas SEEK
   const lower = query.toLowerCase();
   let answer = '';
 
@@ -40,6 +102,7 @@ seekAiRouter.post('/query', (req: Request, res: Response) => {
   return res.json({
     query,
     answer,
+    provider: 'SEEK Rules Engine v1.9',
     generatedAt: new Date().toISOString()
   });
 });

@@ -25,3 +25,10 @@ dist-ssr
 server/data/*.db*
 server/data/*.sqlite*
 *.zip
+
+# Environment variables
+.env
+.env*.local
+server/.env
+server/.env*.local
+

@@ -18,13 +18,15 @@ import {
   Layers,
   Award,
   DollarSign,
-  Check
+  Check,
+  BarChart3
 } from 'lucide-react';
 import { PURCHASING_REQUISITIONS } from '../../data/mockData';
 import { PurchaseRequisition } from '../../types/modules';
 import { StatusBadge } from '../common/StatusBadge';
 import { StatCard } from '../common/StatCard';
 import { Modal } from '../common/Modal';
+import { ScrollSpyNav } from '../common/ScrollSpyNav';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
@@ -299,8 +301,18 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
         </div>
       )}
 
+      {/* ScrollSpy: Navegador Seccional de Compras */}
+      <ScrollSpyNav
+        sections={[
+          { id: 'purchasing-kpis', label: 'Indicadores de Suprimentos', icon: BarChart3 },
+          ...(activeTab === 'dashboard' ? [{ id: 'purchasing-workspace', label: 'Central de Trabalho', icon: ShoppingCart }] : []),
+          { id: 'purchasing-tabs', label: 'Abas de Compras', icon: Layers },
+          { id: 'purchasing-content', label: 'Ordens & Cotações', icon: FileText }
+        ]}
+      />
+
       {/* KPIs de Compras & Suprimentos */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div id="purchasing-kpis" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Saving Acumulado em Cotações"
           value="R$ 48.750,00"
@@ -344,7 +356,7 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
       </div>
 
       {/* Tabs de Navegação Interna */}
-      <div className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
+      <div id="purchasing-tabs" className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
@@ -400,7 +412,7 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
 
       {/* CENTRAL DE TRABALHO DE COMPRAS & SUPRIMENTOS */}
       {activeTab === 'dashboard' && (
-        <div className="space-y-5">
+        <div id="purchasing-workspace" className="space-y-5">
           <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -492,8 +504,10 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
         </div>
       )}
 
-      {/* TAB 1: SOLICITAÇÕES DE COMPRA (SC) */}
-      {activeTab === 'requisitions' && (
+      {/* TAB CONTENTS (ScrollSpy Section) */}
+      <div id="purchasing-content" className="space-y-4">
+        {/* TAB 1: SOLICITAÇÕES DE COMPRA (SC) */}
+        {activeTab === 'requisitions' && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
@@ -849,6 +863,7 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
           </div>
         </div>
       )}
+      </div>
 
       {/* MODAL: NOVA SOLICITAÇÃO DE COMPRA */}
       <Modal isOpen={isNewReqOpen} onClose={() => setIsNewReqOpen(false)} title="Nova Solicitação de Compra (SC)">
