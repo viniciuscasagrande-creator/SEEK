@@ -1225,7 +1225,7 @@ export function seedInitialData() {
       VALUES
         ('bud-01', 'Operações & Serviços Corporativos', 2026, 'Custos Operacionais & Insumos', 850000.00, 125000.00, 490000.00, 85.0),
         ('bud-02', 'Tecnologia & Infraestrutura Cloud', 2026, 'Datacenter, SaaS & Licenças', 620000.00, 85000.00, 380000.00, 85.0),
-        ('bud-03', 'Comercial & Novos Negócios B2B', 2026, 'Comissões, Viagens & Eventos Corp', 400000.00, 32000.00, 210000.00, 80.0),
+        ('bud-03', 'Comercial & Novos Negócios B2B', 2026, 'Comissões, Viagens & Feiras Corporativas', 400000.00, 32000.00, 210000.00, 80.0),
         ('bud-04', 'Administrativo & Recursos Humanos', 2026, 'Folha, Encargos & Facilities', 550000.00, 45000.00, 365000.00, 90.0)
     `).run();
 

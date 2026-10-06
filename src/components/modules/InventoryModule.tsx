@@ -50,7 +50,7 @@ export const InventoryModule: React.FC = () => {
     itemId: '',
     type: 'ENTRADA',
     quantity: '50',
-    reason: 'Reposição operacional de evento'
+    reason: 'Reposição operacional de almoxarifado'
   });
 
   const loadData = async () => {
@@ -671,7 +671,7 @@ export const InventoryModule: React.FC = () => {
                 className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-amber-600 focus:outline-hidden"
               >
                 <option value="ENTRADA">ENTRADA (Recebimento / Compra)</option>
-                <option value="SAIDA">SAÍDA (Consumo Operacional / Evento)</option>
+                <option value="SAIDA">SAÍDA (Consumo Operacional / Projeto)</option>
                 <option value="AJUSTE">AJUSTE (Inventário Físico)</option>
               </select>
             </div>
