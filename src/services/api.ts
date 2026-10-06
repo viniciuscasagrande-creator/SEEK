@@ -70,12 +70,14 @@ export const api = {
     }
   },
 
-  // Financeiro
-  async getFinanceRecords(type?: string, status?: string): Promise<any[]> {
+  // Financeiro & Controladoria Enterprise
+  async getFinanceRecords(type?: string, status?: string, originType?: string, search?: string): Promise<any[]> {
     try {
       const params = new URLSearchParams();
       if (type && type !== 'ALL') params.append('type', type);
       if (status && status !== 'ALL') params.append('status', status);
+      if (originType && originType !== 'ALL') params.append('originType', originType);
+      if (search) params.append('search', search);
 
       const res = await fetch(`${API_BASE_URL}/finance/records?${params.toString()}`);
       if (res.ok) {
@@ -102,12 +104,12 @@ export const api = {
     }
   },
 
-  async payFinanceRecord(id: string, bankId?: string, userName?: string, userRole?: string): Promise<boolean> {
+  async payFinanceRecord(id: string, bankId?: string, paymentMethod?: string, userName?: string, userRole?: string, paymentDate?: string): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE_URL}/finance/records/${id}/pay`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bankId, userName, userRole })
+        body: JSON.stringify({ bankId, paymentMethod, userName, userRole, paymentDate })
       });
       return res.ok;
     } catch {
@@ -135,6 +137,122 @@ export const api = {
       return [];
     } catch {
       return [];
+    }
+  },
+
+  async createBankAccount(account: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(account)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getBankTransactions(accountId: string, reconciled?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (reconciled && reconciled !== 'ALL') params.append('reconciled', reconciled);
+      const res = await fetch(`${API_BASE_URL}/finance/accounts/${accountId}/transactions?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.transactions || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getBankReconciliations(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/reconciliations`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.reconciliations || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createBankReconciliation(rec: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/reconciliations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rec)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async toggleTransactionReconcile(id: string, reconciled: boolean): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/transactions/${id}/reconcile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reconciled })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async getBudgets(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/budgets`);
+      if (res.ok) return await res.json();
+      return { summary: {}, budgets: [] };
+    } catch {
+      return { summary: {}, budgets: [] };
+    }
+  },
+
+  async getDre(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/dre`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getFinancialClosings(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/closings`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.closings || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async lockFinancialPeriod(closing: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/finance/closings/lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(closing)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
     }
   },
 
@@ -222,7 +340,85 @@ export const api = {
     }
   },
 
-  // Compras & Fornecedores
+  // Compras, Suprimentos & Cotações Enterprise
+  async getPurchaseRequisitions(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.requisitions || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getPurchaseRequisition(id: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions/${id}`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async createPurchaseRequisition(reqData: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqData)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getPurchaseQuotations(requisitionId: string): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions/${requisitionId}/quotations`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.quotations || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createPurchaseQuotation(requisitionId: string, quotation: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions/${requisitionId}/quotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quotation)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async selectPurchaseQuotation(quotationId: string, userName?: string, userRole?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/quotations/${quotationId}/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName, userRole })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
   async getPurchasingOrders(): Promise<any[]> {
     try {
       const res = await fetch(`${API_BASE_URL}/purchasing/orders`);
@@ -250,12 +446,26 @@ export const api = {
     }
   },
 
-  async receivePurchasingOrder(id: string, userName?: string, userRole?: string): Promise<any> {
+  async approvePurchasingOrder(id: string, userName?: string, userRole?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/orders/${id}/approve`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName, userRole })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async receivePurchasingOrder(id: string, invoiceNumber?: string, userName?: string, userRole?: string): Promise<any> {
     try {
       const res = await fetch(`${API_BASE_URL}/purchasing/orders/${id}/receive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userName, userRole })
+        body: JSON.stringify({ invoiceNumber, userName, userRole })
       });
       if (res.ok) return await res.json();
       return null;
@@ -274,6 +484,20 @@ export const api = {
       return [];
     } catch {
       return [];
+    }
+  },
+
+  async createSupplier(supplier: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/purchasing/suppliers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(supplier)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
     }
   },
 

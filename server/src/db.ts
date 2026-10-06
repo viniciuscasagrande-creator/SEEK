@@ -511,7 +511,99 @@ export function initializeDatabase() {
       paid_at TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- PACOTE 6: FINANCEIRO, COMPRAS E CONTROLADORIA ENTERPRISE
+    CREATE TABLE IF NOT EXISTS bank_transactions (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES bank_accounts(id),
+      type TEXT NOT NULL, -- CREDITO, DEBITO
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      transaction_date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      reference_type TEXT DEFAULT 'MANUAL', -- TITULO, TAXA, FISCAL, TRANSF, MANUAL
+      reference_id TEXT,
+      reconciled INTEGER DEFAULT 0,
+      reconciled_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS bank_reconciliations (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES bank_accounts(id),
+      period TEXT NOT NULL,
+      statement_balance REAL NOT NULL,
+      system_balance REAL NOT NULL,
+      difference REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'CONCILIADO', -- CONCILIADO, DIVERGENTE, PENDENTE
+      reconciled_by TEXT NOT NULL,
+      reconciled_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_requisitions (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      requester_name TEXT NOT NULL,
+      department TEXT NOT NULL,
+      cost_center TEXT NOT NULL,
+      description TEXT NOT NULL,
+      justification TEXT NOT NULL,
+      total_estimated REAL NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'MEDIA', -- BAIXA, MEDIA, ALTA, URGENTE
+      status TEXT NOT NULL DEFAULT 'SOLICITADO', -- SOLICITADO, EM_COTACAO, COTADO, APROVADO, PEDIDO_GERADO, REJEITADO
+      required_date TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_quotations (
+      id TEXT PRIMARY KEY,
+      requisition_id TEXT NOT NULL REFERENCES purchase_requisitions(id) ON DELETE CASCADE,
+      supplier_id TEXT,
+      supplier_name TEXT NOT NULL,
+      supplier_cnpj TEXT,
+      unit_price REAL NOT NULL,
+      quantity REAL NOT NULL DEFAULT 1,
+      total_price REAL NOT NULL,
+      delivery_days INTEGER NOT NULL,
+      payment_terms TEXT NOT NULL,
+      proposal_number TEXT,
+      rating REAL DEFAULT 5.0,
+      selected INTEGER DEFAULT 0,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS cost_center_budgets (
+      id TEXT PRIMARY KEY,
+      cost_center TEXT NOT NULL,
+      fiscal_year INTEGER NOT NULL DEFAULT 2026,
+      category TEXT NOT NULL,
+      planned_amount REAL NOT NULL,
+      committed_amount REAL NOT NULL DEFAULT 0,
+      realized_amount REAL NOT NULL DEFAULT 0,
+      alert_threshold_percent REAL DEFAULT 85.0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS financial_closings (
+      id TEXT PRIMARY KEY,
+      period TEXT NOT NULL, -- '2026-10'
+      module TEXT NOT NULL, -- 'TESOURARIA', 'CONTAS_PAGAR', 'COMPRAS', 'CONTABIL', 'GERAL'
+      status TEXT NOT NULL DEFAULT 'ABERTO', -- 'ABERTO', 'CONCILIADO', 'BLOQUEADO'
+      closed_by TEXT,
+      closed_at TEXT,
+      checklist_json TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Migrações seguras de colunas em tabelas existentes
+  try { db.exec(`ALTER TABLE financial_records ADD COLUMN origin_type TEXT DEFAULT 'AVULSO'`); } catch {}
+  try { db.exec(`ALTER TABLE financial_records ADD COLUMN origin_id TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE financial_records ADD COLUMN bank_id TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE financial_records ADD COLUMN bank_name TEXT`); } catch {}
 
   seedInitialData();
 }
@@ -1078,6 +1170,75 @@ export function seedInitialData() {
         ('taxa-05', 'TX-2026-0005', 'Apoio de Almoxarifado e Carga', 'Operações & Logística Corporativa', '2026-10-08', '08:00 - 17:00', 'Curitiba Almoxarifado A', 'Mariana Fontes Prado', 'freel-06', 'Lucas Gabriel Silveira', '054.321.987-65', '05432198765', 'Limpeza Operacional', 180.00, 25.00, 20.00, 0.00, 0.00, 225.00, 'CONVOCADO', 0.0, 5, NULL, 'Aguardando confirmação de presença pelo profissional.', NULL, NULL),
         ('taxa-06', 'TX-2026-0006', 'Descarregamento Lote Servidores Dell', 'Operações & Logística Corporativa', '2026-10-09', '08:00 - 17:00', 'Datacenter Curitiba Matriz', 'Eduardo Martins Fontes', NULL, 'Pendente de Alocação', NULL, NULL, 'Carregador / Roadie', 220.00, 30.00, 0.00, 0.00, 0.00, 250.00, 'ABERTA', 0.0, 5, NULL, 'Vaga aberta aguardando seleção de profissional do banco de talentos.', NULL, NULL),
         ('taxa-07', 'TX-2026-0007', 'Suporte Presencial Feira B2B SP', 'Administrativo & Recursos Humanos', '2026-10-02', '09:00 - 18:00', 'São Paulo (Faria Lima)', 'Lucas Bertolli Costa', 'freel-05', 'Patricia Nogueira Santos', '012.345.678-99', 'patricia.taxas@gmail.com', 'Operador de Bar / Caixa', 200.00, 0.00, 0.00, 0.00, 0.00, 200.00, 'FALTA', 0.0, 1, 'Lucas Bertolli Costa', 'Profissional informou imprevisto de saúde de última hora. Substituição rápida acionada.', '2026-10-02 10:00', NULL)
+    `).run();
+  }
+
+  // 9. SEED PACOTE 6: BANCOS, CONCILIAÇÃO, COTAÇÕES (3 FORNECEDORES), ORÇAMENTO E FECHAMENTO
+  const btxCheck = db.prepare('SELECT COUNT(*) as count FROM bank_transactions').get() as { count: number };
+  if (btxCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO bank_transactions (id, account_id, type, category, amount, transaction_date, description, reference_type, reference_id, reconciled, reconciled_at)
+      VALUES
+        ('btx-01', 'bank-1', 'CREDITO', 'Receita de Clientes', 185600.00, '2026-10-02', 'TED Recebida - Grupo Votorantim Participações', 'TITULO', 'CR-2026-0941', 1, '2026-10-02 17:30:00'),
+        ('btx-02', 'bank-1', 'DEBITO', 'Infraestrutura Datacenter', 34800.00, '2026-10-03', 'Pagamento Boleto - Equinix Brasil Soluções', 'TITULO', 'CP-2026-1044', 1, '2026-10-03 16:45:00'),
+        ('btx-03', 'bank-2', 'DEBITO', 'Folha de Pagamento', 289400.00, '2026-10-05', 'Débito em Lote - Folha de Pagamento Colaboradores', 'TITULO', 'CP-2026-1046', 1, '2026-10-05 18:00:00'),
+        ('btx-04', 'bank-1', 'DEBITO', 'Taxas Freelancers RH', 250.00, '2026-10-02', 'PIX Transferência - Thiago Alcantara Ribeiro (TX-2026-0001)', 'TAXA', 'TX-2026-0001', 1, '2026-10-02 10:20:00'),
+        ('btx-05', 'bank-2', 'CREDITO', 'Receita SaaS SEEK', 45000.00, '2026-10-04', 'Liquidação Cobrança Registrada - Suzano S.A.', 'TITULO', 'CR-2026-0942', 0, NULL),
+        ('btx-06', 'bank-1', 'DEBITO', 'Fornecedores Suprimentos', 12450.00, '2026-10-05', 'TED Emitida - Kalunga Comércio Gráfica', 'TITULO', 'CP-2026-1045', 0, NULL)
+    `).run();
+
+    db.prepare(`
+      INSERT INTO bank_reconciliations (id, account_id, period, statement_balance, system_balance, difference, status, reconciled_by, notes)
+      VALUES
+        ('rec-01', 'bank-1', '2026-09', 1100000.00, 1100000.00, 0.00, 'CONCILIADO', 'Administrador Geral SEEK', 'Conciliação mensal de Setembro finalizada com 100% de conferência bancária.'),
+        ('rec-02', 'bank-2', '2026-09', 835000.00, 835000.00, 0.00, 'CONCILIADO', 'Administrador Geral SEEK', 'Conta Itaú conciliada sem pendências no período.'),
+        ('rec-03', 'bank-1', '2026-10', 1250000.00, 1250000.00, 0.00, 'CONCILIADO', 'Administrador Geral SEEK', 'Conciliação diária de Outubro em dia.')
+    `).run();
+
+    // Requisições de Compra Enterprise
+    db.prepare(`
+      INSERT INTO purchase_requisitions (id, code, requester_name, department, cost_center, description, justification, total_estimated, priority, status, required_date)
+      VALUES
+        ('req-01', 'REQ-2026-0101', 'Beatriz Castro Lima', 'Tecnologia da Informação & Nuvem', 'Tecnologia & Infraestrutura Cloud', 'Aquisição de 10 Switches Gerenciáveis 48 Portas Gigabit', 'Expansão de portas de rede e conexão entre racks de servidores no datacenter.', 20000.00, 'ALTA', 'COTADO', '2026-10-25'),
+        ('req-02', 'REQ-2026-0102', 'Eduardo Martins Fontes', 'Tecnologia da Informação & Nuvem', 'Tecnologia & Infraestrutura Cloud', 'Aquisição de 5 Laptops Dell Latitude Core i7 para Equipe Comercial', 'Renovação e entrega de equipamentos de mobilidade para novos consultores B2B.', 45000.00, 'MEDIA', 'COTADO', '2026-10-30'),
+        ('req-03', 'REQ-2026-0103', 'Mariana Fontes Prado', 'Operações & Logística Corporativa', 'Operações & Serviços Corporativos', 'Fornecimento Anual de Materiais de Escritório e Almoxarifado', 'Reposição de estoque trimestral de papelaria, suprimentos de TI e insumos corporativos.', 15000.00, 'BAIXA', 'APROVADO', '2026-10-20')
+    `).run();
+
+    // Mapa Comparativo de Cotações (3 Fornecedores Homologados por Requisição)
+    db.prepare(`
+      INSERT INTO purchase_quotations (id, requisition_id, supplier_id, supplier_name, supplier_cnpj, unit_price, quantity, total_price, delivery_days, payment_terms, proposal_number, rating, selected, notes)
+      VALUES
+        -- Requisição 01 (Switches) - Vencedor Cisco
+        ('quot-01', 'req-01', 'part-1', 'Cisco Systems Brasil Ltda.', '01.234.567/0001-89', 1845.00, 10, 18450.00, 5, '30 dias Boleto Bancário', 'PROP-CS-9912', 5.0, 1, 'Melhor custo-benefício, compatibilidade direta com a infraestrutura atual e 36 meses de garantia.'),
+        ('quot-02', 'req-01', 'part-3', 'Dell Networking Solutions', '72.381.189/0001-10', 2120.00, 10, 21200.00, 12, '15/30/45 dias Boleto', 'PROP-DL-4481', 4.8, 0, 'Preço 14.9% superior ao primeiro colocado. Prazo de entrega estendido.'),
+        ('quot-03', 'req-01', NULL, 'HPE Aruba Networks Brasil', '02.991.222/0001-44', 2350.00, 10, 23500.00, 15, '28 dias Boleto Bancário', 'PROP-AR-8802', 4.5, 0, 'Maior valor unitário e prazo de entrega mais longo.'),
+
+        -- Requisição 02 (Laptops) - Vencedor Dell
+        ('quot-04', 'req-02', 'part-3', 'Dell Computadores do Brasil Ltda.', '72.381.189/0001-10', 5300.00, 5, 26500.00, 7, '30 dias Faturado', 'PROP-DL-7719', 4.9, 1, 'Melhor proposta com suporte ProSupport 3 anos no local e entrega rápida.'),
+        ('quot-05', 'req-02', NULL, 'Lenovo Enterprise Brasil', '11.456.789/0001-20', 5800.00, 5, 29000.00, 14, '28 dias Faturado', 'PROP-LN-3301', 4.6, 0, 'Configuração equivalente, porém com custo total R$ 2.500,00 superior.'),
+        ('quot-06', 'req-02', NULL, 'HP Enterprise Brasil', '33.882.119/0001-08', 6100.00, 5, 30500.00, 20, '30 dias Boleto', 'PROP-HP-1092', 4.4, 0, 'Prazo de entrega inviável para as necessidades do projeto.')
+    `).run();
+
+    // Matriz Orçamentária por Centro de Custo (Orçado × Comprometido × Realizado)
+    db.prepare(`
+      INSERT INTO cost_center_budgets (id, cost_center, fiscal_year, category, planned_amount, committed_amount, realized_amount, alert_threshold_percent)
+      VALUES
+        ('bud-01', 'Operações & Serviços Corporativos', 2026, 'Custos Operacionais & Insumos', 850000.00, 125000.00, 490000.00, 85.0),
+        ('bud-02', 'Tecnologia & Infraestrutura Cloud', 2026, 'Datacenter, SaaS & Licenças', 620000.00, 85000.00, 380000.00, 85.0),
+        ('bud-03', 'Comercial & Novos Negócios B2B', 2026, 'Comissões, Viagens & Eventos Corp', 400000.00, 32000.00, 210000.00, 80.0),
+        ('bud-04', 'Administrativo & Recursos Humanos', 2026, 'Folha, Encargos & Facilities', 550000.00, 45000.00, 365000.00, 90.0)
+    `).run();
+
+    // Fechamento Mensal / Competência com Checklist
+    db.prepare(`
+      INSERT INTO financial_closings (id, period, module, status, closed_by, closed_at, checklist_json, notes)
+      VALUES
+        ('close-01', '2026-09', 'GERAL', 'BLOQUEADO', 'Administrador Geral SEEK', '2026-10-02 18:00:00',
+         '{"extratos_conciliados":true,"contas_pagar_baixadas":true,"tributos_apurados":true,"folha_fechada":true,"balancete_verificado":true}',
+         'Competência de Setembro/2026 encerrada e bloqueada para novas movimentações pela Controladoria.'),
+        ('close-02', '2026-10', 'GERAL', 'ABERTO', NULL, NULL,
+         '{"extratos_conciliados":true,"contas_pagar_baixadas":false,"tributos_apurados":true,"folha_fechada":false,"balancete_verificado":false}',
+         'Competência de Outubro/2026 em andamento. Aguardando finalização do ciclo mensal.')
     `).run();
   }
 }

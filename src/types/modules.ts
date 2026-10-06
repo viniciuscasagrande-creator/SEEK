@@ -41,8 +41,13 @@ export interface FinancialEntry {
   category: string;
   amount: number;
   dueDate: string;
+  paymentDate?: string;
   status: 'PREVISTO' | 'CONFIRMADO' | 'PAGO' | 'CONCILIADO';
   paymentMethod: string;
+  originType?: string;
+  originId?: string;
+  bankId?: string;
+  bankName?: string;
 }
 
 export interface CrmOpportunity {
