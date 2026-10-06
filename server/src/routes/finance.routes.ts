@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { financeService } from '../services/finance.service.js';
+import { financeRepository } from '../repositories/finance.repository.js';
 
 export const financeRouter = Router();
 
@@ -11,58 +13,17 @@ financeRouter.get('/records', (req: Request, res: Response) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const companyId = (req.query.companyId as string) || authReq.companyId;
-
     const { type, status, originType, search } = req.query;
-    let query = 'SELECT * FROM financial_records WHERE 1=1';
-    const params: any[] = [];
 
-    if (companyId) {
-      query += ' AND (company_id = ? OR company_id IS NULL)';
-      params.push(companyId);
-    }
+    const result = financeService.getRecords({
+      companyId,
+      type: type as string,
+      status: status as string,
+      originType: originType as string,
+      search: search as string
+    });
 
-    if (type && type !== 'ALL') {
-      query += ' AND type = ?';
-      params.push(type);
-    }
-    if (status && status !== 'ALL') {
-      query += ' AND status = ?';
-      params.push(status);
-    }
-    if (originType && originType !== 'ALL') {
-      query += ' AND origin_type = ?';
-      params.push(originType);
-    }
-    if (search) {
-      query += ' AND (title LIKE ? OR entity_name LIKE ? OR code LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    query += ' ORDER BY due_date ASC';
-    const rows = db.prepare(query).all(...params) as any[];
-
-    const records = rows.map(r => ({
-      id: r.id,
-      companyId: r.company_id,
-      code: r.code,
-      type: r.type,
-      title: r.title,
-      entityName: r.entity_name,
-      costCenter: r.cost_center,
-      category: r.category,
-      amount: r.amount,
-      dueDate: r.due_date,
-      paymentDate: r.payment_date,
-      status: r.status,
-      paymentMethod: r.payment_method,
-      originType: r.origin_type || 'AVULSO',
-      originId: r.origin_id || null,
-      bankId: r.bank_id || null,
-      bankName: r.bank_name || null,
-      createdAt: r.created_at
-    }));
-
-    return res.json({ total: records.length, records });
+    return res.json(result);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -72,61 +33,8 @@ financeRouter.post('/records', (req: Request, res: Response) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const currentUser = authReq.user;
-    const targetCompanyId = authReq.companyId || currentUser?.companyId || 'comp-1';
 
-    const { type, title, entityName, costCenter, category, amount, dueDate, paymentMethod, originType, originId, userName, userRole } = req.body;
-
-    if (!title || !amount || !dueDate) {
-      return res.status(400).json({ error: 'Campos obrigatórios: title, amount, dueDate.' });
-    }
-
-    const codePrefix = type === 'RECEBER' ? 'CR' : 'CP';
-    const id = `fin-${Date.now()}`;
-    const code = `${codePrefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    const parsedAmount = parseFloat(amount);
-    const recType = type || 'PAGAR';
-    const recEntity = entityName || 'Entidade Corporativa';
-    const recCostCenter = costCenter || 'Administrativo & Recursos Humanos';
-    const recCategory = category || 'Despesas Gerais';
-    const recStatus = 'PREVISTO';
-    const recMethod = paymentMethod || 'PIX';
-    const recOrigin = originType || 'AVULSO';
-    const recOriginId = originId || null;
-
-    db.prepare(`
-      INSERT INTO financial_records (id, company_id, code, type, title, entity_name, cost_center, category, amount, due_date, status, payment_method, origin_type, origin_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, targetCompanyId, code, recType, title, recEntity, recCostCenter, recCategory, parsedAmount, dueDate, recStatus, recMethod, recOrigin, recOriginId);
-
-    const operator = currentUser?.fullName || userName || 'Operador Financeiro';
-    const operatorRole = currentUser?.roleTitle || userRole || 'Financeiro';
-
-    logAudit(
-      operator,
-      operatorRole,
-      'CREATE',
-      'Financeiro',
-      `Lançamento ${code}`,
-      `Criado lançamento ${recType} (${recOrigin}) no valor de R$ ${parsedAmount.toFixed(2)} (${title})`,
-      req.ip || '127.0.0.1'
-    );
-
-    const newRecord = {
-      id,
-      code,
-      type: recType,
-      title,
-      entityName: recEntity,
-      costCenter: recCostCenter,
-      category: recCategory,
-      amount: parsedAmount,
-      dueDate,
-      status: recStatus,
-      paymentMethod: recMethod,
-      originType: recOrigin,
-      originId: recOriginId
-    };
-
+    const newRecord = financeService.createRecord(req.body, currentUser, req.ip || '127.0.0.1');
     return res.status(201).json(newRecord);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -136,112 +44,23 @@ financeRouter.post('/records', (req: Request, res: Response) => {
 // Baixa / Liquidação de Título com Atualização Bancária e Extrato Automático
 financeRouter.patch('/records/:id/pay', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { userName, userRole, bankId, paymentMethod, paymentDate: customDate } = req.body;
     const authReq = req as AuthenticatedRequest;
     const currentUser = authReq.user;
 
-    const record = db.prepare('SELECT * FROM financial_records WHERE id = ?').get(id) as any;
-    if (!record) {
-      return res.status(404).json({ error: 'Lançamento financeiro não encontrado.' });
-    }
+    const result = financeService.liquidateRecord(id, {
+      bankId,
+      paymentMethod,
+      paymentDate: customDate,
+      userName,
+      userRole
+    }, currentUser, req.ip || '127.0.0.1');
 
-    // ABAC — Verificação de Alçada para Liquidação Financeira
-    if (currentUser) {
-      const isExecutive = currentUser.roleLevel === 'ADMIN_GERAL' || currentUser.roleLevel === 'DIRETORIA';
-      if (!isExecutive && record.amount > currentUser.approvalLimitAmount) {
-        return res.status(403).json({
-          error: `Alçada financeira insuficiente: o valor da baixa (R$ ${Number(record.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede seu teto de alçada autorizado (R$ ${Number(currentUser.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada executiva superior.`
-        });
-      }
-    }
-
-    const paymentDate = customDate || new Date().toISOString().substring(0, 10);
-    const selectedMethod = paymentMethod || record.payment_method || 'PIX';
-
-    let bankInfo: any = null;
-    if (bankId) {
-      bankInfo = db.prepare('SELECT * FROM bank_accounts WHERE id = ?').get(bankId) as any;
-    }
-
-    // Atualiza status do lançamento
-    db.prepare(`
-      UPDATE financial_records
-      SET status = 'PAGO', payment_date = ?, payment_method = ?, bank_id = ?, bank_name = ?
-      WHERE id = ?
-    `).run(paymentDate, selectedMethod, bankId || null, bankInfo ? bankInfo.bank_name : null, id);
-
-    const operator = currentUser?.fullName || userName || 'Operador Financeiro';
-    const operatorRole = currentUser?.roleTitle || userRole || 'Financeiro';
-
-    // Movimentação em conta bancária e geração de transação no extrato
-    if (bankId && bankInfo) {
-      const isPay = record.type === 'PAGAR';
-      const balanceChange = isPay ? -record.amount : record.amount;
-      const txType = isPay ? 'DEBITO' : 'CREDITO';
-
-      db.prepare('UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?').run(balanceChange, bankId);
-
-      const btxId = `btx-${Date.now()}`;
-      db.prepare(`
-        INSERT INTO bank_transactions (id, account_id, type, category, amount, transaction_date, description, reference_type, reference_id, reconciled, reconciled_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'TITULO', ?, 1, ?)
-      `).run(
-        btxId,
-        bankId,
-        txType,
-        record.category,
-        record.amount,
-        paymentDate,
-        `Liquidação ${record.code} — ${record.title} (${record.entity_name})`,
-        record.code,
-        new Date().toISOString()
-      );
-    }
-
-    // Se a origem era uma Taxa Freelancer, sincronizar status na tabela freelance_shifts
-    if (record.origin_type === 'TAXA' && record.origin_id) {
-      try {
-        db.prepare(`UPDATE freelance_shifts SET status = 'PAGO', paid_at = ? WHERE id = ? OR code = ?`).run(paymentDate, record.origin_id, record.origin_id);
-      } catch {}
-    }
-
-    // Se a origem era uma Ordem de Compra, sincronizar status
-    if (record.origin_type === 'PO' && record.origin_id) {
-      try {
-        db.prepare(`UPDATE purchase_orders SET status = 'PAGO' WHERE id = ? OR code = ?`).run(record.origin_id, record.origin_id);
-      } catch {}
-    }
-
-    // Se a origem era uma Obrigação Fiscal, sincronizar status
-    if (record.origin_type === 'FISCAL' && record.origin_id) {
-      try {
-        db.prepare(`UPDATE tax_obligations SET status = 'PAGO', payment_date = ? WHERE id = ? OR code = ?`).run(paymentDate, record.origin_id, record.origin_id);
-      } catch {}
-    }
-
-    logAudit(
-      operator,
-      operatorRole,
-      'UPDATE',
-      'Financeiro',
-      `Lançamento ${record.code}`,
-      `Baixa / liquidação efetuada no valor de R$ ${record.amount.toFixed(2)}${bankInfo ? ` via ${bankInfo.bank_name}` : ''}`,
-      req.ip || '127.0.0.1'
-    );
-
-    return res.json({
-      success: true,
-      record: {
-        ...record,
-        status: 'PAGO',
-        paymentDate,
-        bankId,
-        bankName: bankInfo ? bankInfo.bank_name : null
-      }
-    });
+    return res.json(result);
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    const statusCode = error.statusCode || (error.message.includes('não encontrado') ? 404 : 500);
+    return res.status(statusCode).json({ error: error.message });
   }
 });
 

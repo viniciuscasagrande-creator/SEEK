@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
-import { checkSeparationOfDuties } from '../utils/security.js';
+import { workflowService } from '../services/workflow.service.js';
 
 export const workflowRouter = Router();
 
@@ -11,167 +10,35 @@ workflowRouter.get('/approvals', (req: Request, res: Response) => {
     const authReq = req as AuthenticatedRequest;
     const companyId = (req.query.companyId as string) || authReq.companyId;
 
-    let query = 'SELECT * FROM approvals WHERE 1=1';
-    const params: any[] = [];
-    if (companyId) {
-      query += ' AND (company_id = ? OR company_id IS NULL)';
-      params.push(companyId);
-    }
-    query += ' ORDER BY created_at DESC';
-
-    const approvalRows = db.prepare(query).all(...params) as any[];
-
-    const approvals = approvalRows.map(app => {
-      const stepRows = db.prepare('SELECT * FROM approval_steps WHERE approval_id = ? ORDER BY step_number ASC').all(app.id) as any[];
-
-      const steps = stepRows.map(s => ({
-        stepNumber: s.step_number,
-        label: s.label,
-        requiredLevel: s.required_level,
-        status: s.status,
-        deciderName: s.decider_name,
-        decisionDate: s.decision_date,
-        comment: s.comment
-      }));
-
-      return {
-        id: app.id,
-        companyId: app.company_id,
-        entityType: app.entity_type,
-        title: app.title,
-        description: app.description,
-        department: app.department,
-        requesterName: app.requester_name,
-        requesterRole: app.requester_role || 'Colaborador',
-        createdAt: app.created_at,
-        amount: app.amount,
-        status: app.status,
-        currentStepIndex: Math.max(0, app.current_step - 1),
-        priority: app.priority,
-        steps
-      };
-    });
-
-    const pendingCount = approvals.filter(a => a.status === 'PENDENTE').length;
-
-    return res.json({
-      total: approvals.length,
-      pendingCount,
-      approvals
-    });
+    const result = workflowService.getApprovals({ companyId });
+    return res.json(result);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-// Decisão de aprovação ou rejeição com avanço de alçada e atualização em cascata
+// Decisão de aprovação ou rejeição com avanço de alçada, SoD e atualização em cascata
 workflowRouter.post('/approvals/:id/decide', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { decision, comment, deciderName, deciderRole } = req.body;
     const authReq = req as AuthenticatedRequest;
-    const currentUser = authReq.user;
 
-    const item = db.prepare('SELECT * FROM approvals WHERE id = ?').get(id) as any;
-    if (!item) {
-      return res.status(404).json({ error: 'Solicitação de aprovação não encontrada.' });
-    }
-
-    // SoD — Segregação de Funções: O solicitante não pode aprovar a própria solicitação
-    if (decision === 'approve' && currentUser) {
-      const sodCheck = checkSeparationOfDuties(item.requester_name, currentUser);
-      if (sodCheck.isViolated) {
-        logAudit(
-          currentUser.fullName,
-          currentUser.roleTitle,
-          'VIOLACAO_SOD',
-          'Workflow & Aprovações',
-          `Solicitação ${item.title}`,
-          `Tentativa de autoaprovação bloqueada pela política de Segregação de Funções (SoD)`,
-          req.ip || '127.0.0.1',
-          authReq.correlationId
-        );
-        return res.status(403).json({
-          error: `Violação de Segregação de Funções (SoD): o colaborador ${currentUser.fullName} não pode aprovar sua própria solicitação. É requerida a deliberação de um aprovador independente.`
-        });
-      }
-    }
-
-    // ABAC — Verificação Criptográfica de Alçada no Backend
-    if (decision === 'approve' && currentUser) {
-      const isExecutive = currentUser.roleLevel === 'ADMIN_GERAL' || currentUser.roleLevel === 'DIRETORIA';
-      if (!isExecutive && item.amount > currentUser.approvalLimitAmount) {
-        return res.status(403).json({
-          error: `Alçada insuficiente: o valor da solicitação (R$ ${Number(item.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede sua alçada autorizada (R$ ${Number(currentUser.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada superior.`
-        });
-      }
-    }
-
-    const steps = db.prepare('SELECT * FROM approval_steps WHERE approval_id = ? ORDER BY step_number ASC').all(id) as any[];
-    const currentStepIndex = Math.max(0, item.current_step - 1);
-    const currentStep = steps[currentStepIndex];
-
-    const decisionDate = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const decider = currentUser?.fullName || deciderName || 'Aprovador Autorizado';
-    const deciderRoleTitle = currentUser?.roleTitle || deciderRole || 'Alçada';
-    const justifiedComment = comment || (decision === 'approve' ? 'Parecer favorável conforme política corporativa de alçadas.' : 'Rejeitado por incompatibilidade orçamentária.');
-
-    if (currentStep) {
-      db.prepare(`
-        UPDATE approval_steps
-        SET status = ?, decider_name = ?, decision_date = ?, comment = ?
-        WHERE id = ?
-      `).run(
-        decision === 'approve' ? 'APROVADO' : 'REJEITADO',
-        decider,
-        decisionDate,
-        justifiedComment,
-        currentStep.id
-      );
-    }
-
-    let finalStatus = item.status;
-    let nextStep = item.current_step;
-
-    if (decision === 'reject') {
-      finalStatus = 'REJEITADO';
-      db.prepare('UPDATE approvals SET status = "REJEITADO" WHERE id = ?').run(id);
-    } else {
-      if (item.current_step >= item.total_steps) {
-        finalStatus = 'APROVADO';
-        db.prepare('UPDATE approvals SET status = "APROVADO" WHERE id = ?').run(id);
-
-        // Atualização em cascata nas entidades originárias do SEEK Core
-        if (item.entity_type === 'COMPRA') {
-          // Atualiza status da ordem de compra
-          db.prepare(`UPDATE purchase_orders SET status = 'APROVADO' WHERE title LIKE ? OR ? LIKE '%' || code || '%'`).run(`%${item.title}%`, item.title);
-        } else if (item.entity_type === 'PAGAMENTO') {
-          db.prepare(`UPDATE financial_records SET status = 'CONFIRMADO' WHERE ? LIKE '%' || code || '%'`).run(item.title);
-        }
-      } else {
-        nextStep = item.current_step + 1;
-        db.prepare('UPDATE approvals SET current_step = ? WHERE id = ?').run(nextStep, id);
-      }
-    }
-
-    logAudit(
-      decider,
-      deciderRoleTitle,
-      decision === 'approve' ? 'APPROVE' : 'REJECT',
-      'Central de Aprovações',
-      `${item.entity_type}: ${item.title}`,
-      `Decisão de ${decision.toUpperCase()} formalizada. Justificativa: "${justifiedComment}"`,
-      req.ip || '127.0.0.1'
-    );
-
-    return res.json({
-      success: true,
-      approvalId: id,
-      finalStatus,
-      currentStep: nextStep
+    const result = workflowService.decideApproval({
+      id,
+      decision,
+      comment,
+      deciderUser: authReq.user,
+      fallbackDeciderName: deciderName,
+      fallbackDeciderRole: deciderRole,
+      ipAddress: req.ip || '127.0.0.1',
+      correlationId: authReq.correlationId
     });
+
+    return res.json(result);
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    const statusCode = error.statusCode || (error.message.includes('não encontrada') ? 404 : 500);
+    return res.status(statusCode).json({ error: error.message });
   }
 });
 
@@ -179,50 +46,26 @@ workflowRouter.post('/approvals/:id/decide', (req: Request, res: Response) => {
 workflowRouter.post('/approvals', (req: Request, res: Response) => {
   try {
     const { entityType, title, description, department, requesterName, requesterRole, amount, priority, steps } = req.body;
+    const authReq = req as AuthenticatedRequest;
 
     if (!entityType || !title || !department) {
       return res.status(400).json({ error: 'Campos obrigatórios: entityType, title, department.' });
     }
 
-    const id = `app-${Date.now()}`;
-    const stepsArray = Array.isArray(steps) && steps.length > 0 ? steps : [
-      { stepNumber: 1, label: 'Aprovação do Gestor Imediato', requiredLevel: 'GESTOR' }
-    ];
-
-    db.prepare(`
-      INSERT INTO approvals (id, company_id, entity_type, title, description, department, requester_name, requester_role, amount, status, priority, current_step, total_steps)
-      VALUES (?, 'comp-1', ?, ?, ?, ?, ?, ?, ?, 'PENDENTE', ?, 1, ?)
-    `).run(
-      id,
+    const result = workflowService.createApproval({
+      companyId: authReq.companyId,
       entityType,
       title,
-      description || '',
+      description,
       department,
-      requesterName || 'Colaborador',
-      requesterRole || 'Colaborador',
-      amount ? parseFloat(amount) : 0,
-      priority || 'MEDIA',
-      stepsArray.length
-    );
+      requesterName,
+      requesterRole,
+      amount,
+      priority,
+      steps
+    }, authReq.user, req.ip || '189.44.120.10');
 
-    for (const s of stepsArray) {
-      db.prepare(`
-        INSERT INTO approval_steps (id, approval_id, step_number, label, required_level, status)
-        VALUES (?, ?, ?, ?, ?, 'PENDENTE')
-      `).run(`step-${Date.now()}-${Math.floor(Math.random() * 1000)}`, id, s.stepNumber, s.label, s.requiredLevel);
-    }
-
-    logAudit(
-      requesterName || 'Sistema',
-      requesterRole || 'Operador',
-      'CREATE',
-      'Central de Aprovações',
-      `${entityType}: ${title}`,
-      `Nova solicitação de alçada submetida no valor de R$ ${(amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      req.ip || '189.44.120.10'
-    );
-
-    return res.status(201).json({ success: true, id, title });
+    return res.status(201).json({ success: true, id: result.id, title: result.title });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

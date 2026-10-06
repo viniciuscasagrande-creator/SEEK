@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { checkSeparationOfDuties } from '../utils/security.js';
+import { purchasingService } from '../services/purchasing.service.js';
 
 export const purchasingRouter = Router();
 
@@ -357,64 +358,15 @@ purchasingRouter.post('/orders', (req: Request, res: Response) => {
 
 purchasingRouter.patch('/orders/:id/approve', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { userName, userRole } = req.body;
+    const id = req.params.id as string;
     const authReq = req as AuthenticatedRequest;
     const currentUser = authReq.user;
 
-    const order = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any;
-    if (!order) {
-      return res.status(404).json({ error: 'Ordem de compra não encontrada.' });
-    }
-
-    // SoD — Segregação de Funções: O solicitante da ordem não pode aprová-la
-    if (currentUser) {
-      const sodCheck = checkSeparationOfDuties(order.requester_name, currentUser);
-      if (sodCheck.isViolated) {
-        logAudit(
-          currentUser.fullName,
-          currentUser.roleTitle,
-          'VIOLACAO_SOD',
-          'Compras & Suprimentos',
-          `Ordem ${order.code}`,
-          `Tentativa de autoaprovação bloqueada pela política de Segregação de Funções (SoD)`,
-          req.ip || '127.0.0.1',
-          authReq.correlationId
-        );
-        return res.status(403).json({
-          error: `Violação de Segregação de Funções (SoD): o colaborador ${currentUser.fullName} cadastrou a ordem ${order.code} e não possui autorização para aprová-la. É requerida a validação de um gestor independente.`
-        });
-      }
-    }
-
-    // ABAC — Verificação Criptográfica de Alçada de Compra
-    if (currentUser) {
-      const isExecutive = currentUser.roleLevel === 'ADMIN_GERAL' || currentUser.roleLevel === 'DIRETORIA';
-      if (!isExecutive && order.total_amount > currentUser.approvalLimitAmount) {
-        return res.status(403).json({
-          error: `Alçada de compra insuficiente: o valor da ordem (R$ ${Number(order.total_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede sua alçada autorizada (R$ ${Number(currentUser.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada executiva superior.`
-        });
-      }
-    }
-
-    db.prepare(`UPDATE purchase_orders SET status = 'APROVADO' WHERE id = ?`).run(id);
-
-    const operator = currentUser?.fullName || userName || 'Diretor Responsável';
-    const operatorRole = currentUser?.roleTitle || userRole || 'Diretoria';
-
-    logAudit(
-      operator,
-      operatorRole,
-      'APPROVE',
-      'Compras & Alçadas',
-      `Ordem ${order.code}`,
-      `Ordem de compra ${order.code} aprovada formalmente por alçada de governança (R$ ${order.total_amount.toFixed(2)})`,
-      req.ip || '127.0.0.1'
-    );
-
-    return res.json({ success: true, order: { ...order, status: 'APROVADO' } });
+    const result = purchasingService.approveOrder(id, currentUser, req.ip || '127.0.0.1', authReq.correlationId);
+    return res.json(result);
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    const statusCode = error.statusCode || (error.message.includes('não encontrada') ? 404 : 500);
+    return res.status(statusCode).json({ error: error.message });
   }
 });
 
