@@ -29,3 +29,7 @@ INICIALIZACAO RAPIDA:
    npm run test:fase2    (Executa os 39 testes de services/repos Fase 2)
    npm run dev           (Inicia API na porta 3001)
 ================================================================================
+
+SEEK V1.9 FASE 4: Rastreabilidade E2E + DRE/Fluxo de Caixa/Auditoria integrados.
+Base: Fase 3 Interface E2E.
+Escopo: sem novos módulos; continuidade do Core Transacional Financeiro.

@@ -419,6 +419,13 @@ export const api = {
     return data;
   },
 
+  async getFinanceTrace(recordId: string): Promise<any> {
+    const res = await authFetch(`${API_BASE_URL}/finance/trace/${encodeURIComponent(recordId)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Falha ao carregar rastreabilidade financeira.');
+    return data;
+  },
+
   async getRealizedCashFlow(): Promise<any[]> {
     const res = await authFetch(`${API_BASE_URL}/finance/cash-flow/realized`);
     if (!res.ok) return [];

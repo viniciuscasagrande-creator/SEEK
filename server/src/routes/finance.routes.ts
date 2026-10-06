@@ -276,6 +276,76 @@ financeRouter.post('/ofx/statement/:id/divergence', (req: Request, res: Response
 });
 
 // ========================================================
+// 3.2 RASTREABILIDADE FINANCEIRA PONTA A PONTA
+// ========================================================
+financeRouter.get('/trace/:recordId', (req: Request, res: Response) => {
+  try {
+    const authReq=req as AuthenticatedRequest;
+    const recordId=String(req.params.recordId);
+    const record:any=db.prepare(`SELECT * FROM financial_records WHERE id=? OR code=?`).get(recordId, recordId);
+    if(!record) return res.status(404).json({error:'Título financeiro não encontrado.'});
+
+    if(authReq.companyId && record.company_id && authReq.companyId !== record.company_id) {
+      return res.status(403).json({error:'Título fora do contexto da empresa autenticada.'});
+    }
+
+    const bankTransactions:any[]=db.prepare(`
+      SELECT bt.*, ba.bank_name, ba.agency, ba.account_number
+      FROM bank_transactions bt
+      JOIN bank_accounts ba ON ba.id=bt.account_id
+      WHERE (bt.reference_type='TITULO' OR bt.reference_type='MANUAL') AND (bt.reference_id=? OR bt.reference_id=?)
+      ORDER BY bt.created_at ASC`).all(record.id, record.code) as any[];
+
+    const accountingEntries:any[]=db.prepare(`
+      SELECT * FROM accounting_entries
+      WHERE origin_id=? OR description LIKE ? OR description LIKE ?
+      ORDER BY created_at ASC`).all(record.id, `%${record.code}%`, `%${record.id}%`) as any[];
+
+    const bankIds=bankTransactions.map(x=>x.id);
+    let ofxMatches:any[]=[];
+    if(bankIds.length) {
+      const marks=bankIds.map(()=>'?').join(',');
+      ofxMatches=db.prepare(`
+        SELECT rm.*, st.fitid,st.posted_at,st.amount AS statement_amount,st.memo,st.name,
+               st.status AS statement_status, oi.file_name,oi.imported_at
+        FROM reconciliation_matches rm
+        JOIN ofx_statement_transactions st ON st.id=rm.statement_transaction_id
+        JOIN ofx_imports oi ON oi.id=st.import_id
+        WHERE rm.bank_transaction_id IN (${marks})
+        ORDER BY rm.matched_at ASC`).all(...bankIds) as any[];
+    }
+
+    const audits:any[]=db.prepare(`
+      SELECT * FROM audit_logs
+      WHERE entity IN (?,?) OR description LIKE ? OR description LIKE ?
+      ORDER BY timestamp ASC`)
+      .all(record.id, record.code, `%${record.id}%`, `%${record.code}%`) as any[];
+
+    const stages=[
+      {key:'titulo',label:'Título',ok:true,at:record.created_at},
+      {key:'pagamento',label:'Pagamento',ok:record.status==='PAGO',at:record.payment_date},
+      {key:'banco',label:'Banco',ok:bankTransactions.length>0,at:bankTransactions[0]?.created_at},
+      {key:'ofx',label:'OFX',ok:ofxMatches.length>0,at:ofxMatches[0]?.imported_at},
+      {key:'conciliacao',label:'Conciliação',ok:ofxMatches.some(x=>x.status==='CONCILIADO'),at:ofxMatches[0]?.matched_at},
+      {key:'contabilidade',label:'Contabilidade',ok:accountingEntries.length>0,at:accountingEntries[accountingEntries.length-1]?.created_at},
+      {key:'auditoria',label:'Auditoria',ok:audits.length>0,at:audits[audits.length-1]?.timestamp}
+    ];
+
+    return res.json({
+      record,
+      stages,
+      bankTransactions,
+      ofxMatches,
+      accountingEntries,
+      audits,
+      completed: stages.every(s=>s.ok)
+    });
+  } catch(error:any) {
+    return res.status(500).json({error:error.message});
+  }
+});
+
+// ========================================================
 // 4. CONTROLADORIA & ORÇAMENTO (BUDGETING ENTERPRISE)
 // ========================================================
 financeRouter.get('/budgets', (_req: Request, res: Response) => {
