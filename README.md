@@ -59,7 +59,7 @@ Conforme formalizado no [Plano Mestre de Hardening](docs/SEEK_V1_9_PLANO_MESTRE.
 
 1. **Fase 0 — Segurança & Autenticação (P0):** JWT real (RFC 7519), middleware RBAC no Express, remoção de bypasses, proteção LGPD e auditoria. *(Concluído)*
 2. **Fase 1 — Fundação Técnica:** PostgreSQL, migrations versionadas, separação em services/repositories, validação Zod e API v1.
-3. **Fase 2 — Frontend & Design System:** Central de Trabalho (`MyWorkstation`), sidebar hierárquica em 3 níveis, Design System SEEK e code splitting.
+3. **Fase 2 — Frontend & Design System:** Central de Trabalho (`MyWorkstation`), sidebar hierárquica em 3 níveis com accordion e drawer mobile ([SEEK V1.9 Navegação](docs/SEEK_V1_9_MENU_FIXO_SUBMENUS_EXPANSIVEIS.md)), Design System SEEK e code splitting. *(Navegação Concluída)*
 4. **Fase 3 — Core ERP Transacional:** Transações atômicas no Financeiro, Compras ponta a ponta e Contabilidade com `AccountingService`.
 5. **Fase 4 — Operações:** RH/Taxas, Estoque, Contratos, Projetos, Service Desk e CRM consolidados sem dados simulados.
 6. **Fase 5 — Enterprise:** MFA, SSO, GED com Object Storage, assinaturas e automações.
