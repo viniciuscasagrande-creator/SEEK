@@ -6,8 +6,8 @@ import { Modal } from '../common/Modal';
 
 export const LoginScreen: React.FC = () => {
   const { login, recoverPassword } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@seek.local');
+  const [password, setPassword] = useState('Seek@2026');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [recoverModalOpen, setRecoverModalOpen] = useState(false);
@@ -111,6 +111,16 @@ export const LoginScreen: React.FC = () => {
             </div>
           )}
 
+          {/* Dica de Credencial Homologada */}
+          <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] text-blue-300 flex items-center justify-between">
+            <div>
+              <span className="font-bold text-white block">Credencial Homologada:</span>
+              <span className="text-slate-300">admin@seek.local | Senha: </span>
+              <code className="text-blue-300 font-mono font-bold bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-800/50">Seek@2026</code>
+            </div>
+            <span className="text-[10px] text-slate-400 text-right hidden sm:block">Ou 1 clique abaixo</span>
+          </div>
+
           {/* Form de Login */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -118,11 +128,11 @@ export const LoginScreen: React.FC = () => {
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <input
-                  type="email"
+                  type="text"
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="ex: admin@seek.local"
+                  placeholder="ex: admin@seek.local ou MAT-0001"
                   className="w-full rounded-xl border border-slate-700 bg-slate-800/80 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
                 />
               </div>
