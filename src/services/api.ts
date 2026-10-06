@@ -375,6 +375,81 @@ export const api = {
     }
   },
 
+  async importOfx(accountId: string, ofxContent: string, fileName?: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/accounts/${accountId}/ofx/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ofxContent, fileName })
+      });
+      if (res.ok) return await res.json();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Falha ao importar arquivo OFX.');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
+  async getOfxTransactions(accountId: string, status?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status && status !== 'ALL') params.append('status', status);
+      const res = await authFetch(`${API_BASE_URL}/finance/accounts/${accountId}/ofx/transactions?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.transactions || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async matchOfxTransaction(ofxTxId: string, bankTxId: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/reconciliation/match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ofxTxId, bankTxId })
+      });
+      if (res.ok) return await res.json();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Falha ao conciliar transação.');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
+  async unmatchOfxTransaction(ofxTxId: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/reconciliation/unmatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ofxTxId })
+      });
+      if (res.ok) return await res.json();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Falha ao desconciliar transação.');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
+  async reconcileAvulso(ofxTxId: string, data: { category?: string; costCenter?: string; entityName?: string; description?: string }): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/reconciliation/avulso`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ofxTxId, ...data })
+      });
+      if (res.ok) return await res.json();
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Falha ao conciliar lançamento avulso.');
+    } catch (err: any) {
+      throw err;
+    }
+  },
+
   async getBudgets(): Promise<any> {
     try {
       const res = await authFetch(`${API_BASE_URL}/finance/budgets`);

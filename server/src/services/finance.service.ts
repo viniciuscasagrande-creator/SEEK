@@ -1,9 +1,19 @@
 // SEEK Core — Serviço de Domínio Financeiro, Tesouraria, Liquidação e Conciliação
+import crypto from 'crypto';
 import { db } from '../db.js';
 import { accountingService } from './accounting.service.js';
-import { financeRepository, FinancialRecordEntity, BankAccountEntity, BankTransactionEntity, CostCenterBudgetEntity } from '../repositories/finance.repository.js';
+import {
+  financeRepository,
+  FinancialRecordEntity,
+  BankAccountEntity,
+  BankTransactionEntity,
+  CostCenterBudgetEntity,
+  OfxImportEntity,
+  OfxTransactionEntity
+} from '../repositories/finance.repository.js';
 import { workflowRepository } from '../repositories/workflow.repository.js';
 import { TokenPayload } from '../middleware/auth.js';
+import { parseOfx } from '../utils/ofxParser.js';
 
 export class FinanceService {
   /**
@@ -202,6 +212,360 @@ export class FinanceService {
       accountsReceivablePaid: totalReceberPago,
       accountsReceivablePending: totalReceber - totalReceberPago,
       netPosition: totalCashBalance + (totalReceber - totalReceberPago) - (totalPagar - totalPagarPago)
+    };
+  }
+
+  /**
+   * Importação de extrato OFX com idempotência por FITID e hash de integridade
+   */
+  importOfx(accountId: string, ofxContent: string, fileName: string = 'extrato.ofx', user?: TokenPayload, ipAddress: string = '127.0.0.1') {
+    const bankAccount = financeRepository.findBankAccountById(accountId);
+    if (!bankAccount) {
+      const err: any = new Error('Conta bancária não encontrada.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const fileHash = crypto.createHash('sha256').update(ofxContent).digest('hex');
+    const parsed = parseOfx(ofxContent);
+
+    const importId = `ofx-imp-${Date.now()}`;
+    const companyId = user?.companyId || 'comp-1';
+    const operator = user?.fullName || 'Operador Financeiro';
+    const operatorRole = user?.roleTitle || 'Financeiro';
+
+    let newCount = 0;
+    let duplicateCount = 0;
+
+    const tx = db.transaction(() => {
+      financeRepository.createOfxImport({
+        id: importId,
+        account_id: accountId,
+        company_id: companyId,
+        filename: fileName,
+        file_hash: fileHash,
+        bank_code: parsed.bankCode,
+        account_number: parsed.accountNumber,
+        start_date: parsed.startDate,
+        end_date: parsed.endDate,
+        total_transactions: parsed.transactions.length,
+        imported_by: operator
+      });
+
+      for (let i = 0; i < parsed.transactions.length; i++) {
+        const item = parsed.transactions[i];
+        const existing = financeRepository.findOfxTransactionByFitid(accountId, item.fitid);
+        if (existing) {
+          duplicateCount++;
+          continue;
+        }
+
+        const txId = `ofx-tx-${Date.now()}-${i + 1}`;
+        financeRepository.createOfxTransaction({
+          id: txId,
+          import_id: importId,
+          account_id: accountId,
+          company_id: companyId,
+          fitid: item.fitid,
+          type: item.type,
+          amount: item.amount,
+          posted_date: item.postedDate,
+          memo: item.memo,
+          check_number: item.checkNumber,
+          status: 'PENDENTE'
+        });
+        newCount++;
+      }
+    });
+
+    tx();
+
+    workflowRepository.logAudit({
+      userName: operator,
+      userRole: operatorRole,
+      action: 'IMPORT',
+      module: 'Financeiro',
+      entity: `OFX ${fileName}`,
+      description: `Importação de extrato OFX para ${bankAccount.bank_name}: ${parsed.transactions.length} transações lidas (${newCount} novas, ${duplicateCount} já existentes/duplicadas)`,
+      ipAddress
+    });
+
+    return {
+      success: true,
+      importId,
+      fileHash,
+      bankCode: parsed.bankCode,
+      accountNumber: parsed.accountNumber,
+      startDate: parsed.startDate,
+      endDate: parsed.endDate,
+      totalParsed: parsed.transactions.length,
+      newCount,
+      duplicateCount,
+      transactions: this.listOfxTransactions(accountId)
+    };
+  }
+
+  /**
+   * Lista transações do extrato OFX com candidatos de conciliação do sistema
+   */
+  listOfxTransactions(accountId: string, status?: string) {
+    const rows = financeRepository.listOfxTransactions(accountId, status);
+    return rows.map(r => {
+      let candidates: any[] = [];
+      if (r.status === 'PENDENTE') {
+        candidates = financeRepository.findMatchingBankTransactions(r.account_id, r.type, r.amount, r.posted_date);
+      }
+      return {
+        id: r.id,
+        importId: r.import_id,
+        accountId: r.account_id,
+        fitid: r.fitid,
+        type: r.type,
+        amount: r.amount,
+        postedDate: r.posted_date,
+        memo: r.memo,
+        checkNumber: r.check_number,
+        status: r.status,
+        matchedBankTxId: r.matched_bank_tx_id,
+        reconciledAt: r.reconciled_at,
+        candidates
+      };
+    });
+  }
+
+  /**
+   * Conciliação transacional entre item do extrato OFX e movimentação do sistema
+   */
+  matchAndReconcile(ofxTxId: string, bankTxId: string, user?: TokenPayload, ipAddress: string = '127.0.0.1') {
+    const ofxTx = financeRepository.findOfxTransactionById(ofxTxId);
+    if (!ofxTx) {
+      const err: any = new Error('Transação do extrato OFX não encontrada.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (ofxTx.status === 'CONCILIADO') {
+      const err: any = new Error('Esta transação OFX já está conciliada.');
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const bankTx = financeRepository.findBankTransactionById(bankTxId);
+    if (!bankTx) {
+      const err: any = new Error('Movimentação bancária do sistema não encontrada.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (bankTx.reconciled === 1) {
+      const err: any = new Error('Esta movimentação bancária já foi conciliada.');
+      err.statusCode = 409;
+      throw err;
+    }
+    if (bankTx.account_id !== ofxTx.account_id) {
+      const err: any = new Error('A conta bancária da movimentação difere do extrato OFX.');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (bankTx.type !== ofxTx.type) {
+      const err: any = new Error(`Incompatibilidade de tipo: OFX é ${ofxTx.type} e movimentação é ${bankTx.type}.`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (Math.abs(bankTx.amount - ofxTx.amount) > 0.01) {
+      const err: any = new Error(`Divergência de valor: OFX R$ ${ofxTx.amount.toFixed(2)} vs Sistema R$ ${bankTx.amount.toFixed(2)}.`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const now = new Date().toISOString();
+    const operator = user?.fullName || 'Operador Financeiro';
+    const operatorRole = user?.roleTitle || 'Financeiro';
+
+    const tx = db.transaction(() => {
+      financeRepository.updateBankTransactionReconciled(bankTxId, 1, now);
+      financeRepository.updateOfxTransactionStatus(ofxTxId, 'CONCILIADO', bankTxId, now);
+
+      workflowRepository.logAudit({
+        userName: operator,
+        userRole: operatorRole,
+        action: 'RECONCILE',
+        module: 'Financeiro',
+        entity: `OFX ${ofxTx.fitid}`,
+        description: `Conciliação confirmada: OFX FITID ${ofxTx.fitid} (${ofxTx.type} R$ ${ofxTx.amount.toFixed(2)}) vinculado à transação bancária ${bankTx.id} (${bankTx.description})`,
+        ipAddress
+      });
+    });
+
+    tx();
+
+    return {
+      success: true,
+      ofxTxId,
+      bankTxId,
+      reconciledAt: now
+    };
+  }
+
+  /**
+   * Reversão de conciliação bancária
+   */
+  unmatchReconciliation(ofxTxId: string, user?: TokenPayload, ipAddress: string = '127.0.0.1') {
+    const ofxTx = financeRepository.findOfxTransactionById(ofxTxId);
+    if (!ofxTx) {
+      const err: any = new Error('Transação do extrato OFX não encontrada.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (ofxTx.status !== 'CONCILIADO') {
+      const err: any = new Error('Esta transação OFX não está conciliada.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const matchedBankTxId = ofxTx.matched_bank_tx_id;
+    const operator = user?.fullName || 'Operador Financeiro';
+    const operatorRole = user?.roleTitle || 'Financeiro';
+
+    const tx = db.transaction(() => {
+      if (matchedBankTxId) {
+        financeRepository.updateBankTransactionReconciled(matchedBankTxId, 0, null);
+      }
+      financeRepository.updateOfxTransactionStatus(ofxTxId, 'PENDENTE', null, null);
+
+      workflowRepository.logAudit({
+        userName: operator,
+        userRole: operatorRole,
+        action: 'UNRECONCILE',
+        module: 'Financeiro',
+        entity: `OFX ${ofxTx.fitid}`,
+        description: `Desconciliação efetuada: OFX FITID ${ofxTx.fitid} revertido para pendente.`,
+        ipAddress
+      });
+    });
+
+    tx();
+
+    return {
+      success: true,
+      ofxTxId,
+      unmatchedBankTxId: matchedBankTxId
+    };
+  }
+
+  /**
+   * Conciliação Avulsa (tarifas bancárias, rendimentos, débitos diretos não lançados previamente)
+   * Gera automaticamente título financeiro, baixa contábil em partidas dobradas e movimentação bancária.
+   */
+  createAndReconcileAvulso(ofxTxId: string, options: {
+    category?: string;
+    costCenter?: string;
+    entityName?: string;
+    description?: string;
+  } = {}, user?: TokenPayload, ipAddress: string = '127.0.0.1') {
+    const ofxTx = financeRepository.findOfxTransactionById(ofxTxId);
+    if (!ofxTx) {
+      const err: any = new Error('Transação do extrato OFX não encontrada.');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (ofxTx.status === 'CONCILIADO') {
+      const err: any = new Error('Esta transação OFX já está conciliada.');
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const bank = financeRepository.findBankAccountById(ofxTx.account_id);
+    if (!bank) {
+      const err: any = new Error('Conta bancária associada não encontrada.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const isDebit = ofxTx.type === 'DEBITO';
+    const finType = isDebit ? 'PAGAR' : 'RECEBER';
+    const now = new Date().toISOString();
+    const paymentDate = ofxTx.posted_date || now.substring(0, 10);
+    const operator = user?.fullName || 'Operador Financeiro';
+    const operatorRole = user?.roleTitle || 'Financeiro';
+    const companyId = user?.companyId || ofxTx.company_id || 'comp-1';
+
+    const recordId = `fin-ofx-${Date.now()}`;
+    const recordCode = `${isDebit ? 'CP' : 'CR'}-OFX-${Math.floor(1000 + Math.random() * 9000)}`;
+    const bankTxId = `btx-ofx-${Date.now()}`;
+    const title = options.description || ofxTx.memo || (isDebit ? 'Despesa/Tarifa Bancária OFX' : 'Receita/Rendimento Bancário OFX');
+    const category = options.category || (isDebit ? 'Despesas Bancárias' : 'Rendimentos Financeiros');
+    const costCenter = options.costCenter || 'Controladoria & Finanças';
+    const entityName = options.entityName || bank.bank_name;
+
+    const tx = db.transaction(() => {
+      // 1. Cria o registro financeiro já liquidado
+      financeRepository.createRecord({
+        id: recordId,
+        company_id: companyId,
+        code: recordCode,
+        type: finType,
+        title,
+        entity_name: entityName,
+        cost_center: costCenter,
+        category,
+        amount: ofxTx.amount,
+        due_date: paymentDate,
+        status: 'PAGO',
+        payment_method: 'DEBITO_EM_CONTA',
+        origin_type: 'CONCILIACAO_OFX',
+        origin_id: ofxTx.id,
+        bank_id: bank.id,
+        bank_name: bank.bank_name
+      });
+
+      // 2. Atualiza saldo da conta e insere bank_transactions já como conciliado
+      financeRepository.updateAccountBalance(bank.id, isDebit ? -ofxTx.amount : ofxTx.amount);
+      financeRepository.createBankTransaction({
+        id: bankTxId,
+        account_id: bank.id,
+        type: ofxTx.type,
+        category,
+        amount: ofxTx.amount,
+        transaction_date: paymentDate,
+        description: `${title} (OFX FITID ${ofxTx.fitid})`,
+        reference_type: 'OFX_AVULSO',
+        reference_id: recordId,
+        reconciled: 1,
+        reconciled_at: now
+      });
+
+      // 3. Reflexo contábil em partidas dobradas
+      const accountingEntry = accountingService.postFinancialSettlement({
+        recordId,
+        recordCode,
+        type: finType,
+        amount: ofxTx.amount,
+        date: paymentDate,
+        costCenter,
+        createdBy: operator
+      });
+
+      // 4. Marca OFX como conciliado
+      financeRepository.updateOfxTransactionStatus(ofxTxId, 'CONCILIADO', bankTxId, now);
+
+      // 5. Auditoria
+      workflowRepository.logAudit({
+        userName: operator,
+        userRole: operatorRole,
+        action: 'RECONCILE_AVULSO',
+        module: 'Financeiro',
+        entity: `OFX ${ofxTx.fitid}`,
+        description: `Conciliação avulsa com lançamento contábil ${accountingEntry}: gerado título ${recordCode} (${category}) no valor de R$ ${ofxTx.amount.toFixed(2)}`,
+        ipAddress
+      });
+
+      return { recordId, recordCode, bankTxId, accountingEntry };
+    });
+
+    const result = tx();
+    return {
+      success: true,
+      ofxTxId,
+      ...result
     };
   }
 }

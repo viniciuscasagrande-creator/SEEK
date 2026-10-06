@@ -234,6 +234,92 @@ financeRouter.patch('/transactions/:id/reconcile', (req: Request, res: Response)
   }
 });
 
+// Importação Real de Arquivo OFX com Deduplicação FITID e Auditoria
+financeRouter.post('/accounts/:id/ofx/import', (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { ofxContent, fileName } = req.body;
+    if (!ofxContent) {
+      return res.status(400).json({ error: 'Conteúdo OFX obrigatório (campo ofxContent).' });
+    }
+
+    const authReq = req as AuthenticatedRequest;
+    const result = financeService.importOfx(id, ofxContent, fileName || 'extrato.ofx', authReq.user, req.ip || '127.0.0.1');
+    return res.status(201).json(result);
+  } catch (error: any) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message });
+  }
+});
+
+// Listagem de Transações do Extrato OFX da Conta
+financeRouter.get('/accounts/:id/ofx/transactions', (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+    const { status } = req.query;
+    const transactions = financeService.listOfxTransactions(id, status as string);
+    return res.json({ total: transactions.length, transactions });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Conciliação de Item OFX com Movimentação do Sistema
+financeRouter.post('/reconciliation/match', (req: Request, res: Response) => {
+  try {
+    const { ofxTxId, bankTxId } = req.body;
+    if (!ofxTxId || !bankTxId) {
+      return res.status(400).json({ error: 'Campos obrigatórios: ofxTxId, bankTxId.' });
+    }
+
+    const authReq = req as AuthenticatedRequest;
+    const result = financeService.matchAndReconcile(ofxTxId, bankTxId, authReq.user, req.ip || '127.0.0.1');
+    return res.json(result);
+  } catch (error: any) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message });
+  }
+});
+
+// Reversão / Desconciliação de Item OFX
+financeRouter.post('/reconciliation/unmatch', (req: Request, res: Response) => {
+  try {
+    const { ofxTxId } = req.body;
+    if (!ofxTxId) {
+      return res.status(400).json({ error: 'Campo obrigatório: ofxTxId.' });
+    }
+
+    const authReq = req as AuthenticatedRequest;
+    const result = financeService.unmatchReconciliation(ofxTxId, authReq.user, req.ip || '127.0.0.1');
+    return res.json(result);
+  } catch (error: any) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message });
+  }
+});
+
+// Conciliação Avulsa (Tarifas, Encargos ou Rendimentos do Extrato OFX)
+financeRouter.post('/reconciliation/avulso', (req: Request, res: Response) => {
+  try {
+    const { ofxTxId, category, costCenter, entityName, description } = req.body;
+    if (!ofxTxId) {
+      return res.status(400).json({ error: 'Campo obrigatório: ofxTxId.' });
+    }
+
+    const authReq = req as AuthenticatedRequest;
+    const result = financeService.createAndReconcileAvulso(ofxTxId, {
+      category,
+      costCenter,
+      entityName,
+      description
+    }, authReq.user, req.ip || '127.0.0.1');
+    return res.status(201).json(result);
+  } catch (error: any) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({ error: error.message });
+  }
+});
+
 // ========================================================
 // 4. CONTROLADORIA & ORÇAMENTO (BUDGETING ENTERPRISE)
 // ========================================================

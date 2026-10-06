@@ -84,6 +84,38 @@ export interface BankReconciliationEntity {
   notes?: string;
 }
 
+export interface OfxImportEntity {
+  id: string;
+  account_id: string;
+  company_id?: string;
+  filename: string;
+  file_hash: string;
+  bank_code?: string;
+  account_number?: string;
+  start_date?: string;
+  end_date?: string;
+  total_transactions: number;
+  imported_by: string;
+  created_at?: string;
+}
+
+export interface OfxTransactionEntity {
+  id: string;
+  import_id: string;
+  account_id: string;
+  company_id?: string;
+  fitid: string;
+  type: string; // 'CREDITO' | 'DEBITO'
+  amount: number;
+  posted_date: string;
+  memo?: string;
+  check_number?: string;
+  status: string; // 'PENDENTE' | 'CONCILIADO' | 'IGNORADO'
+  matched_bank_tx_id?: string | null;
+  reconciled_at?: string | null;
+  created_at?: string;
+}
+
 export class FinanceRepository {
   // --- TÍTULOS FINANCEIROS (PAGAR / RECEBER) ---
   listRecords(filters: {
@@ -318,6 +350,114 @@ export class FinanceRepository {
 
   updateClosingStatus(id: string, status: string, closedBy: string, closedAt: string): void {
     db.prepare('UPDATE financial_closings SET status = ?, closed_by = ?, closed_at = ? WHERE id = ?').run(status, closedBy, closedAt, id);
+  }
+
+  // --- EXTRATOS OFX & CONCILIAÇÃO BANCÁRIA REAL ---
+  createOfxImport(data: OfxImportEntity): void {
+    db.prepare(`
+      INSERT INTO ofx_imports (
+        id, account_id, company_id, filename, file_hash, bank_code,
+        account_number, start_date, end_date, total_transactions, imported_by
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      data.id,
+      data.account_id,
+      data.company_id || 'comp-1',
+      data.filename,
+      data.file_hash,
+      data.bank_code || null,
+      data.account_number || null,
+      data.start_date || null,
+      data.end_date || null,
+      data.total_transactions || 0,
+      data.imported_by
+    );
+  }
+
+  findOfxImportById(id: string): OfxImportEntity | undefined {
+    return db.prepare('SELECT * FROM ofx_imports WHERE id = ?').get(id) as OfxImportEntity | undefined;
+  }
+
+  listOfxImports(accountId?: string): OfxImportEntity[] {
+    if (accountId) {
+      return db.prepare('SELECT * FROM ofx_imports WHERE account_id = ? ORDER BY created_at DESC').all(accountId) as OfxImportEntity[];
+    }
+    return db.prepare('SELECT * FROM ofx_imports ORDER BY created_at DESC').all() as OfxImportEntity[];
+  }
+
+  findOfxTransactionByFitid(accountId: string, fitid: string): OfxTransactionEntity | undefined {
+    return db.prepare('SELECT * FROM ofx_transactions WHERE account_id = ? AND fitid = ?').get(accountId, fitid) as OfxTransactionEntity | undefined;
+  }
+
+  findOfxTransactionById(id: string): OfxTransactionEntity | undefined {
+    return db.prepare('SELECT * FROM ofx_transactions WHERE id = ?').get(id) as OfxTransactionEntity | undefined;
+  }
+
+  createOfxTransaction(data: OfxTransactionEntity): void {
+    db.prepare(`
+      INSERT INTO ofx_transactions (
+        id, import_id, account_id, company_id, fitid, type,
+        amount, posted_date, memo, check_number, status, matched_bank_tx_id, reconciled_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      data.id,
+      data.import_id,
+      data.account_id,
+      data.company_id || 'comp-1',
+      data.fitid,
+      data.type,
+      data.amount,
+      data.posted_date,
+      data.memo || null,
+      data.check_number || null,
+      data.status || 'PENDENTE',
+      data.matched_bank_tx_id || null,
+      data.reconciled_at || null
+    );
+  }
+
+  listOfxTransactions(accountId: string, status?: string): OfxTransactionEntity[] {
+    if (status && status !== 'ALL') {
+      return db.prepare('SELECT * FROM ofx_transactions WHERE account_id = ? AND status = ? ORDER BY posted_date DESC, created_at DESC').all(accountId, status) as OfxTransactionEntity[];
+    }
+    return db.prepare('SELECT * FROM ofx_transactions WHERE account_id = ? ORDER BY posted_date DESC, created_at DESC').all(accountId) as OfxTransactionEntity[];
+  }
+
+  updateOfxTransactionStatus(id: string, status: string, matchedBankTxId?: string | null, reconciledAt?: string | null): void {
+    db.prepare(`
+      UPDATE ofx_transactions
+      SET status = ?, matched_bank_tx_id = ?, reconciled_at = ?
+      WHERE id = ?
+    `).run(status, matchedBankTxId || null, reconciledAt || null, id);
+  }
+
+  findMatchingBankTransactions(accountId: string, type: string, amount: number, date?: string): BankTransactionEntity[] {
+    const sql = `
+      SELECT * FROM bank_transactions
+      WHERE account_id = ?
+        AND type = ?
+        AND reconciled = 0
+        AND ABS(amount - ?) < 0.01
+      ORDER BY
+        CASE WHEN transaction_date = ? THEN 0 ELSE 1 END,
+        transaction_date DESC
+      LIMIT 5
+    `;
+    return db.prepare(sql).all(accountId, type, amount, date || '') as BankTransactionEntity[];
+  }
+
+  updateBankTransactionReconciled(id: string, reconciled: number, reconciledAt?: string | null): void {
+    db.prepare('UPDATE bank_transactions SET reconciled = ?, reconciled_at = ? WHERE id = ?').run(
+      reconciled,
+      reconciledAt || null,
+      id
+    );
+  }
+
+  findBankTransactionById(id: string): BankTransactionEntity | undefined {
+    return db.prepare('SELECT * FROM bank_transactions WHERE id = ?').get(id) as BankTransactionEntity | undefined;
   }
 }
 
