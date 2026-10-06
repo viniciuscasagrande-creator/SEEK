@@ -756,5 +756,205 @@ export const api = {
     } catch {
       return null;
     }
+  },
+
+  // ========================================================
+  // PACOTE 5: CONTABILIDADE AVANÇADA, MOTOR & FECHAMENTO
+  // ========================================================
+  async getChartOfAccounts(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/chart-of-accounts`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.accounts || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createChartOfAccount(account: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/chart-of-accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(account)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getJournalEntries(period?: string, search?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (period) params.append('period', period);
+      if (search) params.append('search', search);
+
+      const url = `${API_BASE_URL}/accounting/journal-entries${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.entries || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createJournalEntry(entry: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/journal-entries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getTrialBalance(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/trial-balance`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getFinancialStatements(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/financial-statements`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getAccountingPeriods(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/periods`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.periods || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async closeAccountingPeriod(period: string, userName?: string, userRole?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/accounting/close-period`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period, userName, userRole })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  // ========================================================
+  // PACOTE 5: FISCAL, APURAÇÃO & NOTAS FISCAIS
+  // ========================================================
+  async getTaxObligations(period?: string, status?: string): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (period) params.append('period', period);
+      if (status) params.append('status', status);
+
+      const url = `${API_BASE_URL}/fiscal/taxes${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
+      if (res.ok) return await res.json();
+      return { obligations: [], summary: { totalPendente: 0, totalPago: 0, count: 0 } };
+    } catch {
+      return { obligations: [], summary: { totalPendente: 0, totalPago: 0, count: 0 } };
+    }
+  },
+
+  async calculateTaxes(baseAmount: number, issRate: number = 5.0): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fiscal/calculate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseAmount, issRate })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async payTaxObligation(obligationId: string, paymentMethod?: string, userName?: string, userRole?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fiscal/pay-tax`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ obligationId, paymentMethod, userName, userRole })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getTaxCalendar(): Promise<any[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fiscal/calendar`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.calendar || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getFiscalInvoices(type?: string, search?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (type) params.append('type', type);
+      if (search) params.append('search', search);
+
+      const url = `${API_BASE_URL}/fiscal/invoices${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.invoices || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createFiscalInvoice(invoice: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/fiscal/invoices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoice)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
   }
 };

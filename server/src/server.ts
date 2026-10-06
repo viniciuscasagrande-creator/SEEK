@@ -16,6 +16,8 @@ import { documentsRouter } from './routes/documents.routes.js';
 import { governanceRouter } from './routes/governance.routes.js';
 import { notificationsRouter } from './routes/notifications.routes.js';
 import { seekAiRouter } from './routes/seekAi.routes.js';
+import accountingRouter from './routes/accounting.routes.js';
+import fiscalRouter from './routes/fiscal.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,10 +26,12 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Rotas da API SEEK V1 (Hiper Pacote 4: Administração Empresarial)
+// Rotas da API SEEK V1 (Hiper Pacote 5: Contabilidade Avançada, Fiscal & Fechamento Contábil)
 app.use('/api/auth', authRouter);
 app.use('/api/core', coreRouter);
 app.use('/api/finance', financeRouter);
+app.use('/api/accounting', accountingRouter);
+app.use('/api/fiscal', fiscalRouter);
 app.use('/api/crm', crmRouter);
 app.use('/api/workflow', workflowRouter);
 app.use('/api/purchasing', purchasingRouter);
@@ -134,8 +138,8 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ONLINE',
     system: 'SEEK — Gestão Corporativa Integrada',
-    package: 'Hiper Pacote 4: Administração Empresarial',
-    version: '1.4.0-EMPRESARIAL',
+    package: 'Hiper Pacote 5: Contabilidade Avançada, Fiscal & Fechamento Contábil',
+    version: '1.5.0-CONTABIL',
     timestamp: new Date().toISOString()
   });
 });

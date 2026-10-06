@@ -15,6 +15,8 @@ import { ApprovalsCenter } from './components/modules/ApprovalsCenter';
 import { AgendaModule } from './components/modules/AgendaModule';
 import { CRMModule } from './components/modules/CRMModule';
 import { FinanceModule } from './components/modules/FinanceModule';
+import { AccountingModule } from './components/modules/AccountingModule';
+import { FiscalModule } from './components/modules/FiscalModule';
 import { PurchasingModule } from './components/modules/PurchasingModule';
 import { HRModule } from './components/modules/HRModule';
 import { ContractsModule } from './components/modules/ContractsModule';
@@ -89,7 +91,7 @@ const MainLayout: React.FC = () => {
       case 'projects':
         return { group: 'SEEK Gestão', label: 'Projetos Estratégicos' };
       case 'operations':
-        return { group: 'SEEK Gestão', label: 'Operações de Eventos' };
+        return { group: 'SEEK Gestão', label: 'Operações & Logística Corporativa' };
       case 'contracts':
         return { group: 'SEEK Gestão', label: 'Contratos Corporativos' };
       case 'legal':
@@ -125,9 +127,11 @@ const MainLayout: React.FC = () => {
       case 'crm':
         return <CRMModule />;
       case 'finance':
-      case 'accounting':
-      case 'fiscal':
         return <FinanceModule />;
+      case 'accounting':
+        return <AccountingModule />;
+      case 'fiscal':
+        return <FiscalModule />;
       case 'purchasing':
       case 'suppliers':
         return <PurchasingModule />;

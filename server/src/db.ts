@@ -374,6 +374,84 @@ export function initializeDatabase() {
       read INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- PACOTE 5: CONTABILIDADE & PLANO DE CONTAS (COA)
+    CREATE TABLE IF NOT EXISTS chart_of_accounts (
+      id TEXT PRIMARY KEY,
+      company_id TEXT DEFAULT 'comp-1',
+      code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL, -- SINTETICA, ANALITICA
+      nature TEXT NOT NULL, -- DEVEDORA, CREDORA
+      level INTEGER NOT NULL, -- 1, 2, 3, 4
+      parent_code TEXT,
+      balance REAL DEFAULT 0.0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 5: MOTOR DE PARTIDAS DOBRADAS (LIVRO DIÁRIO)
+    CREATE TABLE IF NOT EXISTS accounting_entries (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      date TEXT NOT NULL,
+      period TEXT NOT NULL, -- YYYY-MM
+      description TEXT NOT NULL,
+      debit_account_code TEXT NOT NULL,
+      credit_account_code TEXT NOT NULL,
+      amount REAL NOT NULL,
+      cost_center TEXT,
+      origin_type TEXT NOT NULL, -- FINANCEIRO, COMPRAS, FOLHA, MANUAL, DEPRECIACAO
+      origin_id TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 5: COMPETÊNCIAS & FECHAMENTO CONTÁBIL
+    CREATE TABLE IF NOT EXISTS accounting_periods (
+      id TEXT PRIMARY KEY,
+      period TEXT UNIQUE NOT NULL, -- YYYY-MM
+      status TEXT DEFAULT 'ABERTO', -- ABERTO, FECHADO, BLOQUEADO
+      closed_by TEXT,
+      closed_at TEXT,
+      net_result REAL DEFAULT 0.0
+    );
+
+    -- PACOTE 5: OBRIGAÇÕES & CALENDÁRIO FISCAL
+    CREATE TABLE IF NOT EXISTS tax_obligations (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      tax_type TEXT NOT NULL, -- ISS, PIS, COFINS, IRPJ, CSLL, INSS, FGTS
+      period TEXT NOT NULL, -- YYYY-MM
+      base_amount REAL NOT NULL,
+      rate_percent REAL NOT NULL,
+      tax_amount REAL NOT NULL,
+      due_date TEXT NOT NULL,
+      status TEXT DEFAULT 'PENDENTE', -- PENDENTE, CALCULADO, PAGO, ATRASADO
+      payment_date TEXT,
+      receipt_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- PACOTE 5: NOTAS FISCAIS & DOCUMENTOS TRIBUTÁRIOS (NFS-e / NF-e)
+    CREATE TABLE IF NOT EXISTS fiscal_invoices (
+      id TEXT PRIMARY KEY,
+      number TEXT NOT NULL,
+      series TEXT DEFAULT '1',
+      type TEXT NOT NULL, -- EMITIDA, RECEBIDA
+      entity_name TEXT NOT NULL,
+      document_number TEXT NOT NULL,
+      total_amount REAL NOT NULL,
+      iss_amount REAL DEFAULT 0.0,
+      pis_amount REAL DEFAULT 0.0,
+      cofins_amount REAL DEFAULT 0.0,
+      irrf_amount REAL DEFAULT 0.0,
+      csll_amount REAL DEFAULT 0.0,
+      net_amount REAL NOT NULL,
+      issue_date TEXT NOT NULL,
+      status TEXT DEFAULT 'AUTORIZADA', -- AUTORIZADA, CANCELADA, PENDENTE
+      xml_key TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   seedInitialData();
@@ -811,6 +889,109 @@ export function seedInitialData() {
         ('notif-02', 'user-admin', 'Contrato CT-2024-0089 (Grupo Votorantim) vencendo em 27 dias', 'Janela de negociação do índice IPCA aberta.', 'ALERTA', 'contracts', 0),
         ('notif-03', 'user-admin', 'Chamado CH-2026-0884 com SLA crítico (3 horas)', 'Revisão jurídica de minuta contratual.', 'PRAZO', 'service-desk', 0),
         ('notif-04', 'user-admin', 'SEEK V1 Hiper Pacote 4 implantado com sucesso', 'Todos os módulos empresariais ativos e integrados.', 'INFO', 'inicio', 0)
+    `).run();
+  }
+
+  // 7. SEED PACOTE 5: PLANO DE CONTAS, PARTIDAS DOBRADAS, COMPETÊNCIAS, IMPOSTOS, NOTAS FISCAIS
+  const coaCheck = db.prepare('SELECT COUNT(*) as count FROM chart_of_accounts').get() as { count: number };
+  if (coaCheck.count === 0) {
+    // Plano de Contas
+    db.prepare(`
+      INSERT INTO chart_of_accounts (id, company_id, code, name, type, nature, level, parent_code, balance)
+      VALUES
+        -- 1. ATIVO
+        ('coa-1', 'comp-1', '1', 'ATIVO TOTAL', 'SINTETICA', 'DEVEDORA', 1, NULL, 2210800.00),
+        ('coa-11', 'comp-1', '1.01', 'ATIVO CIRCULANTE', 'SINTETICA', 'DEVEDORA', 2, '1', 2120600.00),
+        ('coa-111', 'comp-1', '1.01.01', 'Disponibilidades Imediatas', 'SINTETICA', 'DEVEDORA', 3, '1.01', 1840500.00),
+        ('coa-1111', 'comp-1', '1.01.01.001', 'Banco Bradesco C/C Matriz', 'ANALITICA', 'DEVEDORA', 4, '1.01.01', 1250000.00),
+        ('coa-1112', 'comp-1', '1.01.01.002', 'Banco Itaú C/C Operações', 'ANALITICA', 'DEVEDORA', 4, '1.01.01', 590500.00),
+        ('coa-112', 'comp-1', '1.01.02', 'Clientes e Contas a Receber', 'SINTETICA', 'DEVEDORA', 3, '1.01', 230600.00),
+        ('coa-1121', 'comp-1', '1.01.02.001', 'Clientes Corporativos Nacionais', 'ANALITICA', 'DEVEDORA', 4, '1.01.02', 230600.00),
+        ('coa-113', 'comp-1', '1.01.03', 'Almoxarifado e Estoque de Suprimentos', 'SINTETICA', 'DEVEDORA', 3, '1.01', 49500.00),
+        ('coa-1131', 'comp-1', '1.01.03.001', 'Estoque de Insumos e Materiais de TI', 'ANALITICA', 'DEVEDORA', 4, '1.01.03', 49500.00),
+        ('coa-12', 'comp-1', '1.02', 'ATIVO NÃO CIRCULANTE', 'SINTETICA', 'DEVEDORA', 2, '1', 90200.00),
+        ('coa-121', 'comp-1', '1.02.01', 'Imobilizado Corporativo', 'SINTETICA', 'DEVEDORA', 3, '1.02', 90200.00),
+        ('coa-1211', 'comp-1', '1.02.01.001', 'Servidores, Switches e Equipamentos TI', 'ANALITICA', 'DEVEDORA', 4, '1.02.01', 94700.00),
+        ('coa-1212', 'comp-1', '1.02.01.002', 'Mobiliário e Instalações Prediais', 'ANALITICA', 'DEVEDORA', 4, '1.02.01', 18000.00),
+        ('coa-1213', 'comp-1', '1.02.01.003', '(-) Depreciação Acumulada Imobilizado', 'ANALITICA', 'CREDORA', 4, '1.02.01', 22500.00),
+
+        -- 2. PASSIVO
+        ('coa-2', 'comp-1', '2', 'PASSIVO E PATRIMÔNIO LÍQUIDO', 'SINTETICA', 'CREDORA', 1, NULL, 2210800.00),
+        ('coa-21', 'comp-1', '2.01', 'PASSIVO CIRCULANTE', 'SINTETICA', 'CREDORA', 2, '2', 374600.00),
+        ('coa-211', 'comp-1', '2.01.01', 'Fornecedores a Pagar', 'SINTETICA', 'CREDORA', 3, '2.01', 47250.00),
+        ('coa-2111', 'comp-1', '2.01.01.001', 'Fornecedores Nacionais - TI & Redes', 'ANALITICA', 'CREDORA', 4, '2.01.01', 47250.00),
+        ('coa-212', 'comp-1', '2.01.02', 'Obrigações Trabalhistas e Sociais', 'SINTETICA', 'CREDORA', 3, '2.01', 275900.00),
+        ('coa-2121', 'comp-1', '2.01.02.001', 'Salários e Ordenados a Pagar', 'ANALITICA', 'CREDORA', 4, '2.01.02', 201500.00),
+        ('coa-2122', 'comp-1', '2.01.02.002', 'Encargos FGTS e Previdenciários INSS', 'ANALITICA', 'CREDORA', 4, '2.01.02', 74400.00),
+        ('coa-213', 'comp-1', '2.01.03', 'Obrigações Fiscais e Tributárias', 'SINTETICA', 'CREDORA', 3, '2.01', 51450.00),
+        ('coa-2131', 'comp-1', '2.01.03.001', 'Impostos Federais a Recolher (PIS/COFINS/CSLL/IRPJ)', 'ANALITICA', 'CREDORA', 4, '2.01.03', 38650.00),
+        ('coa-2132', 'comp-1', '2.01.03.002', 'ISS Municipal Retido a Recolher', 'ANALITICA', 'CREDORA', 4, '2.01.03', 12800.00),
+        ('coa-22', 'comp-1', '2.02', 'PATRIMÔNIO LÍQUIDO', 'SINTETICA', 'CREDORA', 2, '2', 1836200.00),
+        ('coa-221', 'comp-1', '2.02.01', 'Capital Social Subscrito e Integralizado', 'ANALITICA', 'CREDORA', 3, '2.02', 1200000.00),
+        ('coa-222', 'comp-1', '2.02.02', 'Lucros Acumulados / Reserva de Lucros', 'ANALITICA', 'CREDORA', 3, '2.02', 294480.00),
+
+        -- 3. RECEITAS
+        ('coa-3', 'comp-1', '3', 'RECEITAS OPERACIONAIS', 'SINTETICA', 'CREDORA', 1, NULL, 620000.00),
+        ('coa-31', 'comp-1', '3.01', 'RECEITA OPERACIONAL BRUTA', 'SINTETICA', 'CREDORA', 2, '3', 620000.00),
+        ('coa-311', 'comp-1', '3.01.01.001', 'Receita de Gestão Integrada de TI & Facilities', 'ANALITICA', 'CREDORA', 3, '3.01', 380000.00),
+        ('coa-312', 'comp-1', '3.01.01.002', 'Receita de Licenciamento de Software SaaS SEEK', 'ANALITICA', 'CREDORA', 3, '3.01', 240000.00),
+        ('coa-32', 'comp-1', '3.02', 'DEDUÇÕES DA RECEITA BRUTA', 'SINTETICA', 'DEVEDORA', 2, '3', 41230.00),
+        ('coa-321', 'comp-1', '3.02.01.001', '(-) PIS e COFINS sobre Serviços', 'ANALITICA', 'DEVEDORA', 3, '3.02', 22630.00),
+        ('coa-322', 'comp-1', '3.02.01.002', '(-) ISSQN sobre Serviços Faturados', 'ANALITICA', 'DEVEDORA', 3, '3.02', 18600.00),
+
+        -- 4. CUSTOS E DESPESAS
+        ('coa-4', 'comp-1', '4', 'CUSTOS E DESPESAS OPERACIONAIS', 'SINTETICA', 'DEVEDORA', 1, NULL, 237050.00),
+        ('coa-41', 'comp-1', '4.01', 'CUSTOS DOS SERVIÇOS PRESTADOS', 'SINTETICA', 'DEVEDORA', 2, '4', 47250.00),
+        ('coa-411', 'comp-1', '4.01.01.001', 'Custos de Datacenter, Nuvem e Telecom', 'ANALITICA', 'DEVEDORA', 3, '4.01', 34800.00),
+        ('coa-412', 'comp-1', '4.01.01.002', 'Custos de Suprimentos e Peças Operacionais', 'ANALITICA', 'DEVEDORA', 3, '4.01', 12450.00),
+        ('coa-42', 'comp-1', '4.02', 'DESPESAS ADMINISTRATIVAS E GERAIS', 'SINTETICA', 'DEVEDORA', 2, '4', 189800.00),
+        ('coa-421', 'comp-1', '4.02.01.001', 'Despesas com Pessoal e Benefícios Corporativos', 'ANALITICA', 'DEVEDORA', 3, '4.02', 164000.00),
+        ('coa-422', 'comp-1', '4.02.01.002', 'Despesas com Facilities, Energia e Escritório', 'ANALITICA', 'DEVEDORA', 3, '4.02', 21600.00),
+        ('coa-423', 'comp-1', '4.02.01.003', 'Depreciação de Ativos do Exercício', 'ANALITICA', 'DEVEDORA', 3, '4.02', 4200.00)
+    `).run();
+
+    // Partidas Dobradas (Livro Diário)
+    db.prepare(`
+      INSERT INTO accounting_entries (id, code, date, period, description, debit_account_code, credit_account_code, amount, cost_center, origin_type, origin_id, created_by)
+      VALUES
+        ('entry-01', 'LAN-2026-0001', '2026-10-01', '2026-10', 'Reconhecimento de receita contratual Grupo Votorantim', '1.01.02.001', '3.01.01.001', 185600.00, 'Operações & Serviços Corporativos', 'FINANCEIRO', 'fin-02', 'Valter Siqueira Neto'),
+        ('entry-02', 'LAN-2026-0002', '2026-10-01', '2026-10', 'Reconhecimento de licenciamento SaaS Suzano S.A.', '1.01.02.001', '3.01.01.002', 45000.00, 'Tecnologia & Infraestrutura Cloud', 'FINANCEIRO', 'fin-04', 'Valter Siqueira Neto'),
+        ('entry-03', 'LAN-2026-0003', '2026-10-02', '2026-10', 'Apropriação de despesa de Datacenter Equinix Brasil', '4.01.01.001', '2.01.01.001', 34800.00, 'Tecnologia & Infraestrutura Cloud', 'COMPRAS', 'po-01', 'Valter Siqueira Neto'),
+        ('entry-04', 'LAN-2026-0004', '2026-10-05', '2026-10', 'Pagamento consolidado folha salarial e encargos Matriz', '2.01.02.001', '1.01.01.001', 289400.00, 'Administrativo & Recursos Humanos', 'FOLHA', 'fin-05', 'Helena Silveira Ramos'),
+        ('entry-05', 'LAN-2026-0005', '2026-10-05', '2026-10', 'Apropriação mensal de depreciação acelerada de switches e servidores', '4.02.01.003', '1.02.01.003', 4200.00, 'Tecnologia & Infraestrutura Cloud', 'DEPRECIACAO', 'ast-01', 'Valter Siqueira Neto'),
+        ('entry-06', 'LAN-2026-0006', '2026-10-05', '2026-10', 'Aquisição e ativação no imobilizado de 10 switches Cisco Catalyst', '1.02.01.001', '2.01.01.001', 18450.00, 'Tecnologia & Infraestrutura Cloud', 'COMPRAS', 'po-01', 'Valter Siqueira Neto')
+    `).run();
+
+    // Competências Contábeis
+    db.prepare(`
+      INSERT INTO accounting_periods (id, period, status, closed_by, closed_at, net_result)
+      VALUES
+        ('per-01', '2026-08', 'BLOQUEADO', 'Juliana Pires (Auditoria)', '2026-09-05 18:00', 312400.00),
+        ('per-02', '2026-09', 'FECHADO', 'Valter Siqueira Neto (Contador)', '2026-10-04 17:30', 341720.00),
+        ('per-03', '2026-10', 'ABERTO', NULL, NULL, 0.0)
+    `).run();
+
+    // Obrigações Tributárias
+    db.prepare(`
+      INSERT INTO tax_obligations (id, code, tax_type, period, base_amount, rate_percent, tax_amount, due_date, status, payment_date)
+      VALUES
+        ('tax-01', 'OBF-2026-01', 'ISS', '2026-09', 230600.00, 5.0, 11530.00, '2026-10-10', 'PENDENTE', NULL),
+        ('tax-02', 'OBF-2026-02', 'PIS', '2026-09', 230600.00, 0.65, 1498.90, '2026-10-20', 'PENDENTE', NULL),
+        ('tax-03', 'OBF-2026-03', 'COFINS', '2026-09', 230600.00, 3.0, 6918.00, '2026-10-20', 'PENDENTE', NULL),
+        ('tax-04', 'OBF-2026-04', 'IRPJ', '2026-09', 230600.00, 1.5, 3459.00, '2026-10-20', 'PENDENTE', NULL),
+        ('tax-05', 'OBF-2026-05', 'CSLL', '2026-09', 230600.00, 1.0, 2306.00, '2026-10-20', 'PENDENTE', NULL),
+        ('tax-06', 'OBF-2026-06', 'INSS', '2026-09', 289400.00, 20.0, 57880.00, '2026-10-15', 'PENDENTE', NULL),
+        ('tax-07', 'OBF-2026-07', 'FGTS', '2026-09', 289400.00, 8.0, 23152.00, '2026-10-07', 'PAGO', '2026-10-05 14:20')
+    `).run();
+
+    // Notas Fiscais (NFS-e / NF-e)
+    db.prepare(`
+      INSERT INTO fiscal_invoices (id, number, series, type, entity_name, document_number, total_amount, iss_amount, pis_amount, cofins_amount, irrf_amount, csll_amount, net_amount, issue_date, status, xml_key)
+      VALUES
+        ('nfe-01', 'NFS-2026-0145', '1', 'EMITIDA', 'Grupo Votorantim Participações S.A.', '12.987.654/0001-33', 185600.00, 9280.00, 1206.40, 5568.00, 2784.00, 1856.00, 164905.60, '2026-10-01', 'AUTORIZADA', '41261008123456000190550010000001451000185600'),
+        ('nfe-02', 'NFS-2026-0146', '1', 'EMITIDA', 'Suzano S.A.', '15.432.109/0001-55', 45000.00, 2250.00, 292.50, 1350.00, 675.00, 450.00, 39982.50, '2026-10-01', 'AUTORIZADA', '41261008123456000190550010000001461000045000'),
+        ('nfe-03', 'NFE-2026-8812', '1', 'RECEBIDA', 'Equinix Brasil Soluções de TI', '04.567.890/0001-12', 34800.00, 0.0, 0.0, 0.0, 0.0, 0.0, 34800.00, '2026-10-02', 'AUTORIZADA', '35261004567890000112550010000088121000034800'),
+        ('nfe-04', 'NFE-2026-9904', '1', 'RECEBIDA', 'Cisco Systems Brasil Ltda.', '01.234.567/0001-89', 18450.00, 0.0, 0.0, 0.0, 0.0, 0.0, 18450.00, '2026-10-04', 'AUTORIZADA', '43261001234567000189550010000099041000018450')
     `).run();
   }
 }
