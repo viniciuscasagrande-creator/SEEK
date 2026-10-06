@@ -1,7 +1,7 @@
 // SEEK — Cliente HTTP & Camada de Serviços da API
 // Hiper Pacote 4: Administração Empresarial (Full-Stack Integrado)
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 
 export const api = {
   // Health

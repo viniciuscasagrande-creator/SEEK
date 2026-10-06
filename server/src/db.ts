@@ -605,6 +605,16 @@ export function initializeDatabase() {
   try { db.exec(`ALTER TABLE financial_records ADD COLUMN bank_id TEXT`); } catch {}
   try { db.exec(`ALTER TABLE financial_records ADD COLUMN bank_name TEXT`); } catch {}
 
+  // Parâmetros oficiais de acesso e ambiente
+  try {
+    db.prepare(`
+      INSERT OR REPLACE INTO corporate_parameters (key, value, description)
+      VALUES
+        ('OFFICIAL_ACCESS_URL', 'https://seek-xi.vercel.app', 'Link oficial de acesso em produção da plataforma SEEK'),
+        ('SYSTEM_DOMAIN', 'seek-xi.vercel.app', 'Domínio corporativo oficial do SEEK ERP')
+    `).run();
+  } catch {}
+
   seedInitialData();
 }
 

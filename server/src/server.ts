@@ -24,7 +24,15 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://seek-xi.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Rotas da API SEEK V1 (ERP Corporativo Completo)
@@ -141,8 +149,9 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ONLINE',
     system: 'SEEK — Gestão Corporativa Integrada',
-    package: 'Hiper Pacote 5: Contabilidade Avançada, Fiscal & Fechamento Contábil',
-    version: '1.5.0-CONTABIL',
+    package: 'Hiper Pacote 8: Projetos, Service Desk, Governança e BI',
+    version: '1.8.0-ENTERPRISE',
+    officialUrl: 'https://seek-xi.vercel.app',
     timestamp: new Date().toISOString()
   });
 });
