@@ -265,7 +265,7 @@ async function runFase2Tests() {
   assert(bankAfter.current_balance === initialBalance - 3500.0, `FinanceService: Saldo bancário debitado atomicamente (R$ ${initialBalance} -> R$ ${bankAfter.current_balance})`);
 
   const txs = financeRepository.listBankTransactions(bankBefore.id, 5);
-  const foundTx = txs.find(t => t.reference_id === newFinRecord.code);
+  const foundTx = txs.find(t => t.reference_id === newFinRecord.code || t.reference_id === newFinRecord.id);
   assert(Boolean(foundTx && foundTx.amount === 3500.0 && foundTx.type === 'DEBITO'), 'FinanceService: Transação bancária registrada no extrato com vínculo de rastreabilidade');
 
   // KPIs consolidados do fluxo de caixa

@@ -1,5 +1,6 @@
 // SEEK Core — Serviço de Domínio Financeiro, Tesouraria, Liquidação e Conciliação
 import { db } from '../db.js';
+import { accountingService } from './accounting.service.js';
 import { financeRepository, FinancialRecordEntity, BankAccountEntity, BankTransactionEntity, CostCenterBudgetEntity } from '../repositories/finance.repository.js';
 import { workflowRepository } from '../repositories/workflow.repository.js';
 import { TokenPayload } from '../middleware/auth.js';
@@ -87,10 +88,13 @@ export class FinanceService {
       origin_id: data.originId || undefined
     };
 
-    financeRepository.createRecord(entity);
-
     const operator = user?.fullName || data.userName || 'Operador Financeiro';
     const operatorRole = user?.roleTitle || data.userRole || 'Financeiro';
+    const createTx = db.transaction(() => {
+      financeRepository.createRecord(entity);
+      accountingService.postFinancialRecognition({ recordId:id, recordCode:code, type, amount:parsedAmount, date:new Date().toISOString().substring(0,10), costCenter:entity.cost_center, createdBy:operator });
+    });
+    createTx();
 
     workflowRepository.logAudit({
       userName: operator,
@@ -117,107 +121,52 @@ export class FinanceService {
    * Liquidação / Baixa de título com verificação de alçada ABAC e movimentação bancária
    */
   liquidateRecord(id: string, options: {
-    bankId?: string;
-    paymentMethod?: string;
-    paymentDate?: string;
-    userName?: string;
-    userRole?: string;
+    bankId?: string; paymentMethod?: string; paymentDate?: string; userName?: string; userRole?: string;
   }, user?: TokenPayload, ipAddress: string = '127.0.0.1') {
     const record = financeRepository.findRecordById(id);
-    if (!record) {
-      throw new Error('Lançamento financeiro não encontrado.');
-    }
+    if (!record) throw new Error('Lançamento financeiro não encontrado.');
+    if (record.status === 'PAGO') { const e:any = new Error('Este título já foi liquidado.'); e.statusCode = 409; throw e; }
 
-    // 1. ABAC — Verificação de Alçada para Liquidação Financeira
     if (user) {
       const isExecutive = user.roleLevel === 'ADMIN_GERAL' || user.roleLevel === 'DIRETORIA';
       if (!isExecutive && record.amount > user.approvalLimitAmount) {
-        const err: any = new Error(`Alçada financeira insuficiente: o valor da baixa (R$ ${Number(record.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) excede seu teto de alçada autorizado (R$ ${Number(user.approvalLimitAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Requer aprovação de alçada executiva superior.`);
-        err.statusCode = 403;
-        throw err;
+        const e:any = new Error('Alçada financeira insuficiente para esta liquidação.'); e.statusCode = 403; throw e;
+      }
+      if (record.company_id && user.companyId && record.company_id !== user.companyId && !isExecutive) {
+        const e:any = new Error('Título pertence a outra empresa.'); e.statusCode = 403; throw e;
       }
     }
 
     const paymentDate = options.paymentDate || new Date().toISOString().substring(0, 10);
-    const selectedMethod = options.paymentMethod || record.payment_method || 'PIX';
-
-    let bankInfo: BankAccountEntity | undefined = undefined;
-    if (options.bankId) {
-      bankInfo = financeRepository.findBankAccountById(options.bankId);
+    const method = options.paymentMethod || record.payment_method || 'PIX';
+    const bank = options.bankId ? financeRepository.findBankAccountById(options.bankId) : undefined;
+    if (options.bankId && !bank) { const e:any = new Error('Conta bancária não encontrada.'); e.statusCode = 404; throw e; }
+    if (record.type === 'PAGAR' && bank && bank.current_balance < record.amount) {
+      const e:any = new Error('Saldo bancário insuficiente para a liquidação.'); e.statusCode = 422; throw e;
     }
-
-    // Atualiza status do lançamento
-    financeRepository.payRecord(id, {
-      paymentDate,
-      paymentMethod: selectedMethod,
-      bankId: options.bankId || null,
-      bankName: bankInfo ? bankInfo.bank_name : null
-    });
-
     const operator = user?.fullName || options.userName || 'Operador Financeiro';
     const operatorRole = user?.roleTitle || options.userRole || 'Financeiro';
 
-    // Movimentação bancária e criação de transação no extrato
-    if (options.bankId && bankInfo) {
-      const isPay = record.type === 'PAGAR';
-      const balanceChange = isPay ? -record.amount : record.amount;
-      const txType = isPay ? 'DEBITO' : 'CREDITO';
-
-      financeRepository.updateAccountBalance(options.bankId, balanceChange);
-
-      const btxId = `btx-${Date.now()}`;
-      financeRepository.createBankTransaction({
-        id: btxId,
-        account_id: options.bankId,
-        type: txType,
-        category: record.category,
-        amount: record.amount,
-        transaction_date: paymentDate,
-        description: `Liquidação ${record.code} — ${record.title} (${record.entity_name})`,
-        reference_type: 'TITULO',
-        reference_id: record.code,
-        reconciled: 1,
-        reconciled_at: new Date().toISOString()
-      });
-    }
-
-    // Sincronização em cascata nas entidades originárias
-    if (record.origin_type === 'TAXA' && record.origin_id) {
-      try {
-        db.prepare(`UPDATE freelance_shifts SET status = 'PAGO', paid_at = ? WHERE id = ? OR code = ?`).run(paymentDate, record.origin_id, record.origin_id);
-      } catch {}
-    }
-    if (record.origin_type === 'PO' && record.origin_id) {
-      try {
-        db.prepare(`UPDATE purchase_orders SET status = 'PAGO' WHERE id = ? OR code = ?`).run(record.origin_id, record.origin_id);
-      } catch {}
-    }
-    if (record.origin_type === 'FISCAL' && record.origin_id) {
-      try {
-        db.prepare(`UPDATE tax_obligations SET status = 'PAGO', payment_date = ? WHERE id = ? OR code = ?`).run(paymentDate, record.origin_id, record.origin_id);
-      } catch {}
-    }
-
-    workflowRepository.logAudit({
-      userName: operator,
-      userRole: operatorRole,
-      action: 'UPDATE',
-      module: 'Financeiro',
-      entity: `Lançamento ${record.code}`,
-      description: `Baixa / liquidação efetuada no valor de R$ ${record.amount.toFixed(2)}${bankInfo ? ` via ${bankInfo.bank_name}` : ''}`,
-      ipAddress
-    });
-
-    return {
-      success: true,
-      record: {
-        ...record,
-        status: 'PAGO',
-        paymentDate,
-        bankId: options.bankId,
-        bankName: bankInfo ? bankInfo.bank_name : null
+    const tx = db.transaction(() => {
+      financeRepository.payRecord(id, { paymentDate, paymentMethod: method, bankId: options.bankId || null, bankName: bank?.bank_name || null });
+      let bankTransactionId: string | null = null;
+      if (bank && options.bankId) {
+        const isPay = record.type === 'PAGAR';
+        financeRepository.updateAccountBalance(options.bankId, isPay ? -record.amount : record.amount);
+        bankTransactionId = `btx-settle-${record.id}`;
+        financeRepository.createBankTransaction({ id: bankTransactionId, account_id: options.bankId, type: isPay ? 'DEBITO' : 'CREDITO',
+          category: record.category, amount: record.amount, transaction_date: paymentDate,
+          description: `Liquidação ${record.code} — ${record.title} (${record.entity_name})`, reference_type: 'TITULO', reference_id: record.id, reconciled: 0 });
       }
-    };
+      const accountingEntry = accountingService.postFinancialSettlement({ recordId: record.id, recordCode: record.code, type: record.type, amount: record.amount, date: paymentDate, costCenter: record.cost_center, createdBy: operator });
+      if (record.origin_type === 'TAXA' && record.origin_id) db.prepare(`UPDATE freelance_shifts SET status='PAGO', paid_at=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
+      if (record.origin_type === 'PO' && record.origin_id) db.prepare(`UPDATE purchase_orders SET status='PAGO' WHERE id=? OR code=?`).run(record.origin_id, record.origin_id);
+      if (record.origin_type === 'FISCAL' && record.origin_id) db.prepare(`UPDATE tax_obligations SET status='PAGO', payment_date=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
+      workflowRepository.logAudit({ userName: operator, userRole: operatorRole, action: 'LIQUIDATE', module: 'Financeiro', entity: `Lançamento ${record.code}`, description: `Liquidação atômica de R$ ${record.amount.toFixed(2)}${bank ? ` via ${bank.bank_name}` : ''}; lançamento contábil gerado automaticamente.`, ipAddress });
+      return { bankTransactionId, accountingEntry };
+    });
+    const result = tx();
+    return { success: true, record: { ...record, status:'PAGO', paymentDate, bankId: options.bankId, bankName: bank?.bank_name || null }, ...result };
   }
 
   /**

@@ -40,6 +40,7 @@ async function runFase1Tests() {
 
   // 3. Teste de Idempotência do Motor de Migrations
   try {
+    await runMigrations();
     const reRun = await runMigrations();
     assert(reRun.appliedCount === 0, 'Idempotência do motor: segunda execução não reaplica migrations existentes');
   } catch (err) {

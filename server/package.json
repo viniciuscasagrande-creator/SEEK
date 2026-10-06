@@ -13,7 +13,8 @@
     "migrate": "tsx src/migrate.ts",
     "test:fase1": "tsx src/test_fase1_db.ts",
     "test:fase2": "tsx src/test_fase2_services.ts",
-    "test": "tsx src/test_auth_fase0.ts"
+    "test": "tsx src/test_auth_fase0.ts",
+    "test:finance": "tsx src/test_finance_transactional.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",

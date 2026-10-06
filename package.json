@@ -16,7 +16,8 @@
     "server:migrate": "npm --prefix server run migrate",
     "server:test": "npm --prefix server test",
     "server:test:fase1": "npm --prefix server run test:fase1",
-    "server:test:fase2": "npm --prefix server run test:fase2"
+    "server:test:fase2": "npm --prefix server run test:fase2",
+    "server:test:finance": "npm --prefix server run test:finance"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
