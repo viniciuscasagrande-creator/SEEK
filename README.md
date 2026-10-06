@@ -53,12 +53,17 @@ SEEK Core → RH/DP → Freelance/Taxas → Financeiro → Controladoria → Com
 12. **Administração, Segurança, Auditoria e Integrações (Pacote 11):**
     - Matriz granular RBAC/ABAC por perfil e módulo, políticas corporativas com controle de versão, catálogo de integrações (SEFAZ, Open Banking, Vercel) e barramento de webhooks assíncronos.
 
-### 🔮 Roadmap das Próximas Fases
+### 🔮 Prioridade Oficial Atual: SEEK V1.9 — Hardening & Enterprise Foundation
 
-- **Pacote 12:** Gestão Documental Avançada & Assinaturas Digitais
-- **Pacote 13:** Automação Corporativa & Workflows Enterprise
-- **Pacote 14:** Central Executiva & BI Avançado
-- **Pacote 15:** SEEK IA — Assistente Corporativo com RAG Interno e Permissões Seguras
+Conforme formalizado no [Plano Mestre de Hardening](docs/SEEK_V1_9_PLANO_MESTRE.md), novas expansões de pacotes (12 a 15) estão congeladas para priorizar a robustez, segurança e persistência real do Core ERP:
+
+1. **Fase 0 — Segurança & Autenticação (P0):** JWT real (RFC 7519), middleware RBAC no Express, remoção de bypasses, proteção LGPD e auditoria. *(Concluído)*
+2. **Fase 1 — Fundação Técnica:** PostgreSQL, migrations versionadas, separação em services/repositories, validação Zod e API v1.
+3. **Fase 2 — Frontend & Design System:** Central de Trabalho (`MyWorkstation`), sidebar hierárquica em 3 níveis, Design System SEEK e code splitting.
+4. **Fase 3 — Core ERP Transacional:** Transações atômicas no Financeiro, Compras ponta a ponta e Contabilidade com `AccountingService`.
+5. **Fase 4 — Operações:** RH/Taxas, Estoque, Contratos, Projetos, Service Desk e CRM consolidados sem dados simulados.
+6. **Fase 5 — Enterprise:** MFA, SSO, GED com Object Storage, assinaturas e automações.
+7. **Fase 6 — SEEK IA:** Assistente corporativo com RAG interno, guardrails de alçada e auditoria de prompts.
 
 ---
 
