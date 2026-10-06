@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { db } from './db.js';
+import { authenticateToken, requireModule } from './middleware/auth.js';
 import { authRouter } from './routes/auth.routes.js';
 import { coreRouter } from './routes/core.routes.js';
 import { financeRouter } from './routes/finance.routes.js';
@@ -23,7 +24,7 @@ import freelanceRouter from './routes/freelance.routes.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
+// Middlewares Globais
 app.use(cors({
   origin: [
     'https://seek-xi.vercel.app',
@@ -35,58 +36,69 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Rotas da API SEEK V1 (ERP Corporativo Completo)
+// 1. Rotas Públicas de Autenticação e Verificação de Saúde
 app.use('/api/auth', authRouter);
-app.use('/api/core', coreRouter);
-app.use('/api/finance', financeRouter);
-app.use('/api/accounting', accountingRouter);
-app.use('/api/fiscal', fiscalRouter);
-app.use('/api/crm', crmRouter);
-app.use('/api/workflow', workflowRouter);
-app.use('/api/purchasing', purchasingRouter);
-app.use('/api/contracts', contractsRouter);
-app.use('/api/hr', hrRouter);
-app.use('/api/freelance', freelanceRouter);
-app.use('/api/hr/freelance', freelanceRouter);
-app.use('/api/inventory', inventoryRouter);
-app.use('/api/projects', projectsRouter);
-app.use('/api/service-desk', serviceDeskRouter);
-app.use('/api/documents', documentsRouter);
-app.use('/api/governance', governanceRouter);
-app.use('/api/notifications', notificationsRouter);
-app.use('/api/seek-ai', seekAiRouter);
 
-// Compatibilidade com rotas diretas do protótipo
-app.post('/api/login', (req, res) => {
-  res.redirect(307, '/api/auth/login');
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ONLINE',
+    system: 'SEEK — Gestão Corporativa Integrada (Enterprise ERP & CRM)',
+    package: 'Hiper Pacote 11: Administração, Segurança, Auditoria e Integrações',
+    version: '1.8.0-ENTERPRISE',
+    officialUrl: 'https://seek-xi.vercel.app',
+    authScheme: 'JWT (Bearer Token RFC 7519)',
+    timestamp: new Date().toISOString()
+  });
 });
-app.use('/api/employees', (req, res, next) => {
+
+// 2. Rotas Protegidas com Autenticação JWT Obrigatória e RBAC no Backend
+app.use('/api/core', authenticateToken, coreRouter);
+app.use('/api/finance', authenticateToken, requireModule('finance'), financeRouter);
+app.use('/api/accounting', authenticateToken, requireModule('accounting'), accountingRouter);
+app.use('/api/fiscal', authenticateToken, requireModule('fiscal'), fiscalRouter);
+app.use('/api/crm', authenticateToken, requireModule('crm'), crmRouter);
+app.use('/api/workflow', authenticateToken, workflowRouter);
+app.use('/api/purchasing', authenticateToken, requireModule('purchasing'), purchasingRouter);
+app.use('/api/contracts', authenticateToken, requireModule('contracts'), contractsRouter);
+app.use('/api/hr', authenticateToken, requireModule('hr'), hrRouter);
+app.use('/api/freelance', authenticateToken, requireModule('freelance'), freelanceRouter);
+app.use('/api/hr/freelance', authenticateToken, requireModule('freelance'), freelanceRouter);
+app.use('/api/inventory', authenticateToken, requireModule('inventory'), inventoryRouter);
+app.use('/api/projects', authenticateToken, requireModule('projects'), projectsRouter);
+app.use('/api/service-desk', authenticateToken, requireModule('service-desk'), serviceDeskRouter);
+app.use('/api/documents', authenticateToken, requireModule('documents'), documentsRouter);
+app.use('/api/governance', authenticateToken, requireModule('governance'), governanceRouter);
+app.use('/api/notifications', authenticateToken, notificationsRouter);
+app.use('/api/seek-ai', authenticateToken, seekAiRouter);
+
+// Compatibilidade com rotas diretas legadas do protótipo (protegidas por token)
+app.use('/api/employees', authenticateToken, (req, res, next) => {
   req.url = req.url === '/' ? '/employees' : req.url;
   hrRouter(req, res, next);
 });
-app.use('/api/time', (req, res, next) => {
+app.use('/api/time', authenticateToken, (req, res, next) => {
   req.url = req.url === '/' ? '/time-records' : req.url;
   hrRouter(req, res, next);
 });
-app.use('/api/assets', (req, res, next) => {
+app.use('/api/assets', authenticateToken, (req, res, next) => {
   req.url = req.url === '/' ? '/assets' : req.url;
   inventoryRouter(req, res, next);
 });
-app.use('/api/inventoryMoves', (req, res, next) => {
+app.use('/api/inventoryMoves', authenticateToken, (req, res, next) => {
   req.url = req.url === '/' ? '/movements' : req.url;
   inventoryRouter(req, res, next);
 });
-app.use('/api/projectTasks', (req, res, next) => {
+app.use('/api/projectTasks', authenticateToken, (req, res, next) => {
   req.url = req.url === '/' ? '/tasks' : req.url;
   projectsRouter(req, res, next);
 });
-app.use('/api/tickets', (req, res, next) => {
+app.use('/api/tickets', authenticateToken, (req, res, next) => {
   req.url = req.url === '/' ? '/tickets' : req.url;
   serviceDeskRouter(req, res, next);
 });
 
-// Endpoint Consolidado para o Dashboard Executivo C-Level
-app.get('/api/dashboard', (_req, res) => {
+// Endpoint Consolidado para o Dashboard Executivo C-Level (Protegido por JWT)
+app.get('/api/dashboard', authenticateToken, (_req, res) => {
   try {
     const recSum = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM financial_records WHERE type = 'RECEBER'`).get() as { total: number };
     const paySum = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM financial_records WHERE type = 'PAGAR'`).get() as { total: number };
@@ -140,20 +152,15 @@ app.get('/api/dashboard', (_req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    console.error('Erro no cálculo do dashboard executivo:', error);
+    return res.status(500).json({ error: 'Falha ao consolidar indicadores corporativos do dashboard.' });
   }
 });
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'ONLINE',
-    system: 'SEEK — Gestão Corporativa Integrada',
-    package: 'Hiper Pacote 8: Projetos, Service Desk, Governança e BI',
-    version: '1.8.0-ENTERPRISE',
-    officialUrl: 'https://seek-xi.vercel.app',
-    timestamp: new Date().toISOString()
-  });
+// Middleware Global de Tratamento de Erros (Sanitização para não expor stack/SQL ao cliente)
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[SEEK Core Error]', err);
+  res.status(500).json({ error: 'Erro interno no processamento da requisição corporativa.' });
 });
 
 app.listen(Number(PORT), '0.0.0.0', () => {

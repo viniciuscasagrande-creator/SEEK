@@ -3,6 +3,27 @@ import { db, logAudit } from '../db.js';
 
 const router = Router();
 
+function maskCPF(cpf: string | null): string {
+  if (!cpf) return '';
+  const clean = cpf.replace(/\D/g, '');
+  if (clean.length === 11) {
+    return `***.${clean.slice(3, 6)}.${clean.slice(6, 9)}-**`;
+  }
+  return '***.***.***-**';
+}
+
+function maskPix(pix: string | null): string {
+  if (!pix) return '';
+  if (pix.length <= 6) return '******';
+  return `${pix.slice(0, 3)}***${pix.slice(-3)}`;
+}
+
+function maskAccount(acc: string | null): string {
+  if (!acc) return '';
+  if (acc.length <= 4) return '****';
+  return `****-${acc.slice(-2)}`;
+}
+
 // 1. GET /api/freelance/dashboard - Central de Taxas (Cockpit & Métricas)
 router.get('/dashboard', (req: Request, res: Response) => {
   try {
@@ -101,10 +122,37 @@ router.get('/freelancers', (req: Request, res: Response) => {
 
     query += ' ORDER BY rating DESC, total_jobs DESC, full_name ASC';
 
-    const freelancers = db.prepare(query).all(...params);
+    const userRole = (req as any).user?.roleLevel || '';
+    const canViewFullPII = userRole === 'ADMIN_GERAL' || userRole === 'DIRETORIA' || userRole === 'RH';
+
+    const rawFreelancers = db.prepare(query).all(...params) as any[];
+    const freelancers = rawFreelancers.map(f => {
+      if (canViewFullPII) {
+        return f;
+      }
+      return {
+        ...f,
+        cpf: maskCPF(f.cpf),
+        rg: '***.***-**',
+        pix_key: maskPix(f.pix_key),
+        account_number: maskAccount(f.account_number)
+      };
+    });
+
+    logAudit(
+      (req as any).user?.fullName || 'Usuário Autenticado',
+      (req as any).user?.roleTitle || 'Colaborador',
+      'READ_LGPD',
+      'RH / Central de Taxas',
+      'Banco de Talentos',
+      `Consulta de prestadores (${freelancers.length} registros - PII ${canViewFullPII ? 'completa autorizada' : 'mascarada conforme LGPD'})`,
+      req.ip || '127.0.0.1'
+    );
+
     res.json({ success: true, freelancers });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Erro ao listar freelancers:', error);
+    res.status(500).json({ success: false, message: 'Falha interna ao processar consulta de prestadores.' });
   }
 });
 

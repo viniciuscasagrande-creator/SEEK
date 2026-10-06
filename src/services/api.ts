@@ -3,11 +3,34 @@
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
 
+
+async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('seek_token') : null;
+  const headers = new Headers(init?.headers || {});
+
+  if (!headers.has('Content-Type') && !(init?.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(input, { ...init, headers });
+
+  if (response.status === 401 && typeof window !== 'undefined') {
+    localStorage.removeItem('seek_token');
+    localStorage.removeItem('seek_user');
+  }
+
+  return response;
+}
+
 export const api = {
   // Health
   async healthCheck(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/health`);
+      const res = await authFetch(`${API_BASE_URL}/health`);
       return res.ok;
     } catch {
       return false;
@@ -15,15 +38,35 @@ export const api = {
   },
 
   // Auth & Perfis
-  async login(email: string, password?: string): Promise<any> {
+  async login(email: string, password?: string): Promise<{ success: boolean; user?: any; token?: string; error?: string }> {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('seek_token', data.token);
+          localStorage.setItem('seek_user', JSON.stringify(data.user));
+        }
+        return { success: true, user: data.user, token: data.token };
+      }
+      return { success: false, error: data.error || 'Credenciais inválidas.' };
+    } catch {
+      return { success: false, error: 'Servidor corporativo indisponível ou falha de rede.' };
+    }
+  },
+
+  async getMe(): Promise<any> {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('seek_token') : null;
+      if (!token) return null;
+      const res = await authFetch(`${API_BASE_URL}/auth/me`);
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        return data.user;
       }
       return null;
     } catch {
@@ -31,9 +74,16 @@ export const api = {
     }
   },
 
+  logout(): void {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('seek_token');
+      localStorage.removeItem('seek_user');
+    }
+  },
+
   async getProfiles(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/profiles`);
+      const res = await authFetch(`${API_BASE_URL}/auth/profiles`);
       if (res.ok) {
         const data = await res.json();
         return data.profiles || [];
@@ -46,7 +96,7 @@ export const api = {
 
   async recoverPassword(email: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/recover-password`, {
+      const res = await authFetch(`${API_BASE_URL}/auth/recover-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -60,7 +110,7 @@ export const api = {
   // Dashboard Executivo Integrado C-Level
   async getDashboard(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/dashboard`);
+      const res = await authFetch(`${API_BASE_URL}/dashboard`);
       if (res.ok) {
         return await res.json();
       }
@@ -79,7 +129,7 @@ export const api = {
       if (originType && originType !== 'ALL') params.append('originType', originType);
       if (search) params.append('search', search);
 
-      const res = await fetch(`${API_BASE_URL}/finance/records?${params.toString()}`);
+      const res = await authFetch(`${API_BASE_URL}/finance/records?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         return data.records || [];
@@ -92,7 +142,7 @@ export const api = {
 
   async createFinanceRecord(record: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/records`, {
+      const res = await authFetch(`${API_BASE_URL}/finance/records`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record)
@@ -106,7 +156,7 @@ export const api = {
 
   async payFinanceRecord(id: string, bankId?: string, paymentMethod?: string, userName?: string, userRole?: string, paymentDate?: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/records/${id}/pay`, {
+      const res = await authFetch(`${API_BASE_URL}/finance/records/${id}/pay`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bankId, paymentMethod, userName, userRole, paymentDate })
@@ -119,7 +169,7 @@ export const api = {
 
   async getFinanceSummary(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/summary`);
+      const res = await authFetch(`${API_BASE_URL}/finance/summary`);
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -129,7 +179,7 @@ export const api = {
 
   async getBankAccounts(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/accounts`);
+      const res = await authFetch(`${API_BASE_URL}/finance/accounts`);
       if (res.ok) {
         const data = await res.json();
         return data.accounts || [];
@@ -142,7 +192,7 @@ export const api = {
 
   async createBankAccount(account: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/accounts`, {
+      const res = await authFetch(`${API_BASE_URL}/finance/accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(account)
@@ -158,7 +208,7 @@ export const api = {
     try {
       const params = new URLSearchParams();
       if (reconciled && reconciled !== 'ALL') params.append('reconciled', reconciled);
-      const res = await fetch(`${API_BASE_URL}/finance/accounts/${accountId}/transactions?${params.toString()}`);
+      const res = await authFetch(`${API_BASE_URL}/finance/accounts/${accountId}/transactions?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         return data.transactions || [];
@@ -171,7 +221,7 @@ export const api = {
 
   async getBankReconciliations(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/reconciliations`);
+      const res = await authFetch(`${API_BASE_URL}/finance/reconciliations`);
       if (res.ok) {
         const data = await res.json();
         return data.reconciliations || [];
@@ -184,7 +234,7 @@ export const api = {
 
   async createBankReconciliation(rec: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/reconciliations`, {
+      const res = await authFetch(`${API_BASE_URL}/finance/reconciliations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rec)
@@ -198,7 +248,7 @@ export const api = {
 
   async toggleTransactionReconcile(id: string, reconciled: boolean): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/transactions/${id}/reconcile`, {
+      const res = await authFetch(`${API_BASE_URL}/finance/transactions/${id}/reconcile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reconciled })
@@ -211,7 +261,7 @@ export const api = {
 
   async getBudgets(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/budgets`);
+      const res = await authFetch(`${API_BASE_URL}/finance/budgets`);
       if (res.ok) return await res.json();
       return { summary: {}, budgets: [] };
     } catch {
@@ -221,7 +271,7 @@ export const api = {
 
   async getDre(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/dre`);
+      const res = await authFetch(`${API_BASE_URL}/finance/dre`);
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -231,7 +281,7 @@ export const api = {
 
   async getFinancialClosings(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/closings`);
+      const res = await authFetch(`${API_BASE_URL}/finance/closings`);
       if (res.ok) {
         const data = await res.json();
         return data.closings || [];
@@ -244,7 +294,7 @@ export const api = {
 
   async lockFinancialPeriod(closing: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/finance/closings/lock`, {
+      const res = await authFetch(`${API_BASE_URL}/finance/closings/lock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(closing)
@@ -259,7 +309,7 @@ export const api = {
   // CRM & Comercial
   async getCrmDeals(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/crm/deals`);
+      const res = await authFetch(`${API_BASE_URL}/crm/deals`);
       if (res.ok) {
         const data = await res.json();
         return data.deals || [];
@@ -272,7 +322,7 @@ export const api = {
 
   async createCrmDeal(deal: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/crm/deals`, {
+      const res = await authFetch(`${API_BASE_URL}/crm/deals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(deal)
@@ -286,7 +336,7 @@ export const api = {
 
   async updateCrmStage(id: string, stage: string, userName?: string, autoGenerateContract?: boolean): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/crm/deals/${id}/stage`, {
+      const res = await authFetch(`${API_BASE_URL}/crm/deals/${id}/stage`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage, userName, autoGenerateContract })
@@ -301,7 +351,7 @@ export const api = {
   // Central de Aprovações & Workflows
   async getApprovals(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/workflow/approvals`);
+      const res = await authFetch(`${API_BASE_URL}/workflow/approvals`);
       if (res.ok) {
         const data = await res.json();
         return data.approvals || [];
@@ -314,7 +364,7 @@ export const api = {
 
   async decideApproval(id: string, decision: 'approve' | 'reject', comment?: string, deciderName?: string, deciderRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/workflow/approvals/${id}/decide`, {
+      const res = await authFetch(`${API_BASE_URL}/workflow/approvals/${id}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision, comment, deciderName, deciderRole })
@@ -328,7 +378,7 @@ export const api = {
 
   async createApproval(data: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/workflow/approvals`, {
+      const res = await authFetch(`${API_BASE_URL}/workflow/approvals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -343,7 +393,7 @@ export const api = {
   // Compras, Suprimentos & Cotações Enterprise
   async getPurchaseRequisitions(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions`);
+      const res = await authFetch(`${API_BASE_URL}/purchasing/requisitions`);
       if (res.ok) {
         const data = await res.json();
         return data.requisitions || [];
@@ -356,7 +406,7 @@ export const api = {
 
   async getPurchaseRequisition(id: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions/${id}`);
+      const res = await authFetch(`${API_BASE_URL}/purchasing/requisitions/${id}`);
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -366,7 +416,7 @@ export const api = {
 
   async createPurchaseRequisition(reqData: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/requisitions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reqData)
@@ -380,7 +430,7 @@ export const api = {
 
   async getPurchaseQuotations(requisitionId: string): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions/${requisitionId}/quotations`);
+      const res = await authFetch(`${API_BASE_URL}/purchasing/requisitions/${requisitionId}/quotations`);
       if (res.ok) {
         const data = await res.json();
         return data.quotations || [];
@@ -393,7 +443,7 @@ export const api = {
 
   async createPurchaseQuotation(requisitionId: string, quotation: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/requisitions/${requisitionId}/quotations`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/requisitions/${requisitionId}/quotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(quotation)
@@ -407,7 +457,7 @@ export const api = {
 
   async selectPurchaseQuotation(quotationId: string, userName?: string, userRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/quotations/${quotationId}/select`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/quotations/${quotationId}/select`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, userRole })
@@ -421,7 +471,7 @@ export const api = {
 
   async getPurchasingOrders(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/orders`);
+      const res = await authFetch(`${API_BASE_URL}/purchasing/orders`);
       if (res.ok) {
         const data = await res.json();
         return data.orders || [];
@@ -434,7 +484,7 @@ export const api = {
 
   async createPurchasingOrder(order: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/orders`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(order)
@@ -448,7 +498,7 @@ export const api = {
 
   async approvePurchasingOrder(id: string, userName?: string, userRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/orders/${id}/approve`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/orders/${id}/approve`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, userRole })
@@ -462,7 +512,7 @@ export const api = {
 
   async receivePurchasingOrder(id: string, invoiceNumber?: string, userName?: string, userRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/orders/${id}/receive`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/orders/${id}/receive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ invoiceNumber, userName, userRole })
@@ -476,7 +526,7 @@ export const api = {
 
   async getSuppliers(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/suppliers`);
+      const res = await authFetch(`${API_BASE_URL}/purchasing/suppliers`);
       if (res.ok) {
         const data = await res.json();
         return data.suppliers || [];
@@ -489,7 +539,7 @@ export const api = {
 
   async createSupplier(supplier: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/suppliers`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/suppliers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supplier)
@@ -503,7 +553,7 @@ export const api = {
 
   async compareQuotations(quotations: any[]): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/purchasing/quotations/compare`, {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/quotations/compare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quotations })
@@ -522,7 +572,7 @@ export const api = {
       if (type && type !== 'ALL') params.append('type', type);
       if (status && status !== 'ALL') params.append('status', status);
 
-      const res = await fetch(`${API_BASE_URL}/contracts?${params.toString()}`);
+      const res = await authFetch(`${API_BASE_URL}/contracts?${params.toString()}`);
       if (res.ok) return await res.json();
       return { contracts: [], total: 0, totalMonthlyBilling: 0 };
     } catch {
@@ -532,7 +582,7 @@ export const api = {
 
   async getContractsAlerts(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/contracts/alerts`);
+      const res = await authFetch(`${API_BASE_URL}/contracts/alerts`);
       if (res.ok) return await res.json();
       return { within30Days: [], within60Days: [], within90Days: [], totalAlerts: 0 };
     } catch {
@@ -542,7 +592,7 @@ export const api = {
 
   async createContract(contract: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/contracts`, {
+      const res = await authFetch(`${API_BASE_URL}/contracts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(contract)
@@ -556,7 +606,7 @@ export const api = {
 
   async readjustContract(id: string, percentage: number, indexName: string, userName?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/contracts/${id}/readjust`, {
+      const res = await authFetch(`${API_BASE_URL}/contracts/${id}/readjust`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ percentage, indexName, userName })
@@ -570,7 +620,7 @@ export const api = {
 
   async renewContract(id: string, months: number = 12, userName?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/contracts/${id}/renew`, {
+      const res = await authFetch(`${API_BASE_URL}/contracts/${id}/renew`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ months, userName })
@@ -585,7 +635,7 @@ export const api = {
   // PACOTE 4: RH & Departamento Pessoal
   async getEmployees(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/hr/employees`);
+      const res = await authFetch(`${API_BASE_URL}/hr/employees`);
       if (res.ok) {
         const data = await res.json();
         return data.employees || [];
@@ -598,7 +648,7 @@ export const api = {
 
   async createEmployee(employee: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/hr/employees`, {
+      const res = await authFetch(`${API_BASE_URL}/hr/employees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(employee)
@@ -613,7 +663,7 @@ export const api = {
   async getTimeRecords(employeeId?: string): Promise<any[]> {
     try {
       const url = employeeId ? `${API_BASE_URL}/hr/time-records?employeeId=${employeeId}` : `${API_BASE_URL}/hr/time-records`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         return data.records || [];
@@ -626,7 +676,7 @@ export const api = {
 
   async clockTimeRecord(data: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/hr/time-records/clock`, {
+      const res = await authFetch(`${API_BASE_URL}/hr/time-records/clock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -640,7 +690,7 @@ export const api = {
 
   async getVacations(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/hr/vacations`);
+      const res = await authFetch(`${API_BASE_URL}/hr/vacations`);
       if (res.ok) {
         const data = await res.json();
         return data.vacations || [];
@@ -653,7 +703,7 @@ export const api = {
 
   async createVacationRequest(data: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/hr/vacations`, {
+      const res = await authFetch(`${API_BASE_URL}/hr/vacations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -667,7 +717,7 @@ export const api = {
 
   async getOrganogram(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/hr/organogram`);
+      const res = await authFetch(`${API_BASE_URL}/hr/organogram`);
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -678,7 +728,7 @@ export const api = {
   // PACOTE 4: Estoque & Patrimônio
   async getInventoryItems(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/inventory/items`);
+      const res = await authFetch(`${API_BASE_URL}/inventory/items`);
       if (res.ok) {
         const data = await res.json();
         return data.items || [];
@@ -691,7 +741,7 @@ export const api = {
 
   async createInventoryMovement(data: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/inventory/movements`, {
+      const res = await authFetch(`${API_BASE_URL}/inventory/movements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -705,7 +755,7 @@ export const api = {
 
   async getAssets(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/inventory/assets`);
+      const res = await authFetch(`${API_BASE_URL}/inventory/assets`);
       if (res.ok) return await res.json();
       return { assets: [], total: 0, totalBookValue: 0 };
     } catch {
@@ -715,7 +765,7 @@ export const api = {
 
   async createAsset(asset: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/inventory/assets`, {
+      const res = await authFetch(`${API_BASE_URL}/inventory/assets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(asset)
@@ -729,7 +779,7 @@ export const api = {
 
   async signAssetCustody(id: string, userName?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/inventory/assets/${id}/custody`, {
+      const res = await authFetch(`${API_BASE_URL}/inventory/assets/${id}/custody`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName })
@@ -743,7 +793,7 @@ export const api = {
   // PACOTE 4: Projetos & Operações
   async getProjects(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects`);
+      const res = await authFetch(`${API_BASE_URL}/projects`);
       if (res.ok) {
         const data = await res.json();
         return data.projects || [];
@@ -756,7 +806,7 @@ export const api = {
 
   async createProject(project: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects`, {
+      const res = await authFetch(`${API_BASE_URL}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(project)
@@ -771,7 +821,7 @@ export const api = {
   async getProjectTasks(projectId?: string): Promise<any[]> {
     try {
       const url = projectId ? `${API_BASE_URL}/projects/tasks?projectId=${projectId}` : `${API_BASE_URL}/projects/tasks`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         return data.tasks || [];
@@ -784,7 +834,7 @@ export const api = {
 
   async updateProjectTaskStatus(id: string, status: string, userName?: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/tasks/${id}/status`, {
+      const res = await authFetch(`${API_BASE_URL}/projects/tasks/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, userName })
@@ -797,7 +847,7 @@ export const api = {
 
   async createProjectTask(task: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects/tasks`, {
+      const res = await authFetch(`${API_BASE_URL}/projects/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
@@ -816,7 +866,7 @@ export const api = {
       if (department && department !== 'ALL') params.append('department', department);
       if (status && status !== 'ALL') params.append('status', status);
 
-      const res = await fetch(`${API_BASE_URL}/service-desk/tickets?${params.toString()}`);
+      const res = await authFetch(`${API_BASE_URL}/service-desk/tickets?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         return data.tickets || [];
@@ -829,7 +879,7 @@ export const api = {
 
   async createTicket(ticket: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/service-desk/tickets`, {
+      const res = await authFetch(`${API_BASE_URL}/service-desk/tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ticket)
@@ -843,7 +893,7 @@ export const api = {
 
   async updateTicketStatus(id: string, status: string, assignedTo?: string, userName?: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/service-desk/tickets/${id}/status`, {
+      const res = await authFetch(`${API_BASE_URL}/service-desk/tickets/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, assignedTo, userName })
@@ -861,7 +911,7 @@ export const api = {
       if (category && category !== 'ALL') params.append('category', category);
       if (department && department !== 'ALL') params.append('department', department);
 
-      const res = await fetch(`${API_BASE_URL}/documents?${params.toString()}`);
+      const res = await authFetch(`${API_BASE_URL}/documents?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         return data.documents || [];
@@ -874,7 +924,7 @@ export const api = {
 
   async createDocument(doc: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/documents`, {
+      const res = await authFetch(`${API_BASE_URL}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc)
@@ -892,7 +942,7 @@ export const api = {
       const params = new URLSearchParams();
       if (category && category !== 'ALL') params.append('category', category);
 
-      const res = await fetch(`${API_BASE_URL}/governance/risks?${params.toString()}`);
+      const res = await authFetch(`${API_BASE_URL}/governance/risks?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         return data.risks || [];
@@ -905,7 +955,7 @@ export const api = {
 
   async createRisk(risk: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/governance/risks`, {
+      const res = await authFetch(`${API_BASE_URL}/governance/risks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(risk)
@@ -920,7 +970,7 @@ export const api = {
   // PACOTE 4: Notificações
   async getNotifications(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/notifications`);
+      const res = await authFetch(`${API_BASE_URL}/notifications`);
       if (res.ok) return await res.json();
       return { notifications: [], total: 0, unreadCount: 0 };
     } catch {
@@ -930,7 +980,7 @@ export const api = {
 
   async markNotificationRead(id: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+      const res = await authFetch(`${API_BASE_URL}/notifications/${id}/read`, {
         method: 'PATCH'
       });
       return res.ok;
@@ -941,7 +991,7 @@ export const api = {
 
   async markAllNotificationsRead(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/notifications/read-all`, {
+      const res = await authFetch(`${API_BASE_URL}/notifications/read-all`, {
         method: 'POST'
       });
       return res.ok;
@@ -953,7 +1003,7 @@ export const api = {
   // Auditoria
   async getAuditLogs(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/core/audit-logs`);
+      const res = await authFetch(`${API_BASE_URL}/core/audit-logs`);
       if (res.ok) {
         const data = await res.json();
         return data.logs || [];
@@ -967,7 +1017,7 @@ export const api = {
   // SEEK IA
   async askSeekAI(query: string, userRole: string): Promise<string | null> {
     try {
-      const res = await fetch(`${API_BASE_URL}/seek-ai/query`, {
+      const res = await authFetch(`${API_BASE_URL}/seek-ai/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, userRole })
@@ -987,7 +1037,7 @@ export const api = {
   // ========================================================
   async getChartOfAccounts(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/chart-of-accounts`);
+      const res = await authFetch(`${API_BASE_URL}/accounting/chart-of-accounts`);
       if (res.ok) {
         const data = await res.json();
         return data.accounts || [];
@@ -1000,7 +1050,7 @@ export const api = {
 
   async createChartOfAccount(account: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/chart-of-accounts`, {
+      const res = await authFetch(`${API_BASE_URL}/accounting/chart-of-accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(account)
@@ -1019,7 +1069,7 @@ export const api = {
       if (search) params.append('search', search);
 
       const url = `${API_BASE_URL}/accounting/journal-entries${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         return data.entries || [];
@@ -1032,7 +1082,7 @@ export const api = {
 
   async createJournalEntry(entry: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/journal-entries`, {
+      const res = await authFetch(`${API_BASE_URL}/accounting/journal-entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entry)
@@ -1046,7 +1096,7 @@ export const api = {
 
   async getTrialBalance(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/trial-balance`);
+      const res = await authFetch(`${API_BASE_URL}/accounting/trial-balance`);
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -1056,7 +1106,7 @@ export const api = {
 
   async getFinancialStatements(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/financial-statements`);
+      const res = await authFetch(`${API_BASE_URL}/accounting/financial-statements`);
       if (res.ok) return await res.json();
       return null;
     } catch {
@@ -1066,7 +1116,7 @@ export const api = {
 
   async getAccountingPeriods(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/periods`);
+      const res = await authFetch(`${API_BASE_URL}/accounting/periods`);
       if (res.ok) {
         const data = await res.json();
         return data.periods || [];
@@ -1079,7 +1129,7 @@ export const api = {
 
   async closeAccountingPeriod(period: string, userName?: string, userRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/accounting/close-period`, {
+      const res = await authFetch(`${API_BASE_URL}/accounting/close-period`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period, userName, userRole })
@@ -1101,7 +1151,7 @@ export const api = {
       if (status) params.append('status', status);
 
       const url = `${API_BASE_URL}/fiscal/taxes${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) return await res.json();
       return { obligations: [], summary: { totalPendente: 0, totalPago: 0, count: 0 } };
     } catch {
@@ -1111,7 +1161,7 @@ export const api = {
 
   async calculateTaxes(baseAmount: number, issRate: number = 5.0): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/fiscal/calculate`, {
+      const res = await authFetch(`${API_BASE_URL}/fiscal/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ baseAmount, issRate })
@@ -1125,7 +1175,7 @@ export const api = {
 
   async payTaxObligation(obligationId: string, paymentMethod?: string, userName?: string, userRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/fiscal/pay-tax`, {
+      const res = await authFetch(`${API_BASE_URL}/fiscal/pay-tax`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ obligationId, paymentMethod, userName, userRole })
@@ -1139,7 +1189,7 @@ export const api = {
 
   async getTaxCalendar(): Promise<any[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/fiscal/calendar`);
+      const res = await authFetch(`${API_BASE_URL}/fiscal/calendar`);
       if (res.ok) {
         const data = await res.json();
         return data.calendar || [];
@@ -1157,7 +1207,7 @@ export const api = {
       if (search) params.append('search', search);
 
       const url = `${API_BASE_URL}/fiscal/invoices${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         return data.invoices || [];
@@ -1170,7 +1220,7 @@ export const api = {
 
   async createFiscalInvoice(invoice: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/fiscal/invoices`, {
+      const res = await authFetch(`${API_BASE_URL}/fiscal/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoice)
@@ -1187,7 +1237,7 @@ export const api = {
   // ========================================================
   async getFreelanceDashboard(): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/dashboard`);
+      const res = await authFetch(`${API_BASE_URL}/freelance/dashboard`);
       if (res.ok) {
         const data = await res.json();
         return data.metrics;
@@ -1206,7 +1256,7 @@ export const api = {
       if (status) params.append('status', status);
 
       const url = `${API_BASE_URL}/freelance/freelancers${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         return data.freelancers || [];
@@ -1219,7 +1269,7 @@ export const api = {
 
   async createFreelancer(freelancer: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/freelancers`, {
+      const res = await authFetch(`${API_BASE_URL}/freelance/freelancers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(freelancer)
@@ -1233,7 +1283,7 @@ export const api = {
 
   async updateFreelancer(id: string, data: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/freelancers/${id}`, {
+      const res = await authFetch(`${API_BASE_URL}/freelance/freelancers/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -1254,7 +1304,7 @@ export const api = {
       if (date) params.append('date', date);
 
       const url = `${API_BASE_URL}/freelance/taxas${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         return data.taxas || [];
@@ -1267,7 +1317,7 @@ export const api = {
 
   async createTaxa(taxa: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/taxas`, {
+      const res = await authFetch(`${API_BASE_URL}/freelance/taxas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taxa)
@@ -1281,7 +1331,7 @@ export const api = {
 
   async updateTaxaStatus(id: string, status: string, validatorName?: string, notes?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/taxas/${id}/status`, {
+      const res = await authFetch(`${API_BASE_URL}/freelance/taxas/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, validator_name: validatorName, validation_notes: notes })
@@ -1295,7 +1345,7 @@ export const api = {
 
   async closeTaxaAndPay(id: string, data: any): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/taxas/${id}/close-and-pay`, {
+      const res = await authFetch(`${API_BASE_URL}/freelance/taxas/${id}/close-and-pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -1309,7 +1359,7 @@ export const api = {
 
   async settleTaxaPayment(id: string, userName?: string, userRole?: string): Promise<any> {
     try {
-      const res = await fetch(`${API_BASE_URL}/freelance/taxas/${id}/settle-payment`, {
+      const res = await authFetch(`${API_BASE_URL}/freelance/taxas/${id}/settle-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, userRole })

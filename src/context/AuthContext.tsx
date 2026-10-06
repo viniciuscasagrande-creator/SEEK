@@ -15,7 +15,7 @@ interface AuthContextType {
   branches: Branch[];
   availableProfiles: UserProfile[];
   hasPermission: (moduleKey: string, action?: string) => boolean;
-  login: (email: string, password?: string) => boolean;
+  login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   recoverPassword: (email: string) => Promise<boolean>;
   notifications: CorporateNotification[];
@@ -30,16 +30,60 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && Boolean(localStorage.getItem('seek_token'));
+  });
   const [activeCompany, setActiveCompany] = useState<Company>(COMPANIES[0]);
   const [activeBranch, setActiveBranch] = useState<Branch>(BRANCHES[0]);
-  const [currentUser, setCurrentUser] = useState<UserProfile>(DEMO_PROFILES[0]); // Padrão: Administrador Geral
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('seek_user');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return DEMO_PROFILES[0]; // Fallback inicial padrão
+  });
   const [notifications, setNotifications] = useState<CorporateNotification[]>(INITIAL_NOTIFICATIONS);
   const [favorites, setFavorites] = useState<UserFavorite[]>(INITIAL_FAVORITES);
+
+  // Verificação real e restauração de sessão JWT no backend ao inicializar
+  useEffect(() => {
+    const verifySession = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('seek_token') : null;
+      if (!token) {
+        setIsAuthenticated(false);
+        return;
+      }
+      try {
+        const user = await api.getMe();
+        if (user) {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+        } else {
+          api.logout();
+          setIsAuthenticated(false);
+        }
+      } catch {
+        // Tolerância de conexão offline: mantém cache seguro se existir
+        if (localStorage.getItem('seek_user')) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      }
+    };
+    verifySession();
+  }, []);
 
   // Carregar notificações da API corporativa
   useEffect(() => {
     const fetchNotifications = async () => {
+      if (!isAuthenticated) return;
       try {
         const res = await api.getNotifications();
         if (res && res.notifications && res.notifications.length > 0) {
@@ -50,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     fetchNotifications();
-  }, []);
+  }, [isAuthenticated]);
 
   // Verificação Dinâmica de Acesso RBAC / ABAC (Pacote 1)
   const hasPermission = (moduleKey: string, action: string = 'read'): boolean => {
@@ -86,27 +130,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const login = (email: string, password?: string): boolean => {
-    const foundProfile = DEMO_PROFILES.find(p => p.email.toLowerCase() === email.toLowerCase());
-    if (foundProfile) {
-      setCurrentUser(foundProfile);
-      setIsAuthenticated(true);
-      return true;
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!password) {
+      return { success: false, error: 'A senha corporativa é obrigatória.' };
     }
-    // Fallback: se fornecido e-mail válido, autentica no perfil correspondente ou padrão
-    setIsAuthenticated(true);
-    return true;
+
+    // 1. Tenta autenticação real no backend via JWT (RFC 7519)
+    const res = await api.login(email, password);
+    if (res && res.success && res.user) {
+      setCurrentUser(res.user);
+      setIsAuthenticated(true);
+      return { success: true };
+    }
+
+    // 2. Fallback controlado para ambiente local / demonstração (VITE_DEMO_MODE=true ou DEV)
+    const isDemoMode = (import.meta as any).env?.VITE_DEMO_MODE === 'true';
+    const isDev = (import.meta as any).env?.DEV;
+    if (isDemoMode || isDev) {
+      const foundProfile = DEMO_PROFILES.find(p => p.email.toLowerCase() === email.toLowerCase());
+      if (foundProfile && password === 'Seek@2026') {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('seek_token', `demo_session_${foundProfile.id}_${Date.now()}`);
+          localStorage.setItem('seek_user', JSON.stringify(foundProfile));
+        }
+        setCurrentUser(foundProfile);
+        setIsAuthenticated(true);
+        return { success: true };
+      }
+    }
+
+    return { success: false, error: res?.error || 'Credenciais inválidas: e-mail ou senha incorretos.' };
   };
 
   const logout = () => {
+    api.logout();
     setIsAuthenticated(false);
   };
 
   const recoverPassword = async (email: string): Promise<boolean> => {
-    // Simula envio de e-mail com token seguro de recuperação
-    return new Promise(resolve => {
-      setTimeout(() => resolve(true), 800);
-    });
+    try {
+      return await api.recoverPassword(email);
+    } catch {
+      return true;
+    }
   };
 
   const markNotificationAsRead = async (id: string) => {

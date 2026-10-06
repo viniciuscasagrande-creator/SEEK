@@ -101,18 +101,22 @@ npm run server:build
 
 ---
 
-## 🔐 Credenciais de Acesso e Perfis para Teste
+## 🔐 Segurança, Autenticação JWT e Perfis RBAC
 
-Todas as senhas padrão são: **`Seek@2026`**
+O backend do SEEK utiliza tokens **JWT (JSON Web Token — RFC 7519)** com algoritmo HMAC SHA-256 e validação de alçadas RBAC em nível de rota no servidor Express.
+
+As credenciais do ambiente de homologação local utilizam hashes criptográficos `bcrypt`. Em produção, a chave secreta é injetada via variável de ambiente `JWT_SECRET`.
 
 | Perfil / Papel | E-mail de Acesso | Alçada de Aprovação | Módulos Liberados |
 | :--- | :--- | :---: | :---: |
 | **Administrador Geral** | `admin@seek.local` | R$ 1.000.000,00 | Todos (`*`) |
+| **Diretor Presidente / C-Level** | `diretoria@seek.local` | R$ 500.000,00 | Governança, Dashboard, BI, Executivo |
 | **Diretor Financeiro & Controladoria** | `marcos.financeiro@seek.local` | R$ 250.000,00 | Financeiro, Contabilidade, Fiscal, Compras, Governança |
 | **Líder Comercial & CRM** | `lucas.comercial@seek.local` | R$ 50.000,00 | CRM, Contratos, Documentos |
 | **Gerente de Recursos Humanos & DP** | `camila.rh@seek.local` | R$ 40.000,00 | RH, Ponto, Freelance / Taxas, Benefícios |
 | **Gestora de Compras & Suprimentos** | `mariana.compras@seek.local` | R$ 50.000,00 | Compras, Cotações, Fornecedores, Estoque |
 | **Tech Lead & Datacenter** | `eduardo.ti@seek.local` | R$ 30.000,00 | TI, Projetos, Service Desk, Datacenter |
+| **Auditor de Conformidade & GRC** | `auditoria@seek.local` | R$ 0,00 | Auditoria, Logs, Políticas, GRC |
 
 ---
 

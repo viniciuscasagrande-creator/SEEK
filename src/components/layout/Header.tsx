@@ -40,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
     companies,
     branches,
     availableProfiles,
+    login,
     logout,
     notifications,
     unreadNotificationsCount,
@@ -256,9 +257,11 @@ export const Header: React.FC<HeaderProps> = ({
               aria-label="Alternar entre os 13 Perfis Oficiais"
               className="block text-[11px] font-medium text-slate-700 bg-transparent focus:outline-hidden cursor-pointer border-0 p-0 max-w-[140px] truncate"
               value={currentUser.id}
-              onChange={e => {
+              onChange={async e => {
                 const profile = availableProfiles.find(p => p.id === e.target.value);
-                if (profile) setCurrentUser(profile);
+                if (profile) {
+                  await login(profile.email, 'Seek@2026');
+                }
               }}
             >
               {availableProfiles.map(p => (

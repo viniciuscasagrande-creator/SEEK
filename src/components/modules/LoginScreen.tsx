@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, KeyRound, CheckCircle2, UserCheck, Sparkles } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { DEMO_PROFILES } from '../../data/mockData';
 import { Modal } from '../common/Modal';
@@ -8,13 +8,33 @@ export const LoginScreen: React.FC = () => {
   const { login, recoverPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [recoverModalOpen, setRecoverModalOpen] = useState(false);
   const [recoverEmail, setRecoverEmail] = useState('');
   const [recoverSuccess, setRecoverSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(email, password);
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    const result = await login(email, password);
+    setIsSubmitting(false);
+    if (!result.success) {
+      setErrorMsg(result.error || 'Credenciais corporativas inválidas. Verifique seu e-mail e senha.');
+    }
+  };
+
+  const handleProfileClick = async (profileEmail: string) => {
+    setEmail(profileEmail);
+    setPassword('Seek@2026');
+    setErrorMsg(null);
+    setIsSubmitting(true);
+    const result = await login(profileEmail, 'Seek@2026');
+    setIsSubmitting(false);
+    if (!result.success) {
+      setErrorMsg(result.error || 'Falha ao autenticar no perfil corporativo selecionado.');
+    }
   };
 
   const handleRecoverSubmit = async (e: React.FormEvent) => {
@@ -58,10 +78,10 @@ export const LoginScreen: React.FC = () => {
 
         {/* Rodapé Informativo */}
         <div className="border-t border-slate-800/80 pt-6 text-xs text-slate-400 flex items-center justify-between">
-          <span>SEEK v1.0.0 — Ambiente de Alta Segurança</span>
+          <span>SEEK v1.8.0 — Autenticação Corporativa JWT RFC 7519</span>
           <span className="flex items-center text-emerald-400 font-semibold">
             <ShieldCheck className="h-4 w-4 mr-1 text-emerald-400" />
-            RBAC & Trilha Universal de Auditoria
+            RBAC & Trilha de Auditoria
           </span>
         </div>
       </div>
@@ -79,9 +99,17 @@ export const LoginScreen: React.FC = () => {
             </div>
             <h2 className="text-2xl font-black tracking-tight text-white">Acesse o SEEK</h2>
             <p className="mt-1 text-xs text-slate-400">
-              Entre com suas credenciais corporativas ou escolha um perfil de demonstração.
+              Entre com suas credenciais corporativas autenticadas por JWT.
             </p>
           </div>
+
+          {/* Feedback de Erro de Autenticação */}
+          {errorMsg && (
+            <div className="flex items-center space-x-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-xs text-rose-300 animate-in fade-in">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           {/* Form de Login */}
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -115,6 +143,7 @@ export const LoginScreen: React.FC = () => {
                 <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
                 <input
                   type="password"
+                  required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••••••"
@@ -125,10 +154,20 @@ export const LoginScreen: React.FC = () => {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center space-x-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 transition-colors"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center space-x-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              <span>Entrar no Sistema</span>
-              <ArrowRight className="h-4 w-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Validando credenciais...</span>
+                </>
+              ) : (
+                <>
+                  <span>Entrar no Sistema</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </button>
           </form>
 
@@ -139,7 +178,7 @@ export const LoginScreen: React.FC = () => {
             </div>
             <div className="relative flex justify-center text-[10px] uppercase">
               <span className="bg-slate-900 px-3 font-bold text-slate-500">
-                Ou acesse com 1 clique (13 Perfis RBAC)
+                Acesso de Homologação (13 Perfis Oficiais)
               </span>
             </div>
           </div>
@@ -147,14 +186,16 @@ export const LoginScreen: React.FC = () => {
           {/* Grid de 13 Perfis Oficiais do SEEK */}
           <div className="space-y-2">
             <span className="text-[11px] font-bold text-slate-400 block mb-1">
-              Simulador de Perfis e Permissões Dinâmicas:
+              Selecione para autenticar via credencial corporativa homologada:
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
               {DEMO_PROFILES.map(profile => (
                 <button
                   key={profile.id}
-                  onClick={() => login(profile.email)}
-                  className="flex items-center space-x-2.5 p-2 rounded-lg border border-slate-800 bg-slate-800/50 hover:bg-slate-800 hover:border-blue-500 text-left transition-all group cursor-pointer"
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => handleProfileClick(profile.email)}
+                  className="flex items-center space-x-2.5 p-2 rounded-lg border border-slate-800 bg-slate-800/50 hover:bg-slate-800 hover:border-blue-500 text-left transition-all group cursor-pointer disabled:opacity-50"
                 >
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-700 text-xs font-bold text-white group-hover:bg-blue-600">
                     {profile.fullName.slice(0, 2).toUpperCase()}
@@ -179,45 +220,44 @@ export const LoginScreen: React.FC = () => {
         isOpen={recoverModalOpen}
         onClose={() => setRecoverModalOpen(false)}
         title="Recuperação de Acesso Corporativo"
-        subtitle="Informe seu e-mail para receber as instruções seguras de redefinição."
       >
         {recoverSuccess ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center space-y-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-              <CheckCircle2 className="h-6 w-6" />
+          <div className="py-6 text-center space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+              <ShieldCheck className="h-6 w-6" />
             </div>
-            <h4 className="text-sm font-bold text-slate-800">E-mail de Recuperação Enviado!</h4>
-            <p className="text-xs text-slate-500">
-              Enviamos um token de uso único para <strong>{recoverEmail}</strong> válido por 30 minutos.
+            <h4 className="text-sm font-bold text-white">Instruções Enviadas</h4>
+            <p className="text-xs text-slate-400">
+              Se o e-mail informado estiver ativo no SEEK Core, um link temporário com token de segurança foi enviado.
             </p>
           </div>
         ) : (
-          <form onSubmit={handleRecoverSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleRecoverSubmit} className="space-y-4">
+            <p className="text-xs text-slate-300">
+              Informe seu e-mail corporativo cadastrado para receber as instruções de recuperação com chave de segurança.
+            </p>
             <div>
-              <label className="block font-bold text-slate-700 mb-1">E-mail Cadastrado</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1">E-mail Corporativo</label>
               <input
                 type="email"
                 required
                 value={recoverEmail}
                 onChange={e => setRecoverEmail(e.target.value)}
-                placeholder="seu.email@seek.local"
-                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                placeholder="colaborador@seek.local"
+                className="w-full rounded-xl border border-slate-700 bg-slate-800/80 py-2 px-3 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-hidden"
               />
             </div>
-            <p className="text-[11px] text-slate-500">
-              O link de redefinição será autenticado pelo Core do SEEK em conformidade com as políticas de auditoria.
-            </p>
-            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end space-x-2 pt-2">
               <button
                 type="button"
                 onClick={() => setRecoverModalOpen(false)}
-                className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+                className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
               >
-                Voltar ao Login
+                Cancelar
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white shadow-xs hover:bg-blue-800"
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
               >
                 Enviar Instruções
               </button>
