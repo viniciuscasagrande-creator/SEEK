@@ -1,6 +1,7 @@
 # SEEK V1 — Hiper Pacote 6: Financeiro, Compras e Controladoria Enterprise
 
 ## 📌 Visão Geral do Pacote 6
+
 O **Hiper Pacote 6** eleva o **SEEK** ao patamar **Enterprise ERP & Controladoria**, consolidando o ciclo de suprimentos (Procurement), tesouraria multicarteira, conciliação bancária matemática, matriz orçamentária (Budgeting) e demonstrações gerenciais com trava formal de competência (*Period Lock*).
 
 > [!IMPORTANT]
@@ -9,6 +10,7 @@ O **Hiper Pacote 6** eleva o **SEEK** ao patamar **Enterprise ERP & Controladori
 ---
 
 ## 🏛️ 1. Compras & Suprimentos (Procurement Enterprise)
+
 Localizado na visão `compras` (`/purchasing`):
 
 1. **Solicitações de Compra (SC):**
@@ -38,6 +40,7 @@ Localizado na visão `compras` (`/purchasing`):
 ---
 
 ## 💰 2. Tesouraria, Contas a Pagar/Receber & Bancos
+
 Localizado na visão `financeiro` (`/finance`):
 
 1. **Hub Central de Contas a Pagar & Receber:**
@@ -61,6 +64,7 @@ Localizado na visão `financeiro` (`/finance`):
 ---
 
 ## 📊 3. Controladoria & Orçamento Empresarial (Budgeting)
+
 1. **Matriz de Execução Orçamentária:**
    $$\text{Saldo Remanescente} = \text{Orçado} - (\text{Comprometido} + \text{Realizado})$$
    - Acompanhamento por Centro de Custo (`Operações`, `Tecnologia Cloud`, `Comercial B2B`, `Administrativo & RH`).
@@ -79,6 +83,7 @@ Localizado na visão `financeiro` (`/finance`):
 ---
 
 ## 🔒 4. Fechamento Mensal / Period Lock
+
 1. **Trava Formal de Competência:**
    - Controle de status das competências mensais (`ABERTO`, `CONCILIADO`, `BLOQUEADO`).
    - Checklist integrado de conformidade:

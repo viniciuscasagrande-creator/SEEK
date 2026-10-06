@@ -1,11 +1,12 @@
 # SEEK V1 — Hiper Pacote 11: Administração, Segurança, Auditoria e Integrações
 
 ## 📌 Visão Geral do Pacote 11
+
 O **Hiper Pacote 11** solidifica a infraestrutura de segurança cibernética, governança de acessos, auditoria forense imutável e conectividade externa via APIs e webhooks do SEEK.
 
 > [!IMPORTANT]
 > **Regra Fundamental de Escopo:** O SEEK permanece estritamente um ERP/CRM corporativo interno. Não há nenhuma rotina voltada para bilheteria, emissão de ingressos, controle de portaria ou eventos comerciais.
-> 
+>
 > 🌐 **Acesso Oficial:** [https://seek-xi.vercel.app](https://seek-xi.vercel.app)
 
 ---

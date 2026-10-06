@@ -1,11 +1,13 @@
 # SEEK V1 — Hiper Pacote 5: Contabilidade Avançada, Fiscal & Fechamento Contábil
 
 ## 📌 Visão Geral do Pacote 5
+
 O **Hiper Pacote 5** consolida o SEEK como uma plataforma corporativa integrada de padrão **Enterprise ERP + CRM + Gestão Administrativa**, entregando a camada contábil e tributária completa, com partidas dobradas, apuração de impostos, conciliação matemática e trava de competências.
 
 ---
 
 ## 🏛️ 1. Módulo de Contabilidade Avançada (`AccountingModule`)
+
 Localizado na rota e visão `contabilidade` (`/accounting`):
 
 1. **Plano de Contas Hierárquico (COA - 4 Níveis):**
@@ -40,6 +42,7 @@ Localizado na rota e visão `contabilidade` (`/accounting`):
 ---
 
 ## ⚖️ 2. Módulo Fiscal & Tributário (`FiscalModule`)
+
 Localizado na rota e visão `fiscal` (`/fiscal`):
 
 1. **Apuração & Painel de Obrigações Tributárias:**
@@ -80,6 +83,7 @@ Localizado na rota e visão `fiscal` (`/fiscal`):
 ---
 
 ## 🔐 3. Credenciais Mestres de Teste
+
 - **URL da Aplicação Web:** `http://localhost:5173/` e `http://192.168.30.105:5173/`
 - **URL da API Backend:** `http://localhost:3001/api` e `http://192.168.30.105:3001/api`
 - **Usuário Administrador Geral:** `admin@seek.local` / `Seek@2026`

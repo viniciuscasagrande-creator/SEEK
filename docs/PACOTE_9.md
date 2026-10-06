@@ -1,11 +1,12 @@
 # SEEK V1 — Hiper Pacote 9: CRM & Comercial Corporativo
 
 ## 📌 Visão Geral do Pacote 9
+
 O **Hiper Pacote 9** aprofunda a gestão de clientes corporativos (B2B), contas estratégicas e novas oportunidades de receita da organização, mantendo integração estrita com o Financeiro e o módulo de Contratos.
 
 > [!IMPORTANT]
 > **Regra Fundamental de Escopo:** O SEEK permanece estritamente um ERP/CRM corporativo interno. Não há nenhuma rotina voltada para bilheteria, emissão de ingressos, controle de portaria ou eventos comerciais.
-> 
+>
 > 🌐 **Acesso Oficial:** [https://seek-xi.vercel.app](https://seek-xi.vercel.app)
 
 ---
