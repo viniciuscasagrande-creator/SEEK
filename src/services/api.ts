@@ -956,5 +956,144 @@ export const api = {
     } catch {
       return null;
     }
+  },
+
+  // ========================================================
+  // RH: FREELANCERS & CENTRAL DE TAXAS
+  // ========================================================
+  async getFreelanceDashboard(): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/dashboard`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.metrics;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getFreelancers(search?: string, role?: string, status?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (role) params.append('role', role);
+      if (status) params.append('status', status);
+
+      const url = `${API_BASE_URL}/freelance/freelancers${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.freelancers || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createFreelancer(freelancer: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/freelancers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(freelancer)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateFreelancer(id: string, data: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/freelancers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getTaxas(status?: string, search?: string, operation?: string, date?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status && status !== 'TODAS') params.append('status', status);
+      if (search) params.append('search', search);
+      if (operation) params.append('operation_name', operation);
+      if (date) params.append('date', date);
+
+      const url = `${API_BASE_URL}/freelance/taxas${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        return data.taxas || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createTaxa(taxa: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/taxas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taxa)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateTaxaStatus(id: string, status: string, validatorName?: string, notes?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/taxas/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, validator_name: validatorName, validation_notes: notes })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async closeTaxaAndPay(id: string, data: any): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/taxas/${id}/close-and-pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async settleTaxaPayment(id: string, userName?: string, userRole?: string): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/freelance/taxas/${id}/settle-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName, userRole })
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
   }
 };

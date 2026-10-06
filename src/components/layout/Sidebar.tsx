@@ -33,7 +33,8 @@ import {
   ChevronLeft,
   Calendar,
   Bell,
-  Star
+  Star,
+  Zap
 } from 'lucide-react';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { useAuth } from '../../context/AuthContext';
@@ -55,6 +56,7 @@ export type ActiveView =
   | 'assets'
   | 'hr'
   | 'payroll'
+  | 'freelancers'
   | 'projects'
   | 'operations'
   | 'contracts'
@@ -343,6 +345,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <Briefcase className="h-4 w-4 shrink-0 mr-2.5" />
                   {!collapsed && <span>Departamento Pessoal</span>}
+                </button>
+
+                <button
+                  onClick={() => setActiveView('freelancers')}
+                  className={navItemClass('freelancers')}
+                  title="Central de Freelancers & Taxas"
+                >
+                  <Zap className="h-4 w-4 shrink-0 mr-2.5 text-amber-500" />
+                  {!collapsed && (
+                    <div className="flex flex-1 items-center justify-between">
+                      <span>Freelance & Taxas</span>
+                      <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-800">
+                        Central
+                      </span>
+                    </div>
+                  )}
                 </button>
               </>
             )}

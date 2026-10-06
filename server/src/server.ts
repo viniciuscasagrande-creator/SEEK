@@ -18,6 +18,7 @@ import { notificationsRouter } from './routes/notifications.routes.js';
 import { seekAiRouter } from './routes/seekAi.routes.js';
 import accountingRouter from './routes/accounting.routes.js';
 import fiscalRouter from './routes/fiscal.routes.js';
+import freelanceRouter from './routes/freelance.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,7 +27,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Rotas da API SEEK V1 (Hiper Pacote 5: Contabilidade Avançada, Fiscal & Fechamento Contábil)
+// Rotas da API SEEK V1 (ERP Corporativo Completo)
 app.use('/api/auth', authRouter);
 app.use('/api/core', coreRouter);
 app.use('/api/finance', financeRouter);
@@ -37,6 +38,8 @@ app.use('/api/workflow', workflowRouter);
 app.use('/api/purchasing', purchasingRouter);
 app.use('/api/contracts', contractsRouter);
 app.use('/api/hr', hrRouter);
+app.use('/api/freelance', freelanceRouter);
+app.use('/api/hr/freelance', freelanceRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/projects', projectsRouter);
 app.use('/api/service-desk', serviceDeskRouter);

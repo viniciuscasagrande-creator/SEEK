@@ -16,7 +16,8 @@ import {
   ArrowRight,
   TrendingUp,
   FileCheck,
-  AlertCircle
+  AlertCircle,
+  Zap
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/mockData';
 import { EmployeeProfile } from '../../types/modules';
@@ -26,12 +27,20 @@ import { Modal } from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
+import { FreelanceTaxasSubmodule } from './FreelanceTaxasSubmodule';
 
-export const HRModule: React.FC = () => {
+export const HRModule: React.FC<{ initialTab?: 'employees' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' }> = ({ initialTab = 'employees' }) => {
   const { currentUser } = useAuth();
   const { refreshApprovals } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'employees' | 'ponto' | 'vacations' | 'organogram'>('employees');
+  const [activeTab, setActiveTab] = useState<'employees' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [employees, setEmployees] = useState<any[]>(EMPLOYEES);
   const [timeRecords, setTimeRecords] = useState<any[]>([]);
   const [vacationRequests, setVacationRequests] = useState<any[]>([]);
@@ -297,6 +306,21 @@ export const HRModule: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('freelancers')}
+          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+            activeTab === 'freelancers'
+              ? 'border-blue-700 text-blue-700 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Zap className="h-4 w-4 text-amber-500" />
+          <span>Freelancers & Taxas</span>
+          <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-800">
+            Central
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('organogram')}
           className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
             activeTab === 'organogram'
@@ -536,6 +560,9 @@ export const HRModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ABA 4: FREELANCERS & CENTRAL DE TAXAS */}
+      {activeTab === 'freelancers' && <FreelanceTaxasSubmodule />}
 
       {/* Modal Admitir Colaborador */}
       <Modal

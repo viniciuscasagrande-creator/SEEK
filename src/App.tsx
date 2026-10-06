@@ -88,6 +88,8 @@ const MainLayout: React.FC = () => {
         return { group: 'SEEK Gestão', label: 'RH & Colaboradores' };
       case 'payroll':
         return { group: 'SEEK Gestão', label: 'Departamento Pessoal' };
+      case 'freelancers':
+        return { group: 'SEEK Gestão', label: 'Freelancers & Central de Taxas' };
       case 'projects':
         return { group: 'SEEK Gestão', label: 'Projetos Estratégicos' };
       case 'operations':
@@ -140,7 +142,8 @@ const MainLayout: React.FC = () => {
         return <InventoryModule />;
       case 'hr':
       case 'payroll':
-        return <HRModule />;
+      case 'freelancers':
+        return <HRModule initialTab={activeView === 'freelancers' ? 'freelancers' : 'employees'} />;
       case 'projects':
       case 'operations':
         return <ProjectsModule />;

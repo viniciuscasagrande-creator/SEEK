@@ -452,6 +452,65 @@ export function initializeDatabase() {
       xml_key TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- RH: FREELANCE & GESTÃO DE TAXAS (TRABALHADORES TEMPORÁRIOS / OPERAÇÕES)
+    CREATE TABLE IF NOT EXISTS freelancers (
+      id TEXT PRIMARY KEY,
+      full_name TEXT NOT NULL,
+      cpf TEXT UNIQUE NOT NULL,
+      rg TEXT,
+      phone TEXT NOT NULL,
+      email TEXT,
+      pix_key TEXT NOT NULL,
+      pix_type TEXT NOT NULL DEFAULT 'CPF', -- CPF, EMAIL, TELEFONE, ALEATORIA
+      bank_name TEXT,
+      agency TEXT,
+      account_number TEXT,
+      primary_role TEXT NOT NULL,
+      secondary_roles TEXT,
+      standard_daily_rate REAL NOT NULL DEFAULT 200.0,
+      city TEXT NOT NULL DEFAULT 'Curitiba',
+      state TEXT NOT NULL DEFAULT 'PR',
+      rating REAL DEFAULT 5.0,
+      total_jobs INTEGER DEFAULT 0,
+      punctuality_score INTEGER DEFAULT 100,
+      availability TEXT DEFAULT 'DISPONIVEL', -- DISPONIVEL, EM_JOB, INDISPONIVEL
+      status TEXT DEFAULT 'ATIVO', -- ATIVO, EM_ANALISE, BLOQUEADO
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS freelance_shifts (
+      id TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL, -- TX-2026-0001
+      operation_name TEXT NOT NULL, -- Operação de Referência (ex: Montagem Corporativa Curitiba, Operação Turnê PR)
+      cost_center TEXT NOT NULL DEFAULT 'Operações & Logística',
+      job_date TEXT NOT NULL,
+      work_shift TEXT NOT NULL, -- '08:00 - 18:00', '18:00 - 04:00'
+      location TEXT NOT NULL,
+      requester_manager TEXT NOT NULL,
+      freelancer_id TEXT REFERENCES freelancers(id),
+      freelancer_name TEXT NOT NULL,
+      freelancer_cpf TEXT,
+      freelancer_pix TEXT,
+      role_title TEXT NOT NULL,
+      base_fee REAL NOT NULL,
+      allowance_food REAL DEFAULT 0.0,
+      allowance_transport REAL DEFAULT 0.0,
+      overtime_amount REAL DEFAULT 0.0,
+      reimbursement_amount REAL DEFAULT 0.0,
+      total_amount REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'CONFIRMADO', -- ABERTA, AGUARDANDO_APROVACAO, CONVOCADO, CONFIRMADO, PRESENTE, FALTA, REALIZADA, AGUARDANDO_PAGAMENTO, PAGO
+      hours_worked REAL DEFAULT 0.0,
+      performance_rating INTEGER DEFAULT 5,
+      validator_name TEXT,
+      validation_notes TEXT,
+      financial_record_id TEXT,
+      approval_id TEXT,
+      closed_at TEXT,
+      paid_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   seedInitialData();
@@ -992,6 +1051,33 @@ export function seedInitialData() {
         ('nfe-02', 'NFS-2026-0146', '1', 'EMITIDA', 'Suzano S.A.', '15.432.109/0001-55', 45000.00, 2250.00, 292.50, 1350.00, 675.00, 450.00, 39982.50, '2026-10-01', 'AUTORIZADA', '41261008123456000190550010000001461000045000'),
         ('nfe-03', 'NFE-2026-8812', '1', 'RECEBIDA', 'Equinix Brasil Soluções de TI', '04.567.890/0001-12', 34800.00, 0.0, 0.0, 0.0, 0.0, 0.0, 34800.00, '2026-10-02', 'AUTORIZADA', '35261004567890000112550010000088121000034800'),
         ('nfe-04', 'NFE-2026-9904', '1', 'RECEBIDA', 'Cisco Systems Brasil Ltda.', '01.234.567/0001-89', 18450.00, 0.0, 0.0, 0.0, 0.0, 0.0, 18450.00, '2026-10-04', 'AUTORIZADA', '43261001234567000189550010000099041000018450')
+    `).run();
+  }
+
+  // 8. SEED RH: BANCO DE FREELANCERS & CENTRAL DE TAXAS
+  const freelCheck = db.prepare('SELECT COUNT(*) as count FROM freelancers').get() as { count: number };
+  if (freelCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO freelancers (id, full_name, cpf, rg, phone, email, pix_key, pix_type, bank_name, agency, account_number, primary_role, secondary_roles, standard_daily_rate, city, state, rating, total_jobs, punctuality_score, availability, status, notes)
+      VALUES
+        ('freel-01', 'Thiago Alcantara Ribeiro', '089.452.199-01', '10.892.411-2', '(41) 99871-2041', 'thiago.rib@gmail.com', '089.452.199-01', 'CPF', 'Nubank', '0001', '124908-1', 'Carregador / Roadie', 'Montagem, Carga Pesada', 220.00, 'Curitiba', 'PR', 4.9, 18, 100, 'DISPONIVEL', 'ATIVO', 'Profissional com NR-35 e excelente histórico de pontualidade.'),
+        ('freel-02', 'Larissa Mendes Castro', '045.789.321-12', '12.441.902-8', '(41) 98744-1122', 'larissa.mendes@pix.me', 'larissa.mendes@pix.me', 'EMAIL', 'Banco Inter', '0001', '55120-9', 'Recepcionista / Credenciamento', 'Atendimento B2B, Recepção VIP', 200.00, 'Curitiba', 'PR', 5.0, 24, 100, 'DISPONIVEL', 'ATIVO', 'Fluente em inglês e espanhol, ótima postura institucional.'),
+        ('freel-03', 'Marcos Vinicius Portela', '067.123.890-44', '09.312.654-1', '(41) 99123-4567', '06712389044', '06712389044', 'CPF', 'Banco Itaú', '0842', '41209-4', 'Montador Estrutural', 'Estruturas Box Truss, Palco', 280.00, 'Curitiba', 'PR', 4.7, 12, 95, 'DISPONIVEL', 'ATIVO', 'Experiência comprovada em montagem de estruturas pesadas.'),
+        ('freel-04', 'Julio Cesar Antunes', '033.444.555-88', '11.870.321-9', '(41) 99655-4433', '41996554433', '41996554433', 'TELEFONE', 'Banco Bradesco', '1204', '89104-2', 'Técnico de Som / Luz', 'Operador de Mesa Digital, Iluminação DMX', 350.00, 'Curitiba', 'PR', 4.8, 15, 96, 'EM_JOB', 'ATIVO', 'Especialista em mesas digitais Yamaha e consoles DMX.'),
+        ('freel-05', 'Patricia Nogueira Santos', '012.345.678-99', '14.209.811-0', '(41) 98888-7711', 'patricia.taxas@gmail.com', 'patricia.taxas@gmail.com', 'EMAIL', 'Banco Santander', '3102', '10944-8', 'Operador de Bar / Caixa', 'Controle de Estoque, Caixa Rápido', 200.00, 'Curitiba', 'PR', 4.9, 29, 98, 'DISPONIVEL', 'ATIVO', 'Agilidade com POS e fechamento de caixa sem divergências.'),
+        ('freel-06', 'Lucas Gabriel Silveira', '054.321.987-65', '13.109.845-7', '(41) 99222-3344', '05432198765', '05432198765', 'CPF', 'Caixa Econômica', '0341', '001290-8', 'Limpeza Operacional', 'Apoio de Almoxarifado, Limpeza Técnica', 180.00, 'Curitiba', 'PR', 4.6, 9, 92, 'DISPONIVEL', 'ATIVO', 'Comprometido e ágil nas tarefas de conservação e apoio.')
+    `).run();
+
+    db.prepare(`
+      INSERT INTO freelance_shifts (id, code, operation_name, cost_center, job_date, work_shift, location, requester_manager, freelancer_id, freelancer_name, freelancer_cpf, freelancer_pix, role_title, base_fee, allowance_food, allowance_transport, overtime_amount, reimbursement_amount, total_amount, status, hours_worked, performance_rating, validator_name, validation_notes, closed_at, paid_at)
+      VALUES
+        ('taxa-01', 'TX-2026-0001', 'Operação Logística Hub Curitiba', 'Operações & Logística Corporativa', '2026-10-01', '08:00 - 18:00', 'Hub Operacional Curitiba - Portão B', 'Eduardo Martins Fontes', 'freel-01', 'Thiago Alcantara Ribeiro', '089.452.199-01', '089.452.199-01', 'Carregador / Roadie', 220.00, 30.00, 0.00, 0.00, 0.00, 250.00, 'PAGO', 10.0, 5, 'Eduardo Martins Fontes', 'Excelente atuação na carga e descarga dos racks de rede.', '2026-10-01 19:00', '2026-10-02 10:15'),
+        ('taxa-02', 'TX-2026-0002', 'Credenciamento Corporativo Filial SP', 'Administrativo & Recursos Humanos', '2026-10-04', '09:00 - 18:00', 'Sede Faria Lima - Pavilhão Recepção', 'Camila Duarte', 'freel-02', 'Larissa Mendes Castro', '045.789.321-12', 'larissa.mendes@pix.me', 'Recepcionista / Credenciamento', 200.00, 0.00, 40.00, 0.00, 0.00, 240.00, 'AGUARDANDO_PAGAMENTO', 9.0, 5, 'Camila Duarte', 'Conferência de presença validada. Enviar PIX para o financeiro.', '2026-10-04 18:30', NULL),
+        ('taxa-03', 'TX-2026-0003', 'Montagem Estrutural Expotrade', 'Operações & Logística Corporativa', '2026-10-05', '07:00 - 17:00', 'Expotrade Pinhais - Pavilhão A', 'Eduardo Martins Fontes', 'freel-03', 'Marcos Vinicius Portela', '067.123.890-44', '06712389044', 'Montador Estrutural', 280.00, 30.00, 25.00, 0.00, 0.00, 335.00, 'REALIZADA', 10.0, 5, 'Eduardo Martins Fontes', 'Montagem concluída no prazo. Aguarda fechamento formal do RH.', '2026-10-05 17:45', NULL),
+        ('taxa-04', 'TX-2026-0004', 'Instalação Audiovisual Sala de Convenções', 'Tecnologia da Informação & Nuvem', '2026-10-07', '13:00 - 22:00', 'Datacenter Curitiba - Auditório Matriz', 'Eduardo Martins Fontes', 'freel-04', 'Julio Cesar Antunes', '033.444.555-88', '41996554433', 'Técnico de Som / Luz', 350.00, 30.00, 0.00, 0.00, 0.00, 380.00, 'CONFIRMADO', 0.0, 5, NULL, 'Profissional confirmado para a escala de amanhã.', NULL, NULL),
+        ('taxa-05', 'TX-2026-0005', 'Apoio de Almoxarifado e Carga', 'Operações & Logística Corporativa', '2026-10-08', '08:00 - 17:00', 'Curitiba Almoxarifado A', 'Mariana Fontes Prado', 'freel-06', 'Lucas Gabriel Silveira', '054.321.987-65', '05432198765', 'Limpeza Operacional', 180.00, 25.00, 20.00, 0.00, 0.00, 225.00, 'CONVOCADO', 0.0, 5, NULL, 'Aguardando confirmação de presença pelo profissional.', NULL, NULL),
+        ('taxa-06', 'TX-2026-0006', 'Descarregamento Lote Servidores Dell', 'Operações & Logística Corporativa', '2026-10-09', '08:00 - 17:00', 'Datacenter Curitiba Matriz', 'Eduardo Martins Fontes', NULL, 'Pendente de Alocação', NULL, NULL, 'Carregador / Roadie', 220.00, 30.00, 0.00, 0.00, 0.00, 250.00, 'ABERTA', 0.0, 5, NULL, 'Vaga aberta aguardando seleção de profissional do banco de talentos.', NULL, NULL),
+        ('taxa-07', 'TX-2026-0007', 'Suporte Presencial Feira B2B SP', 'Administrativo & Recursos Humanos', '2026-10-02', '09:00 - 18:00', 'São Paulo (Faria Lima)', 'Lucas Bertolli Costa', 'freel-05', 'Patricia Nogueira Santos', '012.345.678-99', 'patricia.taxas@gmail.com', 'Operador de Bar / Caixa', 200.00, 0.00, 0.00, 0.00, 0.00, 200.00, 'FALTA', 0.0, 1, 'Lucas Bertolli Costa', 'Profissional informou imprevisto de saúde de última hora. Substituição rápida acionada.', '2026-10-02 10:00', NULL)
     `).run();
   }
 }
