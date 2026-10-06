@@ -57,6 +57,7 @@ export type ActiveView =
   | 'finance-closing'
   | 'finance-settings'
   | 'accounting'
+  | 'accounting-coa'
   | 'accounting-journal'
   | 'accounting-trial'
   | 'accounting-statements'
@@ -66,12 +67,14 @@ export type ActiveView =
   | 'fiscal-calendar'
   | 'fiscal-invoices'
   | 'purchasing'
+  | 'purchasing-requisitions'
   | 'purchasing-comparison'
   | 'purchasing-orders'
   | 'suppliers'
   | 'inventory'
   | 'assets'
   | 'hr'
+  | 'hr-employees'
   | 'payroll'
   | 'benefits'
   | 'freelancers'
@@ -132,11 +135,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Helper para determinar qual módulo é dono de cada view
   const getModuleForView = (view: ActiveView): string | null => {
     if (['finance', 'finance-payables', 'finance-receivables', 'finance-treasury', 'finance-reconciliation', 'finance-dre', 'finance-closing', 'finance-settings'].includes(view)) return 'finance';
-    if (['accounting', 'accounting-journal', 'accounting-trial', 'accounting-statements', 'accounting-closing'].includes(view)) return 'accounting';
+    if (['accounting', 'accounting-coa', 'accounting-journal', 'accounting-trial', 'accounting-statements', 'accounting-closing'].includes(view)) return 'accounting';
     if (['fiscal', 'fiscal-calc', 'fiscal-calendar', 'fiscal-invoices'].includes(view)) return 'fiscal';
-    if (['purchasing', 'purchasing-comparison', 'purchasing-orders', 'suppliers'].includes(view)) return 'purchasing';
+    if (['purchasing', 'purchasing-requisitions', 'purchasing-comparison', 'purchasing-orders', 'suppliers'].includes(view)) return 'purchasing';
     if (['inventory', 'assets'].includes(view)) return 'inventory';
-    if (['hr', 'payroll', 'benefits', 'freelancers'].includes(view)) return 'hr';
+    if (['hr', 'hr-employees', 'payroll', 'benefits', 'freelancers'].includes(view)) return 'hr';
     if (['contracts', 'legal'].includes(view)) return 'contracts';
     if (['crm', 'crm-pipeline', 'crm-companies', 'crm-proposals'].includes(view)) return 'crm';
     if (['service-desk', 'service-desk-kb'].includes(view)) return 'service-desk';
@@ -221,7 +224,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       permissionKey: 'accounting',
       defaultView: 'accounting',
       items: [
-        { label: 'Plano de Contas', view: 'accounting' },
+        { label: 'Visão Geral & Pendências', view: 'accounting' },
+        { label: 'Plano de Contas', view: 'accounting-coa' },
         { label: 'Livro Diário', view: 'accounting-journal' },
         { label: 'Balancete de Verificação', view: 'accounting-trial' },
         { label: 'Demonstrações (DRE / BP)', view: 'accounting-statements' },
@@ -248,7 +252,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       permissionKey: 'purchasing',
       defaultView: 'purchasing',
       items: [
-        { label: 'Requisições de Compra', view: 'purchasing' },
+        { label: 'Visão Geral & Pendências', view: 'purchasing' },
+        { label: 'Requisições de Compra', view: 'purchasing-requisitions' },
         { label: 'Mapa Comparativo', view: 'purchasing-comparison' },
         { label: 'Pedidos de Compra', view: 'purchasing-orders' },
         { label: 'Fornecedores Homologados', view: 'suppliers' }
@@ -272,7 +277,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       permissionKey: 'hr',
       defaultView: 'hr',
       items: [
-        { label: 'Colaboradores CLT', view: 'hr' },
+        { label: 'Visão Geral & Pendências', view: 'hr' },
+        { label: 'Colaboradores CLT', view: 'hr-employees' },
         { label: 'Folha & Ponto', view: 'payroll' },
         { label: 'Gestão de Benefícios', view: 'benefits' },
         {

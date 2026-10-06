@@ -172,6 +172,8 @@ export class FinanceService {
       if (record.origin_type === 'TAXA' && record.origin_id) db.prepare(`UPDATE freelance_shifts SET status='PAGO', paid_at=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
       if (record.origin_type === 'PO' && record.origin_id) db.prepare(`UPDATE purchase_orders SET status='PAGO' WHERE id=? OR code=?`).run(record.origin_id, record.origin_id);
       if (record.origin_type === 'FISCAL' && record.origin_id) db.prepare(`UPDATE tax_obligations SET status='PAGO', payment_date=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
+      if (record.origin_type === 'FOLHA_PAGAMENTO' && record.origin_id) db.prepare(`UPDATE payroll_runs SET status='PAGO' WHERE id=?`).run(record.origin_id);
+      if (record.origin_type === 'BENEFICIOS' && record.origin_id) db.prepare(`UPDATE benefit_purchase_orders SET status='PAGO' WHERE id=?`).run(record.origin_id);
       workflowRepository.logAudit({ userName: operator, userRole: operatorRole, action: 'LIQUIDATE', module: 'Financeiro', entity: `Lançamento ${record.code}`, description: `Liquidação atômica de R$ ${record.amount.toFixed(2)}${bank ? ` via ${bank.bank_name}` : ''}; lançamento contábil gerado automaticamente.`, ipAddress });
       return { bankTransactionId, accountingEntry };
     });
@@ -185,16 +187,50 @@ export class FinanceService {
   getDashboardKpis(companyId?: string) {
     const allRecords = financeRepository.listRecords({ companyId });
     const bankAccounts = financeRepository.listBankAccounts();
+    const today = new Date().toISOString().substring(0, 10);
 
     let totalPagar = 0;
     let totalPagarPago = 0;
     let totalReceber = 0;
     let totalReceberPago = 0;
 
+    let overdueCount = 0;
+    let overdueAmount = 0;
+    let dueTodayCount = 0;
+    let dueTodayAmount = 0;
+    let rhPendingCount = 0;
+    let rhPendingAmount = 0;
+    let purchasingPendingCount = 0;
+    let purchasingPendingAmount = 0;
+    let fiscalPendingCount = 0;
+    let fiscalPendingAmount = 0;
+
     for (const r of allRecords) {
       if (r.type === 'PAGAR') {
         totalPagar += r.amount;
-        if (r.status === 'PAGO') totalPagarPago += r.amount;
+        if (r.status === 'PAGO') {
+          totalPagarPago += r.amount;
+        } else {
+          if (r.due_date < today) {
+            overdueCount++;
+            overdueAmount += r.amount;
+          } else if (r.due_date === today) {
+            dueTodayCount++;
+            dueTodayAmount += r.amount;
+          }
+
+          const origin = r.origin_type || 'AVULSO';
+          if (['RH', 'FOLHA_PAGAMENTO', 'BENEFICIOS', 'TAXA'].includes(origin)) {
+            rhPendingCount++;
+            rhPendingAmount += r.amount;
+          } else if (['PO', 'COMPRAS', 'COMPRAS_PEDIDO'].includes(origin)) {
+            purchasingPendingCount++;
+            purchasingPendingAmount += r.amount;
+          } else if (origin === 'FISCAL') {
+            fiscalPendingCount++;
+            fiscalPendingAmount += r.amount;
+          }
+        }
       } else if (r.type === 'RECEBER') {
         totalReceber += r.amount;
         if (r.status === 'PAGO') totalReceberPago += r.amount;
@@ -211,7 +247,17 @@ export class FinanceService {
       accountsReceivableTotal: totalReceber,
       accountsReceivablePaid: totalReceberPago,
       accountsReceivablePending: totalReceber - totalReceberPago,
-      netPosition: totalCashBalance + (totalReceber - totalReceberPago) - (totalPagar - totalPagarPago)
+      netPosition: totalCashBalance + (totalReceber - totalReceberPago) - (totalPagar - totalPagarPago),
+      overdueCount,
+      overdueAmount,
+      dueTodayCount,
+      dueTodayAmount,
+      rhPendingCount,
+      rhPendingAmount,
+      purchasingPendingCount,
+      purchasingPendingAmount,
+      fiscalPendingCount,
+      fiscalPendingAmount
     };
   }
 

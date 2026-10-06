@@ -141,8 +141,14 @@ export class FinanceRepository {
       params.push(filters.status);
     }
     if (filters.originType && filters.originType !== 'ALL') {
-      sql += ' AND origin_type = ?';
-      params.push(filters.originType);
+      if (filters.originType === 'RH') {
+        sql += " AND (origin_type = 'RH' OR origin_type = 'FOLHA_PAGAMENTO' OR origin_type = 'BENEFICIOS' OR origin_type = 'TAXA')";
+      } else if (filters.originType === 'PO' || filters.originType === 'COMPRAS') {
+        sql += " AND (origin_type = 'PO' OR origin_type = 'COMPRAS' OR origin_type = 'COMPRAS_PEDIDO')";
+      } else {
+        sql += ' AND origin_type = ?';
+        params.push(filters.originType);
+      }
     }
     if (filters.search) {
       sql += ' AND (title LIKE ? OR entity_name LIKE ? OR code LIKE ?)';

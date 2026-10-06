@@ -33,11 +33,11 @@ import { FreelanceTaxasSubmodule } from './FreelanceTaxasSubmodule';
 import { HRPayrollSection } from './HRPayrollSection';
 import { HRBenefitsSection } from './HRBenefitsSection';
 
-export const HRModule: React.FC<{ initialTab?: 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' }> = ({ initialTab = 'employees' }) => {
+export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' }> = ({ initialTab = 'dashboard' }) => {
   const { currentUser } = useAuth();
   const { refreshApprovals } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(initialTab);
 
   useEffect(() => {
     if (initialTab) {
@@ -267,8 +267,104 @@ export const HRModule: React.FC<{ initialTab?: 'employees' | 'payroll' | 'benefi
         />
       </div>
 
+      {activeTab === 'dashboard' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-900">Central de Trabalho de RH & Departamento Pessoal</h2>
+                <p className="mt-1 text-xs text-slate-600">
+                  Cadastros, folha CLT, benefícios corporativos, ponto e férias. Obrigações que geram reflexos financeiros nascem no RH e mantêm rastreabilidade até o pagamento.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAdmitOpen(true)}
+                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs"
+              >
+                + Admitir Colaborador
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Colaboradores Ativos', value: employees.filter(e => e.active !== false).length, sub: 'Quadro funcional', tab: 'employees' as const, action: 'Ver cadastros' },
+              { label: 'Folha & Encargos (CLT)', value: 'Motor CLT v1.0', sub: 'Salários, INSS e FGTS', tab: 'payroll' as const, action: 'Calcular folha' },
+              { label: 'Gestão de Benefícios', value: 'VT / VR / Saúde', sub: 'Lotes de compra corporativa', tab: 'benefits' as const, action: 'Abrir benefícios' },
+              { label: 'Ponto & Férias', value: `${timeRecords.length} registros`, sub: `${vacationRequests.length} solicitações`, tab: 'ponto' as const, action: 'Revisar jornada' }
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => setActiveTab(item.tab)}
+                className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xs hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{item.label}</div>
+                <div className="mt-2 text-xl font-black text-slate-900">{item.value}</div>
+                <div className="mt-1 text-[11px] text-slate-500">{item.sub}</div>
+                <div className="mt-3 text-xs font-bold text-blue-700">{item.action} →</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="text-sm font-black text-slate-900">Ações Frequentes do Departamento Pessoal</h3>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button onClick={() => setIsAdmitOpen(true)} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors">
+                  + Admissão de Colaborador
+                </button>
+                <button onClick={() => setActiveTab('payroll')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors text-emerald-800">
+                  ⚙ Processar Folha Mensal (CLT)
+                </button>
+                <button onClick={() => setActiveTab('benefits')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors text-purple-800">
+                  💳 Comprar Benefícios (Lote)
+                </button>
+                <button onClick={() => setActiveTab('ponto')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors">
+                  ⏱ Espelho de Ponto & Ajustes
+                </button>
+                <button onClick={() => setActiveTab('vacations')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors">
+                  🏖 Férias e Ausências
+                </button>
+                <button onClick={() => setActiveTab('freelancers')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors text-amber-800">
+                  ⚡ Freelance & Central de Taxas
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="text-sm font-black text-slate-900">Integração RH → Financeiro & Contábil</h3>
+              <div className="mt-3 space-y-2.5 text-xs text-slate-700">
+                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <div className="font-bold text-slate-900">1. Fechamento de Folha → Títulos no Contas a Pagar</div>
+                  <p className="mt-0.5 text-slate-600">Geração automática de títulos para líquido da folha, GPS (INSS) e GRF (FGTS) na data de vencimento legal.</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <div className="font-bold text-slate-900">2. Compra de Benefícios → Fatura de Operadora</div>
+                  <p className="mt-0.5 text-slate-600">O lote de compra gera título a pagar para a operadora (Caju, Flash, Ticket) e grava os descontos no holerite.</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <div className="font-bold text-slate-900">3. Freelance & Taxas → Liquidação com Retenção</div>
+                  <p className="mt-0.5 text-slate-600">Aprovação na Central de Taxas envia título líquido com destaque de retenções fiscais/previdenciárias.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Abas Internas */}
-      <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold">
+      <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+            activeTab === 'dashboard'
+              ? 'border-blue-700 text-blue-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>Visão Geral & Pendências</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('employees')}
           className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${

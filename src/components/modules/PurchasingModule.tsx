@@ -30,14 +30,14 @@ import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
 
 export interface PurchasingModuleProps {
-  initialTab?: 'requisitions' | 'comparison' | 'orders' | 'suppliers';
+  initialTab?: 'dashboard' | 'requisitions' | 'comparison' | 'orders' | 'suppliers';
 }
 
-export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab = 'requisitions' }) => {
+export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab = 'dashboard' }) => {
   const { currentUser } = useAuth();
   const { refreshApprovals, addAuditLog } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'requisitions' | 'comparison' | 'orders' | 'suppliers'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'requisitions' | 'comparison' | 'orders' | 'suppliers'>(initialTab);
 
   useEffect(() => {
     if (initialTab) {
@@ -346,6 +346,15 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
       {/* Tabs de Navegação Interna */}
       <div className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
         <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
+            activeTab === 'dashboard' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Visão Geral & Pendências</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('requisitions')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
             activeTab === 'requisitions' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -388,6 +397,100 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
           <span>Fornecedores Homologados ({suppliers.length})</span>
         </button>
       </div>
+
+      {/* CENTRAL DE TRABALHO DE COMPRAS & SUPRIMENTOS */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-900">Central de Trabalho de Compras & Suprimentos</h2>
+                <p className="mt-1 text-xs text-slate-600">
+                  Acompanhe requisições abertas, alçadas de governança pendentes, mapas de cotação com 3 fornecedores e integração de notas fiscais com Contas a Pagar.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsNewReqOpen(true)}
+                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs"
+              >
+                + Nova Solicitação de Compra
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Solicitações Abertas', value: requisitions.length, sub: 'Necessidades de compras', tab: 'requisitions' as const, action: 'Ver SCs' },
+              { label: 'Ordens a Aprovar', value: pendingApprovalCount, sub: 'Alçadas Tier 1, 2 e 3', tab: 'orders' as const, action: 'Avaliar alçadas' },
+              { label: 'Mapa Comparativo', value: comparisonSummary ? `Saving: R$ ${comparisonSummary.savingAmount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Cotações ativas', sub: '3 fornecedores auditados', tab: 'comparison' as const, action: 'Ver mapa' },
+              { label: 'Fornecedores Homologados', value: suppliers.length, sub: '100% com certidões', tab: 'suppliers' as const, action: 'Base de parceiros' }
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => setActiveTab(item.tab)}
+                className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xs hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{item.label}</div>
+                <div className="mt-2 text-xl font-black text-slate-900">{item.value}</div>
+                <div className="mt-1 text-[11px] text-slate-500">{item.sub}</div>
+                <div className="mt-3 text-xs font-bold text-blue-700">{item.action} →</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900">Ordens de Compra que Exigem Atenção</h3>
+                <button onClick={() => setActiveTab('orders')} className="text-xs font-bold text-blue-700 hover:underline">Ver todas ({orders.length}) →</button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {orders.filter(o => o.status === 'PENDING_APPROVAL' || o.status === 'APPROVED').slice(0, 5).map(o => (
+                  <button
+                    key={o.id}
+                    onClick={() => setActiveTab('orders')}
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">{o.title || o.description}</div>
+                      <div className="text-[11px] text-slate-500">{o.supplier_name || o.supplierName || 'Fornecedor em homologação'} • {o.cost_center || o.costCenter}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-black text-slate-900">R$ {(o.total_amount || o.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        o.status === 'PENDING_APPROVAL' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {o.status === 'PENDING_APPROVAL' ? 'Alçada Pendente' : o.status}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+                {orders.length === 0 && (
+                  <p className="text-xs text-slate-500">Nenhuma ordem de compra pendente.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="text-sm font-black text-slate-900">Regras de Integração Compras → Financeiro & Contábil</h3>
+              <div className="mt-3 space-y-2.5 text-xs text-slate-700">
+                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <div className="font-bold text-slate-900">1. Alçada Aprovada → Compromisso Orçamentário</div>
+                  <p className="mt-0.5 text-slate-600">A aprovação do pedido de compra bloqueia a dotação orçamentária do centro de custo requisitante.</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <div className="font-bold text-slate-900">2. Recebimento Físico & Fiscal → Contas a Pagar</div>
+                  <p className="mt-0.5 text-slate-600">Ao registrar a entrega com o número da Nota Fiscal, o ERP gera automaticamente o título financeiro (origem: PO) para liquidação.</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                  <div className="font-bold text-slate-900">3. Classificação & Rateio → Reflexo Contábil</div>
+                  <p className="mt-0.5 text-slate-600">Lançamento automático de débito na conta contábil de despesa/ativo e crédito em fornecedores a pagar.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: SOLICITAÇÕES DE COMPRA (SC) */}
       {activeTab === 'requisitions' && (

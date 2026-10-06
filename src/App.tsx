@@ -90,6 +90,8 @@ const MainLayout: React.FC = () => {
 
       // GESTÃO - Contabilidade
       case 'accounting':
+        return { group: 'Gestão > Contabilidade', label: 'Visão Geral & Pendências' };
+      case 'accounting-coa':
         return { group: 'Gestão > Contabilidade', label: 'Plano de Contas' };
       case 'accounting-journal':
         return { group: 'Gestão > Contabilidade', label: 'Livro Diário' };
@@ -112,6 +114,8 @@ const MainLayout: React.FC = () => {
 
       // GESTÃO - Compras
       case 'purchasing':
+        return { group: 'Gestão > Compras', label: 'Visão Geral & Pendências' };
+      case 'purchasing-requisitions':
         return { group: 'Gestão > Compras', label: 'Requisições de Compra' };
       case 'purchasing-comparison':
         return { group: 'Gestão > Compras', label: 'Mapa Comparativo' };
@@ -128,9 +132,13 @@ const MainLayout: React.FC = () => {
 
       // GESTÃO - RH
       case 'hr':
+        return { group: 'Gestão > Recursos Humanos', label: 'Visão Geral & Pendências' };
+      case 'hr-employees':
         return { group: 'Gestão > Recursos Humanos', label: 'Colaboradores CLT' };
       case 'payroll':
         return { group: 'Gestão > Recursos Humanos', label: 'Folha & Ponto' };
+      case 'benefits':
+        return { group: 'Gestão > Recursos Humanos', label: 'Gestão de Benefícios' };
       case 'freelancers':
         return { group: 'Gestão > Recursos Humanos', label: 'Freelancers & Central de Taxas' };
 
@@ -211,7 +219,7 @@ const MainLayout: React.FC = () => {
 
       // Financeiro com sub-abas sincronizadas
       case 'finance':
-        return <FinanceModule initialTab="lancamentos" initialType="ALL" />;
+        return <FinanceModule initialTab="dashboard" initialType="ALL" />;
       case 'finance-payables':
         return <FinanceModule initialTab="lancamentos" initialType="PAGAR" />;
       case 'finance-receivables':
@@ -229,6 +237,8 @@ const MainLayout: React.FC = () => {
 
       // Contabilidade com sub-abas sincronizadas
       case 'accounting':
+        return <AccountingModule initialTab="dashboard" />;
+      case 'accounting-coa':
         return <AccountingModule initialTab="coa" />;
       case 'accounting-journal':
         return <AccountingModule initialTab="journal" />;
@@ -251,6 +261,8 @@ const MainLayout: React.FC = () => {
 
       // Compras com sub-abas sincronizadas
       case 'purchasing':
+        return <PurchasingModule initialTab="dashboard" />;
+      case 'purchasing-requisitions':
         return <PurchasingModule initialTab="requisitions" />;
       case 'purchasing-comparison':
         return <PurchasingModule initialTab="comparison" />;
@@ -267,6 +279,8 @@ const MainLayout: React.FC = () => {
 
       // RH & Freelance / Taxas
       case 'hr':
+        return <HRModule initialTab="dashboard" />;
+      case 'hr-employees':
         return <HRModule initialTab="employees" />;
       case 'payroll':
         return <HRModule initialTab="payroll" />;

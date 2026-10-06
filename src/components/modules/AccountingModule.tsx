@@ -29,13 +29,13 @@ import {
 } from '../../types/accounting';
 
 export interface AccountingModuleProps {
-  initialTab?: 'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing';
+  initialTab?: 'dashboard' | 'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing';
 }
 
-export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab = 'coa' }) => {
+export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab = 'dashboard' }) => {
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'coa' | 'journal' | 'trial-balance' | 'statements' | 'closing'>(initialTab);
   const [loading, setLoading] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -230,8 +230,62 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
         </div>
       )}
 
+      {activeTab === 'dashboard' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
+            <h2 className="text-base font-black text-slate-900">Central de Trabalho Contábil</h2>
+            <p className="mt-1 text-xs text-slate-600">Visualize lançamentos, competências e demonstrações que precisam de conferência antes do fechamento.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Contas contábeis', value: accounts.length, tab: 'coa' as const },
+              { label: 'Lançamentos da competência', value: entries.length, tab: 'journal' as const },
+              { label: 'Competências abertas', value: periods.filter(p => p.status !== 'FECHADO').length, tab: 'closing' as const },
+              { label: 'Demonstrações disponíveis', value: (dre ? 1 : 0) + (balanceSheet ? 1 : 0), tab: 'statements' as const }
+            ].map(item => (
+              <button key={item.label} onClick={() => setActiveTab(item.tab)} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xs hover:border-blue-300">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{item.label}</div>
+                <div className="mt-2 text-2xl font-black text-slate-900">{item.value}</div>
+                <div className="mt-3 text-xs font-bold text-blue-700">Abrir →</div>
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="text-sm font-black text-slate-900">Pendências para fechamento</h3>
+              <div className="mt-3 space-y-2">
+                {periods.filter(p => p.status !== 'FECHADO').slice(0, 5).map(p => (
+                  <button key={p.period} onClick={() => setActiveTab('closing')} className="flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left hover:bg-slate-50">
+                    <span className="text-xs font-bold text-slate-800">Competência {p.period}</span>
+                    <span className="text-[11px] font-bold text-amber-700">{p.status}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="text-sm font-black text-slate-900">Reflexos automáticos esperados</h3>
+              <div className="mt-3 space-y-2 text-xs text-slate-700">
+                <div className="rounded-lg bg-slate-50 p-3">Financeiro pago/conciliado → lançamento contábil rastreável</div>
+                <div className="rounded-lg bg-slate-50 p-3">Compras recebidas → classificação e obrigação financeira</div>
+                <div className="rounded-lg bg-slate-50 p-3">RH / folha → salários, encargos e centros de custo</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Abas Superiores */}
       <div className="flex space-x-2 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+            activeTab === 'dashboard'
+              ? 'border-blue-700 text-blue-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Visão Geral & Pendências</span>
+        </button>
         <button
           onClick={() => setActiveTab('coa')}
           className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${

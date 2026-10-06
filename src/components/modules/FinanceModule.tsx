@@ -13,7 +13,11 @@ import {
   ShieldCheck,
   AlertTriangle,
   RefreshCw,
-  Search
+  Search,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  Eye
 } from 'lucide-react';
 import { FINANCIAL_ENTRIES } from '../../data/mockData';
 import { FinancialEntry } from '../../types/modules';
@@ -26,18 +30,18 @@ import { api } from '../../services/api';
 import { FinanceEvidencePanel } from './FinanceEvidencePanel';
 
 export interface FinanceModuleProps {
-  initialTab?: 'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento';
+  initialTab?: 'dashboard' | 'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento';
   initialType?: 'ALL' | 'PAGAR' | 'RECEBER';
 }
 
 export const FinanceModule: React.FC<FinanceModuleProps> = ({
-  initialTab = 'lancamentos',
+  initialTab = 'dashboard',
   initialType = 'ALL'
 }) => {
   const { addAuditLog } = useWorkflow();
   const { currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'lancamentos' | 'bancos' | 'orcamento' | 'dre' | 'fechamento'>(initialTab);
   const [entries, setEntries] = useState<FinancialEntry[]>(FINANCIAL_ENTRIES);
   const [bankAccounts, setBankAccounts] = useState<any[]>([
     { id: 'bank-1', bank_name: 'Banco Bradesco S.A.', bank_code: '237', agency: '1204', account_number: '45890-1', current_balance: 1250000.0, transaction_count: 4, pending_reconcile_count: 1 },
@@ -73,6 +77,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
   const [isLiquidationOpen, setIsLiquidationOpen] = useState(false);
   const [selectedEntryForPay, setSelectedEntryForPay] = useState<any>(null);
+  const [selectedDetailEntry, setSelectedDetailEntry] = useState<any>(null);
   const [payBankId, setPayBankId] = useState<string>('bank-1');
   const [payMethod, setPayMethod] = useState<string>('PIX');
   const [payDate, setPayDate] = useState<string>(new Date().toISOString().substring(0, 10));
@@ -159,6 +164,13 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const totalReceberPendente = summaryStats?.totalReceberPendente || entries.filter(e => e.type === 'RECEBER' && e.status !== 'PAGO').reduce((a, b) => a + (b.amount || 0), 0);
   const totalBancos = summaryStats?.disponibilidadeBancaria || bankAccounts.reduce((a, b) => a + (b.current_balance || b.currentBalance || 0), 0);
   const ebitdaPercent = summaryStats?.ebitdaProjetadoPercent || (totalReceitas > 0 ? (((totalReceitas - totalDespesas) / totalReceitas) * 100).toFixed(1) : '24.8');
+
+  // Métricas Operacionais Acionáveis
+  const today = new Date().toISOString().substring(0, 10);
+  const overdueEntries = entries.filter(e => e.type === 'PAGAR' && e.status !== 'PAGO' && e.dueDate && e.dueDate < today);
+  const dueTodayEntries = entries.filter(e => e.type === 'PAGAR' && e.status !== 'PAGO' && e.dueDate === today);
+  const rhPendingEntries = entries.filter(e => e.type === 'PAGAR' && e.status !== 'PAGO' && ['RH', 'FOLHA_PAGAMENTO', 'BENEFICIOS', 'TAXA'].includes((e as any).originType || ''));
+  const poPendingEntries = entries.filter(e => e.type === 'PAGAR' && e.status !== 'PAGO' && ['PO', 'COMPRAS', 'COMPRAS_PEDIDO'].includes((e as any).originType || ''));
 
   const handleCreateEntry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,52 +351,210 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         </div>
       )}
 
-      {/* KPIs Financeiros Enterprise */}
+      {/* Centrais Operacionais Financeiras (Interativas) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Disponibilidade em Bancos"
-          value={`R$ ${totalBancos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          change={`${bankAccounts.length} Contas Ativas`}
-          changeType="positive"
-          subtitle="Bradesco & Itaú Conciliados"
-          icon={Landmark}
-          iconColor="text-blue-600"
-          iconBg="bg-blue-50"
-        />
-        <StatCard
-          title="Contas a Pagar Pendentes"
-          value={`R$ ${totalPagarPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          change="POs + Taxas + Impostos"
-          changeType="neutral"
-          subtitle="Obrigações integradas"
-          icon={ArrowDownRight}
-          iconColor="text-rose-600"
-          iconBg="bg-rose-50"
-        />
-        <StatCard
-          title="Contas a Receber"
-          value={`R$ ${totalReceberPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          change="Contratos + SaaS SEEK"
-          changeType="positive"
-          subtitle="Faturamento corporativo"
-          icon={ArrowUpRight}
-          iconColor="text-emerald-600"
-          iconBg="bg-emerald-50"
-        />
-        <StatCard
-          title="Consumo Orçamentário Global"
-          value={`${budgetSummary.globalConsumedPercent || '71.6'}%`}
-          change="Orçado × Comprometido × Realizado"
-          changeType="neutral"
-          subtitle="Matriz de Controladoria"
-          icon={Percent}
-          iconColor="text-purple-600"
-          iconBg="bg-purple-50"
-        />
+        {/* Card 1: Disponibilidade em Bancos */}
+        <div
+          onClick={() => setActiveTab('bancos')}
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 group-hover:text-blue-700 transition-colors">Disponibilidade em Bancos</span>
+            <span className="rounded-full bg-blue-100 p-2 text-blue-600">
+              <Landmark className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-xl font-black text-slate-900">
+            R$ {totalBancos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+            <span>{bankAccounts.length} Contas Conciliadas</span>
+            <span className="font-bold text-blue-600 group-hover:underline">Abrir Tesouraria →</span>
+          </div>
+        </div>
+
+        {/* Card 2: Obrigações Vencidas / Vencendo Hoje */}
+        <div
+          onClick={() => {
+            setActiveTab('lancamentos');
+            setFilterType('PAGAR');
+            setFilterStatus('PREVISTO');
+          }}
+          className={`rounded-xl border p-4 shadow-xs hover:shadow-xs transition-all cursor-pointer group ${
+            overdueEntries.length > 0 ? 'border-rose-200 bg-rose-50/30 hover:border-rose-400' : 'border-slate-200 bg-white hover:border-amber-400'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 group-hover:text-rose-700 transition-colors">Vencidos & Vencendo Hoje</span>
+            <span className={`rounded-full p-2 ${overdueEntries.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-xl font-black text-slate-900">
+            {overdueEntries.length} Vencidos
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px]">
+            <span className={overdueEntries.length > 0 ? 'text-rose-700 font-bold' : 'text-slate-500'}>
+              {dueTodayEntries.length} vencem hoje
+            </span>
+            <span className="font-bold text-rose-600 group-hover:underline">Filtrar Pendências →</span>
+          </div>
+        </div>
+
+        {/* Card 3: Folha & Benefícios (RH) a Pagar */}
+        <div
+          onClick={() => {
+            setActiveTab('lancamentos');
+            setFilterType('PAGAR');
+            setFilterOrigin('RH');
+          }}
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-purple-400 hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 group-hover:text-purple-700 transition-colors">Folha & Benefícios (RH)</span>
+            <span className="rounded-full bg-purple-100 p-2 text-purple-600">
+              <DollarSign className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-xl font-black text-slate-900">
+            R$ {rhPendingEntries.reduce((a, b) => a + (b.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+            <span>{rhPendingEntries.length} obrigações do RH</span>
+            <span className="font-bold text-purple-600 group-hover:underline">Ver Origem RH →</span>
+          </div>
+        </div>
+
+        {/* Card 4: Compras & Fornecedores a Pagar */}
+        <div
+          onClick={() => {
+            setActiveTab('lancamentos');
+            setFilterType('PAGAR');
+            setFilterOrigin('PO');
+          }}
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-emerald-400 hover:shadow-xs transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 group-hover:text-emerald-700 transition-colors">Compras & Suprimentos (PO)</span>
+            <span className="rounded-full bg-emerald-100 p-2 text-emerald-600">
+              <ArrowDownRight className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-2 text-xl font-black text-slate-900">
+            R$ {poPendingEntries.reduce((a, b) => a + (b.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+            <span>{poPendingEntries.length} títulos de compras</span>
+            <span className="font-bold text-emerald-600 group-hover:underline">Ver Origem Compras →</span>
+          </div>
+        </div>
       </div>
+
+      {/* CENTRAL OPERACIONAL FINANCEIRA */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-base font-black text-slate-900">Central de Trabalho Financeira</h2>
+                <p className="mt-1 text-xs text-slate-600">Priorize vencimentos, aprovações, pagamentos e conciliações. Os indicadores abaixo usam os registros transacionais do Finance Core.</p>
+              </div>
+              <button onClick={() => setActiveTab('lancamentos')} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition-colors cursor-pointer">
+                Abrir Contas a Pagar & Receber
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'A pagar pendente', value: `R$ ${totalPagarPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, action: 'Ver obrigações', tab: 'lancamentos' as const, type: 'PAGAR' },
+              { label: 'A receber pendente', value: `R$ ${totalReceberPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, action: 'Ver recebíveis', tab: 'lancamentos' as const, type: 'RECEBER' },
+              { label: 'Disponibilidade bancária', value: `R$ ${totalBancos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, action: 'Abrir tesouraria', tab: 'bancos' as const, type: null },
+              { label: 'Conciliações pendentes', value: String(bankAccounts.reduce((a, b) => a + (b.pending_reconcile_count || 0), 0)), action: 'Revisar bancos', tab: 'bancos' as const, type: null }
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => {
+                  if (item.type) setFilterType(item.type);
+                  setActiveTab(item.tab);
+                }}
+                className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer"
+              >
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{item.label}</div>
+                <div className="mt-2 text-xl font-black text-slate-900">{item.value}</div>
+                <div className="mt-3 text-xs font-bold text-emerald-700">{item.action} →</div>
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900">Obrigações que exigem atenção</h3>
+                <button
+                  onClick={() => {
+                    setFilterType('PAGAR');
+                    setActiveTab('lancamentos');
+                  }}
+                  className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                >
+                  Ver todas a pagar →
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {entries.filter(e => e.type === 'PAGAR' && e.status !== 'PAGO').slice(0, 5).map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => {
+                      setFilterType('PAGAR');
+                      setActiveTab('lancamentos');
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-100 p-3 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">{e.title}</div>
+                      <div className="text-[11px] text-slate-500">{e.entityName} • vence {e.dueDate}</div>
+                    </div>
+                    <div className="text-xs font-black text-rose-700">R$ {(e.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                  </button>
+                ))}
+                {entries.filter(e => e.type === 'PAGAR' && e.status !== 'PAGO').length === 0 && (
+                  <p className="text-xs text-slate-500">Nenhuma obrigação pendente carregada.</p>
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 className="text-sm font-black text-slate-900">Fluxos integrados ao Financeiro</h3>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {[
+                  { label: 'RH • Folha & Encargos', desc: 'Líquidos CLT, GPS, GRF', action: () => { setFilterType('PAGAR'); setFilterOrigin('RH'); setActiveTab('lancamentos'); } },
+                  { label: 'Compras • Ordens & NFs', desc: 'Contratos e Suprimentos PO', action: () => { setFilterType('PAGAR'); setFilterOrigin('PO'); setActiveTab('lancamentos'); } },
+                  { label: 'Fiscal • Guias e Tributos', desc: 'Retenções e NFS-e apuradas', action: () => { setFilterType('PAGAR'); setFilterOrigin('FISCAL'); setActiveTab('lancamentos'); } },
+                  { label: 'Contratos • Recorrentes', desc: 'Recebimentos e SaaS SEEK', action: () => { setFilterType('RECEBER'); setActiveTab('lancamentos'); } }
+                ].map(x => (
+                  <div
+                    key={x.label}
+                    onClick={x.action}
+                    className="rounded-lg bg-slate-50 p-3 text-xs border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer"
+                  >
+                    <div className="font-bold text-slate-800">{x.label}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">{x.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Abas do Módulo Financeiro Enterprise */}
       <div className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer ${
+            activeTab === 'dashboard' ? 'border-emerald-700 text-emerald-700 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Visão Geral & Pendências
+        </button>
         <button
           onClick={() => setActiveTab('lancamentos')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
@@ -475,12 +645,15 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 onChange={e => setFilterOrigin(e.target.value)}
                 className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden"
               >
-                <option value="ALL">Origem: Todas</option>
-                <option value="PO">Compras (PO)</option>
-                <option value="TAXA">Taxas Freelancers (RH)</option>
-                <option value="FISCAL">Fiscal / Tributos</option>
-                <option value="CONTRATO">Contratos</option>
-                <option value="AVULSO">Avulso / Manual</option>
+                <option value="ALL">Todas as Origens</option>
+                <option value="RH">Recursos Humanos (Folha / Benefícios / Taxas)</option>
+                <option value="PO">Compras (Pedidos / Fornecedores)</option>
+                <option value="FOLHA_PAGAMENTO">RH / Folha de Pagamento (CLT)</option>
+                <option value="BENEFICIOS">RH / Benefícios Corporativos (VT/VR/Caju)</option>
+                <option value="TAXA">RH / Taxas Freelancers</option>
+                <option value="FISCAL">Fiscal / Tributos & DARF</option>
+                <option value="CONTRATO">Contratos Recorrentes</option>
+                <option value="AVULSO">Administrativo / Manual</option>
               </select>
 
               <select
@@ -517,11 +690,15 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   const isExpense = entry.type === 'PAGAR';
                   const isPaid = entry.status === 'PAGO';
 
-                  const originBadge = (entry as any).originType === 'PO' ? { text: 'Compras (PO)', bg: 'bg-blue-50 text-blue-700 border-blue-200' }
-                    : (entry as any).originType === 'TAXA' ? { text: 'Taxa RH', bg: 'bg-purple-50 text-purple-700 border-purple-200' }
-                    : (entry as any).originType === 'FISCAL' ? { text: 'Fiscal', bg: 'bg-amber-50 text-amber-700 border-amber-200' }
-                    : (entry as any).originType === 'CONTRATO' ? { text: 'Contrato', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
-                    : { text: 'Avulso', bg: 'bg-slate-50 text-slate-600 border-slate-200' };
+                  const origin = (entry as any).originType || 'AVULSO';
+                  const originBadge = 
+                    origin === 'PO' || origin === 'COMPRAS' || origin === 'COMPRAS_PEDIDO' ? { text: 'Compras (PO)', bg: 'bg-blue-50 text-blue-700 border-blue-200' }
+                    : origin === 'FOLHA_PAGAMENTO' ? { text: 'Folha RH (CLT)', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' }
+                    : origin === 'BENEFICIOS' ? { text: 'Benefícios RH', bg: 'bg-purple-50 text-purple-700 border-purple-200' }
+                    : origin === 'TAXA' ? { text: 'Taxa RH', bg: 'bg-amber-50 text-amber-700 border-amber-200' }
+                    : origin === 'FISCAL' ? { text: 'Fiscal / Tributos', bg: 'bg-rose-50 text-rose-700 border-rose-200' }
+                    : origin === 'CONTRATO' ? { text: 'Contrato', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+                    : { text: 'Manual / Avulso', bg: 'bg-slate-50 text-slate-600 border-slate-200' };
 
                   return (
                     <tr key={entry.id} className="hover:bg-slate-50/80 transition-colors">
@@ -542,18 +719,28 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                         <StatusBadge status={entry.status} />
                       </td>
                       <td className="py-2.5 px-3 text-right">
-                        {!isPaid ? (
+                        <div className="flex items-center justify-end space-x-1">
                           <button
-                            onClick={() => handleOpenLiquidation(entry)}
-                            className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-2xs"
+                            onClick={() => setSelectedDetailEntry(entry)}
+                            title="Ver Dossiê e Rastreabilidade"
+                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                           >
-                            Dar Baixa
+                            <Eye className="h-3.5 w-3.5 inline mr-1" />
+                            <span>Dossiê</span>
                           </button>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400">
-                            Liquidado {entry.paymentDate ? `(${entry.paymentDate})` : ''}
-                          </span>
-                        )}
+                          {!isPaid ? (
+                            <button
+                              onClick={() => handleOpenLiquidation(entry)}
+                              className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Dar Baixa
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 pl-1">
+                              Liquidado {entry.paymentDate ? `(${entry.paymentDate})` : ''}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1226,6 +1413,158 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL: DOSSIÊ OPERACIONAL & RASTREABILIDADE DE ORIGEM DO TÍTULO */}
+      <Modal
+        isOpen={Boolean(selectedDetailEntry)}
+        onClose={() => setSelectedDetailEntry(null)}
+        title={`Dossiê Operacional do Título: ${selectedDetailEntry?.code || ''}`}
+        subtitle="Rastreabilidade transacional: Origem → Alçada → Financeiro → Banco → OFX → Contabilidade"
+      >
+        {selectedDetailEntry && (
+          <div className="space-y-4 text-xs">
+            {/* Header com valores e status */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">Favorecido / Credor</span>
+                <span className="text-sm font-black text-slate-900">{selectedDetailEntry.entityName}</span>
+                <p className="text-[11px] text-slate-600 mt-0.5">{selectedDetailEntry.title}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">Valor do Título</span>
+                <span className={`text-base font-black ${selectedDetailEntry.type === 'PAGAR' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {selectedDetailEntry.type === 'PAGAR' ? '-' : '+'} R$ {Number(selectedDetailEntry.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+                <div className="mt-1 flex justify-end">
+                  <StatusBadge status={selectedDetailEntry.status} />
+                </div>
+              </div>
+            </div>
+
+            {/* Grid de Metadados e Origem Operacional */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Módulo de Origem</span>
+                <span className="font-bold text-slate-800">
+                  {selectedDetailEntry.originType === 'PO' || selectedDetailEntry.originType === 'COMPRAS' ? 'Compras & Suprimentos'
+                   : selectedDetailEntry.originType === 'FOLHA_PAGAMENTO' ? 'Recursos Humanos (Folha)'
+                   : selectedDetailEntry.originType === 'BENEFICIOS' ? 'Recursos Humanos (Benefícios)'
+                   : selectedDetailEntry.originType === 'TAXA' ? 'Recursos Humanos (Taxas)'
+                   : selectedDetailEntry.originType === 'FISCAL' ? 'Fiscal & Tributário'
+                   : selectedDetailEntry.originType === 'CONTRATO' ? 'Contratos Corporativos'
+                   : 'Administrativo / Manual'}
+                </span>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Documento / Ref</span>
+                <span className="font-mono font-bold text-slate-800">{selectedDetailEntry.originId || selectedDetailEntry.code}</span>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Centro de Custo</span>
+                <span className="font-semibold text-slate-800">{selectedDetailEntry.costCenter}</span>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Categoria Financeira</span>
+                <span className="font-semibold text-slate-800">{selectedDetailEntry.category}</span>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Data de Vencimento</span>
+                <span className="font-mono font-bold text-slate-800">{selectedDetailEntry.dueDate}</span>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Forma de Pagamento</span>
+                <span className="font-semibold text-slate-800">{selectedDetailEntry.paymentMethod}</span>
+              </div>
+            </div>
+
+            {/* Ciclo Transacional E2E */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3.5 space-y-2.5">
+              <div className="flex items-center space-x-1.5 font-bold text-blue-950 text-xs">
+                <Sparkles className="h-4 w-4 text-blue-600" />
+                <span>Ciclo Transacional do ERP (Esteira E2E)</span>
+              </div>
+
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200">
+                  <span className="text-slate-700">1. Origem Operacional ({selectedDetailEntry.originType || 'MANUAL'})</span>
+                  <span className="text-emerald-700 font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>Confirmada no Módulo Emissor</span>
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200">
+                  <span className="text-slate-700">2. Obrigação Financeira (Contas a Pagar)</span>
+                  <span className="text-emerald-700 font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>Título Registrado ({selectedDetailEntry.code})</span>
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200">
+                  <span className="text-slate-700">3. Pagamento & Liquidação Bancária</span>
+                  {selectedDetailEntry.status === 'PAGO' ? (
+                    <span className="text-emerald-700 font-bold flex items-center space-x-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Liquidado em {selectedDetailEntry.paymentDate || 'Banco'}</span>
+                    </span>
+                  ) : (
+                    <span className="text-amber-700 font-bold flex items-center space-x-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>Aguardando Programação / Liquidação</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200">
+                  <span className="text-slate-700">4. Reflexo no Livro Diário (Contabilidade)</span>
+                  {selectedDetailEntry.status === 'PAGO' ? (
+                    <span className="text-emerald-700 font-bold flex items-center space-x-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Partidas Dobradas Lançadas</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 font-medium">Provisão Automática na Competência</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Ações do Rodapé */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setSelectedDetailEntry(null)}
+                className="rounded-lg border border-slate-300 px-3.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Fechar
+              </button>
+
+              <div className="flex items-center space-x-2">
+                {selectedDetailEntry.status !== 'PAGO' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const entryToPay = selectedDetailEntry;
+                      setSelectedDetailEntry(null);
+                      handleOpenLiquidation(entryToPay);
+                    }}
+                    className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 font-bold text-white hover:bg-emerald-700 transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Dar Baixa no Título</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
