@@ -1,12 +1,8 @@
 # SEEK — Gestão Corporativa Integrada (Enterprise ERP & CRM)
 
-<div align="center">
-  <p><strong>Plataforma Corporativa Integrada de Gestão Multiempresa, Multifilial e Governança</strong></p>
-  <p>
-    🌐 <strong>Acesso Oficial em Produção:</strong><br />
-    <a href="https://seek-xi.vercel.app" target="_blank"><strong>https://seek-xi.vercel.app</strong></a>
-  </p>
-</div>
+**Plataforma Corporativa Integrada de Gestão Multiempresa, Multifilial e Governança**
+
+🌐 **Acesso Oficial em Produção:** [https://seek-xi.vercel.app](https://seek-xi.vercel.app)
 
 ---
 
@@ -17,7 +13,7 @@
 
 ## 🏛️ A Cadeia Evolutiva do SEEK
 
-```
+```text
 SEEK Core → RH/DP → Freelance/Taxas → Financeiro → Controladoria → Compras → Patrimônio → Estoque → Contratos → Jurídico → Projetos → Service Desk → Governança → BI
 ```
 
@@ -58,18 +54,23 @@ SEEK Core → RH/DP → Freelance/Taxas → Financeiro → Controladoria → Com
     - Matriz granular RBAC/ABAC por perfil e módulo, políticas corporativas com controle de versão, catálogo de integrações (SEFAZ, Open Banking, Vercel) e barramento de webhooks assíncronos.
 
 ### 🔮 Roadmap das Próximas Fases
-* **Pacote 12:** Gestão Documental Avançada & Assinaturas Digitais
-* **Pacote 13:** Automação Corporativa & Workflows Enterprise
-* **Pacote 14:** Central Executiva & BI Avançado
-* **Pacote 15:** SEEK IA — Assistente Corporativo com RAG Interno e Permissões Seguras
+
+- **Pacote 12:** Gestão Documental Avançada & Assinaturas Digitais
+- **Pacote 13:** Automação Corporativa & Workflows Enterprise
+- **Pacote 14:** Central Executiva & BI Avançado
+- **Pacote 15:** SEEK IA — Assistente Corporativo com RAG Interno e Permissões Seguras
+
+---
 
 ## 🚀 Como Executar o Projeto Localmente
 
 ### Pré-requisitos
-* Node.js v18+ instalado
-* NPM ou Yarn
+
+- Node.js v18+ instalado
+- NPM ou Yarn
 
 ### 1. Instalação das Dependências
+
 ```bash
 # Na raiz (Frontend Vite + React 19)
 npm install
@@ -79,6 +80,7 @@ npm --prefix server install
 ```
 
 ### 2. Execução em Modo Desenvolvimento
+
 ```bash
 # Executa o frontend Vite (Porta 5173)
 npm run dev
@@ -88,6 +90,7 @@ npm run server:dev
 ```
 
 ### 3. Build de Produção
+
 ```bash
 # Build do Frontend (Vite)
 npm run build
@@ -114,6 +117,7 @@ Todas as senhas padrão são: **`Seek@2026`**
 ---
 
 ## 🌐 Deploy em Produção (Vercel)
-* **Link Oficial:** [https://seek-xi.vercel.app](https://seek-xi.vercel.app)
-* Roteamento SPA configurado via `vercel.json` com fallback para `index.html`.
-* Suporte a variável de ambiente `VITE_API_URL` para orquestração da API Backend.
+
+- **Link Oficial:** [https://seek-xi.vercel.app](https://seek-xi.vercel.app)
+- Roteamento SPA configurado via `vercel.json` com fallback para `index.html`.
+- Suporte a variável de ambiente `VITE_API_URL` para orquestração da API Backend.

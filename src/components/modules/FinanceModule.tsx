@@ -3,14 +3,9 @@ import {
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
-  Filter,
   Plus,
   PieChart,
-  FileSpreadsheet,
-  CheckCircle2,
-  Calendar,
   Landmark,
-  Building,
   CheckCircle,
   TrendingUp,
   Percent,
@@ -18,8 +13,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   RefreshCw,
-  Search,
-  Check
+  Search
 } from 'lucide-react';
 import { FINANCIAL_ENTRIES } from '../../data/mockData';
 import { FinancialEntry } from '../../types/modules';
