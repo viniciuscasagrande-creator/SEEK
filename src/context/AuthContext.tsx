@@ -143,19 +143,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     }
 
-    // 2. Fallback controlado para ambiente local / demonstração (VITE_DEMO_MODE=true ou DEV)
-    const isDemoMode = (import.meta as any).env?.VITE_DEMO_MODE === 'true';
-    const isDev = (import.meta as any).env?.DEV;
-    if (isDemoMode || isDev) {
-      const foundProfile = DEMO_PROFILES.find(p => p.email.toLowerCase() === email.toLowerCase());
-      if (foundProfile && password === 'Seek@2026') {
+    // 2. Se a API retornou erro explícito de credencial do backend (ex: 400 ou 401 do Express)
+    if (res && !res.isNetworkOr405 && res.error) {
+      return { success: false, error: res.error };
+    }
+
+    // 3. Fallback resiliente para deploy estático (Vercel) e modo demonstração:
+    // Permite autenticação dos 13 perfis oficiais com a credencial homologada 'Seek@2026'
+    const foundProfile = DEMO_PROFILES.find(p => p.email.toLowerCase() === email.toLowerCase());
+    if (foundProfile) {
+      if (password === 'Seek@2026') {
+        const demoToken = `seek_demo_${foundProfile.id}_${Date.now()}`;
         if (typeof window !== 'undefined') {
-          localStorage.setItem('seek_token', `demo_session_${foundProfile.id}_${Date.now()}`);
+          localStorage.setItem('seek_token', demoToken);
           localStorage.setItem('seek_user', JSON.stringify(foundProfile));
         }
         setCurrentUser(foundProfile);
         setIsAuthenticated(true);
         return { success: true };
+      } else {
+        return { success: false, error: 'Credenciais inválidas: senha corporativa incorreta.' };
       }
     }
 

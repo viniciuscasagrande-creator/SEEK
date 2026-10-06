@@ -38,24 +38,38 @@ export const api = {
   },
 
   // Auth & Perfis
-  async login(email: string, password?: string): Promise<{ success: boolean; user?: any; token?: string; error?: string }> {
+  async login(email: string, password?: string): Promise<{ success: boolean; user?: any; token?: string; error?: string; isNetworkOr405?: boolean }> {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
-      if (res.ok && data.token) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('seek_token', data.token);
-          localStorage.setItem('seek_user', JSON.stringify(data.user));
-        }
-        return { success: true, user: data.user, token: data.token };
+
+      // Se a rota retornou 405/404 (ambiente estático como Vercel sem backend remoto acoplado)
+      if (res.status === 405 || res.status === 404) {
+        return { success: false, isNetworkOr405: true, error: 'Servidor remoto não acoplado.' };
       }
-      return { success: false, error: data.error || 'Credenciais inválidas.' };
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('seek_token', data.token);
+            localStorage.setItem('seek_user', JSON.stringify(data.user));
+          }
+          return { success: true, user: data.user, token: data.token };
+        }
+      }
+
+      if (res.status === 400 || res.status === 401) {
+        const data = await res.json().catch(() => ({}));
+        return { success: false, error: data.error || 'Credenciais corporativas inválidas.' };
+      }
+
+      return { success: false, isNetworkOr405: true, error: 'Servidor corporativo indisponível ou falha de rede.' };
     } catch {
-      return { success: false, error: 'Servidor corporativo indisponível ou falha de rede.' };
+      return { success: false, isNetworkOr405: true, error: 'Servidor corporativo indisponível ou falha de rede.' };
     }
   },
 
@@ -63,6 +77,13 @@ export const api = {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('seek_token') : null;
       if (!token) return null;
+
+      // Se for token local de homologação
+      if (token.startsWith('seek_demo_') || token.startsWith('demo_')) {
+        const cached = localStorage.getItem('seek_user');
+        return cached ? JSON.parse(cached) : null;
+      }
+
       const res = await authFetch(`${API_BASE_URL}/auth/me`);
       if (res.ok) {
         const data = await res.json();
@@ -70,7 +91,8 @@ export const api = {
       }
       return null;
     } catch {
-      return null;
+      const cached = localStorage.getItem('seek_user');
+      return cached ? JSON.parse(cached) : null;
     }
   },
 
