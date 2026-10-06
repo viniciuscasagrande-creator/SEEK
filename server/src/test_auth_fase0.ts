@@ -5,10 +5,11 @@ import crypto from 'crypto';
 import { db, logAudit } from './db.js';
 import { JWT_SECRET, authenticateToken, requireRole, requireModule, AuthenticatedRequest } from './middleware/auth.js';
 import { validatePasswordPolicy, generateTotp, verifyTotp } from './routes/auth.routes.js';
+import { maskDocumentNumber, maskBankAccount, maskSalary, checkSeparationOfDuties, isPrivilegedRole } from './utils/security.js';
 
 async function runTests() {
   console.log('================================================================');
-  console.log('INICIANDO BATERIA DE TESTES DE SEGURANÇA: FASE 0 (0.1, 0.2, 0.3)');
+  console.log('INICIANDO BATERIA DE TESTES DE SEGURANÇA: FASE 0 (0.1, 0.2, 0.3, 0.4)');
   console.log('================================================================\n');
 
   let passed = 0;
@@ -60,7 +61,7 @@ async function runTests() {
     assert(false, 'Falha ao verificar JWT válido');
   }
 
-  // 3. Teste de Rejeição de Token com Assinatura Falsa
+  // 3. Teste de Rejeição de Token com Assinatura Falsa (Autorização Negativa)
   let forgedRejected = false;
   try {
     jwt.verify(validToken, 'chave-falsa-ataque-hacker');
@@ -99,7 +100,7 @@ async function runTests() {
   assert(dirCanApprove, 'DIRETORIA com alçada R$ 150.000,00 autorizada a aprovar R$ 50.000,00');
 
   // 6. Teste de Auditoria Imutável com Correlation ID
-  const testCorrelationId = 'test-corr-999';
+  const testCorrelationId = 'test-corr-' + Date.now();
   const initialAuditCount = (db.prepare('SELECT COUNT(*) as count FROM audit_logs').get() as any).count;
   logAudit(
     'Administrador Geral',
@@ -154,7 +155,6 @@ async function runTests() {
     VALUES (?, ?, ?, '127.0.0.1', 'Jest Test Runner', 0, ?)
   `).run(activeSessionId, testUserId, refreshTokenHash, expiresAtFuture);
 
-  // Simulação do middleware authenticateToken
   const sessionBefore = db.prepare('SELECT is_revoked FROM user_sessions WHERE id = ?').get(activeSessionId) as any;
   assert(sessionBefore && sessionBefore.is_revoked === 0, 'Sessão corporativa criada como ativa (is_revoked = 0)');
 
@@ -202,6 +202,91 @@ async function runTests() {
 
   const isInvalidTotpRejected = verifyTotp(testMfaSecret, '000000');
   assert(isInvalidTotpRejected === false, 'Código TOTP inválido rejeitado');
+
+  // ================================================================
+  // FASE 0.4: SEGREGAÇÃO DE FUNÇÕES (SoD), LGPD & AUTORIZAÇÃO NEGATIVA
+  // ================================================================
+
+  // 13. Teste de Segregação de Funções (SoD) — Bloqueio de Autoaprovação
+  const requesterColab = {
+    id: 'user-comprador-1',
+    email: 'comprador@seek.local',
+    fullName: 'Carlos Eduardo Nogueira',
+    roleLevel: 'COMPRAS',
+    roleTitle: 'Analista de Compras',
+    department: 'Compras',
+    companyId: 'comp-1',
+    approvalLimitAmount: 20000,
+    accessibleModules: ['purchasing']
+  };
+
+  const approverGestor = {
+    id: 'user-gestor-1',
+    email: 'gestor@seek.local',
+    fullName: 'Mariana Penteado',
+    roleLevel: 'GESTOR',
+    roleTitle: 'Gerente Departamental',
+    department: 'Operações',
+    companyId: 'comp-1',
+    approvalLimitAmount: 50000,
+    accessibleModules: ['purchasing', 'workflow']
+  };
+
+  // O próprio Carlos Eduardo tenta aprovar sua própria compra -> Violação
+  const sodSelfAttempt = checkSeparationOfDuties('Carlos Eduardo Nogueira', requesterColab);
+  assert(sodSelfAttempt.isViolated === true, 'SoD: Autoaprovação pelo solicitante Carlos Eduardo Nogueira bloqueada');
+
+  // Autoaprovação via e-mail corporativo
+  const sodEmailAttempt = checkSeparationOfDuties('comprador@seek.local', requesterColab);
+  assert(sodEmailAttempt.isViolated === true, 'SoD: Autoaprovação via e-mail corporativo bloqueada');
+
+  // Aprovação por um gestor independente (Mariana Penteado) -> Válida
+  const sodIndependentApproval = checkSeparationOfDuties('Carlos Eduardo Nogueira', approverGestor);
+  assert(sodIndependentApproval.isViolated === false, 'SoD: Aprovação independente por terceiro autorizada');
+
+  // 14. Teste de Proteção de Dados Sensíveis e Mascaramento (LGPD)
+  const rawCpf = '123.456.789-00';
+  const maskedCpf = maskDocumentNumber(rawCpf);
+  assert(maskedCpf === '***.456.***-00', 'LGPD: CPF mascarado no formato ***.456.***-00');
+
+  const rawCnpj = '08.123.456/0001-90';
+  const maskedCnpj = maskDocumentNumber(rawCnpj);
+  assert(maskedCnpj === '08.***.***/0001-**', 'LGPD: CNPJ mascarado preservando apenas raiz e filial');
+
+  const rawAccount = '123456-7';
+  const maskedAccount = maskBankAccount(rawAccount);
+  assert(maskedAccount === '****6-7', 'LGPD: Conta bancária mascarada preservando apenas dígitos finais');
+
+  const salaryDisplay = maskSalary(15000);
+  assert(salaryDisplay === 'R$ •••••,••', 'LGPD: Salário mascarado para perfis não autorizados');
+
+  // 15. Teste de Verificação de Perfil Privilegiado para Dados Sensíveis
+  const isColabPrivileged = isPrivilegedRole('COLABORADOR', ['ADMIN_GERAL', 'DIRETORIA', 'RH']);
+  assert(isColabPrivileged === false, 'Perfil COLABORADOR sem privilégio para visualização de salários');
+
+  const isRhPrivileged = isPrivilegedRole('RH', ['ADMIN_GERAL', 'DIRETORIA', 'RH']);
+  assert(isRhPrivileged === true, 'Perfil RH possui privilégio autorizado para visualização de folha salarial');
+
+  // 16. Teste de Autorização Negativa de Rotas de Auditoria
+  const mockReqNonAdmin = {
+    user: nonAdminPayload
+  } as any;
+
+  let auditAccessDenied: boolean = false;
+  const mockRes = {
+    status: (code: number) => ({
+      json: () => {
+        if (code === 403) auditAccessDenied = true;
+      }
+    })
+  } as any;
+
+  const auditMiddleware = requireRole(['ADMIN_GERAL', 'AUDITORIA', 'DIRETORIA']);
+  auditMiddleware(mockReqNonAdmin, mockRes, () => {
+    auditAccessDenied = false;
+  });
+
+  assert(Boolean(auditAccessDenied), 'Autorização Negativa: Perfil COLABORADOR impedido com HTTP 403 de acessar trilha de auditoria');
 
   console.log('\n================================================================');
   console.log(`RESULTADO FINAL: ${passed} APROVADOS / ${failed} FALHAS`);

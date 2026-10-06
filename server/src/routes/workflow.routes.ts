@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { checkSeparationOfDuties } from '../utils/security.js';
 
 export const workflowRouter = Router();
 
@@ -74,6 +75,26 @@ workflowRouter.post('/approvals/:id/decide', (req: Request, res: Response) => {
     const item = db.prepare('SELECT * FROM approvals WHERE id = ?').get(id) as any;
     if (!item) {
       return res.status(404).json({ error: 'Solicitação de aprovação não encontrada.' });
+    }
+
+    // SoD — Segregação de Funções: O solicitante não pode aprovar a própria solicitação
+    if (decision === 'approve' && currentUser) {
+      const sodCheck = checkSeparationOfDuties(item.requester_name, currentUser);
+      if (sodCheck.isViolated) {
+        logAudit(
+          currentUser.fullName,
+          currentUser.roleTitle,
+          'VIOLACAO_SOD',
+          'Workflow & Aprovações',
+          `Solicitação ${item.title}`,
+          `Tentativa de autoaprovação bloqueada pela política de Segregação de Funções (SoD)`,
+          req.ip || '127.0.0.1',
+          authReq.correlationId
+        );
+        return res.status(403).json({
+          error: `Violação de Segregação de Funções (SoD): o colaborador ${currentUser.fullName} não pode aprovar sua própria solicitação. É requerida a deliberação de um aprovador independente.`
+        });
+      }
     }
 
     // ABAC — Verificação Criptográfica de Alçada no Backend

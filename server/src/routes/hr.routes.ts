@@ -1,11 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { isPrivilegedRole, maskSalary } from '../utils/security.js';
 
 export const hrRouter = Router();
 
-// Lista colaboradores
-hrRouter.get('/employees', (_req: Request, res: Response) => {
+// Lista colaboradores com mascaramento de dados sensíveis (LGPD)
+hrRouter.get('/employees', (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const canViewSalary = Boolean(authReq.user && isPrivilegedRole(authReq.user.roleLevel, ['ADMIN_GERAL', 'DIRETORIA', 'RH']));
+
     const rows = db.prepare('SELECT * FROM employees WHERE active = 1 ORDER BY full_name ASC').all() as any[];
     const employees = rows.map(r => ({
       id: r.id,
@@ -17,7 +22,9 @@ hrRouter.get('/employees', (_req: Request, res: Response) => {
       branch: r.branch,
       regime: r.regime,
       admissionDate: r.admission_date,
-      salary: r.salary,
+      salary: canViewSalary ? r.salary : 0,
+      salaryDisplay: canViewSalary ? `R$ ${Number(r.salary).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : maskSalary(r.salary),
+      salaryMasked: !canViewSalary,
       vacationBalanceDays: r.vacation_balance_days,
       bankHoursBalance: r.bank_hours_balance,
       managerName: r.manager_name,

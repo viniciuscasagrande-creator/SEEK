@@ -670,6 +670,51 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
             </div>
           </div>
 
+          {/* Governança, SoD e Proteção de Dados (Fase 0.4) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-2">
+              <div className="flex items-center space-x-2 text-slate-900 font-bold text-xs">
+                <ShieldAlert className="h-4 w-4 text-emerald-600" />
+                <span>Segregação de Funções (SoD)</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Bloqueio estrito de autoaprovação: colaboradores e compradores são impedidos pelo backend de aprovar suas próprias ordens e requisições.
+              </p>
+              <div className="flex items-center space-x-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>Ativo no Core & Workflows</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-2">
+              <div className="flex items-center space-x-2 text-slate-900 font-bold text-xs">
+                <Lock className="h-4 w-4 text-blue-600" />
+                <span>Proteção LGPD & Mascaramento</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Dados pessoais sensíveis (salários, contas bancárias, CPFs e CNPJs) são mascarados automaticamente para perfis operacionais sem privilégio.
+              </p>
+              <div className="flex items-center space-x-1.5 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-fit">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>Minimização de Dados Ativa</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-2">
+              <div className="flex items-center space-x-2 text-slate-900 font-bold text-xs">
+                <ShieldCheck className="h-4 w-4 text-purple-600" />
+                <span>Rastreabilidade & Auditoria Universal</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Correlation ID único propagado em cada chamada HTTP, associando sessão corporativa, IP de origem e transação na trilha imutável.
+              </p>
+              <div className="flex items-center space-x-1.5 text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 w-fit">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>x-correlation-id 100% Ativo</span>
+              </div>
+            </div>
+          </div>
+
           {/* Diretrizes Oficiais de Segurança Corporativa */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-3">

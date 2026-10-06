@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db.js';
-import { requireRole } from '../middleware/auth.js';
+import { AuthenticatedRequest, requireRole } from '../middleware/auth.js';
 
 export const coreRouter = Router();
 
@@ -50,6 +50,44 @@ coreRouter.get('/parameters', (_req: Request, res: Response) => {
   try {
     const parameters = db.prepare('SELECT * FROM corporate_parameters').all();
     return res.json({ parameters });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Parceiros de Negócios (Clientes e Fornecedores) com Mascaramento LGPD
+coreRouter.get('/partners', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const canViewFullDoc = Boolean(authReq.user && ['ADMIN_GERAL', 'DIRETORIA', 'FINANCEIRO', 'COMPRAS', 'COMERCIAL'].includes(authReq.user.roleLevel));
+    const rows = db.prepare('SELECT * FROM business_partners WHERE active = 1 ORDER BY trade_name ASC').all() as any[];
+    const partners = rows.map(r => {
+      const clean = (r.document_number || '').replace(/\D/g, '');
+      const maskedDoc = clean.length === 14 
+        ? `${clean.substring(0, 2)}.***.***/${clean.substring(8, 12)}-**`
+        : clean.length === 11 
+          ? `***.${clean.substring(3, 6)}.***-${clean.substring(9, 11)}`
+          : '****';
+
+      return {
+        id: r.id,
+        companyId: r.company_id,
+        type: r.type,
+        legalName: r.legal_name,
+        tradeName: r.trade_name,
+        documentNumber: canViewFullDoc ? r.document_number : maskedDoc,
+        documentNumberMasked: !canViewFullDoc,
+        category: r.category,
+        contactName: r.contact_name,
+        email: r.email,
+        city: r.city,
+        state: r.state,
+        rating: r.rating,
+        slaPercent: r.sla_percent,
+        active: Boolean(r.active)
+      };
+    });
+    return res.json({ total: partners.length, partners });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

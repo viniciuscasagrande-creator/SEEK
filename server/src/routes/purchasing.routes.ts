@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, logAudit } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
+import { checkSeparationOfDuties } from '../utils/security.js';
 
 export const purchasingRouter = Router();
 
@@ -364,6 +365,26 @@ purchasingRouter.patch('/orders/:id/approve', (req: Request, res: Response) => {
     const order = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any;
     if (!order) {
       return res.status(404).json({ error: 'Ordem de compra não encontrada.' });
+    }
+
+    // SoD — Segregação de Funções: O solicitante da ordem não pode aprová-la
+    if (currentUser) {
+      const sodCheck = checkSeparationOfDuties(order.requester_name, currentUser);
+      if (sodCheck.isViolated) {
+        logAudit(
+          currentUser.fullName,
+          currentUser.roleTitle,
+          'VIOLACAO_SOD',
+          'Compras & Suprimentos',
+          `Ordem ${order.code}`,
+          `Tentativa de autoaprovação bloqueada pela política de Segregação de Funções (SoD)`,
+          req.ip || '127.0.0.1',
+          authReq.correlationId
+        );
+        return res.status(403).json({
+          error: `Violação de Segregação de Funções (SoD): o colaborador ${currentUser.fullName} cadastrou a ordem ${order.code} e não possui autorização para aprová-la. É requerida a validação de um gestor independente.`
+        });
+      }
     }
 
     // ABAC — Verificação Criptográfica de Alçada de Compra
