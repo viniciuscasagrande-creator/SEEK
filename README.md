@@ -1,6 +1,6 @@
 # SEEK — Gestão Corporativa Integrada (Enterprise ERP & CRM)
 
-**Plataforma Corporativa Integrada de Gestão Multiempresa, Multifilial e Governança**
+Plataforma Corporativa Integrada de Gestão Multiempresa, Multifilial e Governança.
 
 🌐 **Acesso Oficial em Produção:** [https://seek-xi.vercel.app](https://seek-xi.vercel.app)
 
