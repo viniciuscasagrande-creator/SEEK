@@ -65,6 +65,9 @@ export const api = {
         if (data.token) {
           if (typeof window !== 'undefined') {
             localStorage.setItem('seek_token', data.token);
+            if (data.refreshToken) {
+              localStorage.setItem('seek_refresh_token', data.refreshToken);
+            }
             localStorage.setItem('seek_user', JSON.stringify(data.user));
           }
           return { success: true, user: data.user, token: data.token };
@@ -105,10 +108,71 @@ export const api = {
     }
   },
 
-  logout(): void {
+  async logout(): Promise<void> {
+    try {
+      await authFetch(`${API_BASE_URL}/auth/logout`, { method: 'POST' });
+    } catch {}
     if (typeof window !== 'undefined') {
       localStorage.removeItem('seek_token');
+      localStorage.removeItem('seek_refresh_token');
       localStorage.removeItem('seek_user');
+    }
+  },
+
+  async logoutAll(): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/auth/logout-all`, { method: 'POST' });
+      if (res.ok) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('seek_token');
+          localStorage.removeItem('seek_refresh_token');
+          localStorage.removeItem('seek_user');
+        }
+        return { success: true };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { success: false, message: data.error };
+    } catch (err: any) {
+      return { success: false, message: err.message };
+    }
+  },
+
+  async getSessions(all: boolean = false): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/auth/sessions${all ? '?all=true' : ''}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.sessions || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async revokeSession(sessionId: string): Promise<boolean> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/auth/sessions/${sessionId}`, { method: 'DELETE' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Falha ao alterar senha.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Erro de conexão ao alterar senha.' };
     }
   },
 
@@ -125,16 +189,37 @@ export const api = {
     }
   },
 
-  async recoverPassword(email: string): Promise<boolean> {
+  async recoverPassword(email: string): Promise<{ success: boolean; message?: string; resetToken?: string }> {
     try {
       const res = await authFetch(`${API_BASE_URL}/auth/recover-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
-      return res.ok;
+      if (res.ok) {
+        const data = await res.json();
+        return { success: true, message: data.message, resetToken: data.resetToken };
+      }
+      return { success: false };
     } catch {
-      return true;
+      return { success: true };
+    }
+  },
+
+  async resetPassword(resetToken: string, newPassword: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetToken, newPassword })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { success: true, message: data.message };
+      }
+      return { success: false, error: data.error || 'Falha ao redefinir senha.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Erro ao conectar para redefinir senha.' };
     }
   },
 

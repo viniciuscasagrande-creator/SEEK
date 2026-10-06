@@ -178,7 +178,7 @@ const MainLayout: React.FC = () => {
       case 'admin-audit':
         return { group: 'Administração', label: 'Trilha de Auditoria Imutável' };
       case 'admin-settings':
-        return { group: 'Administração', label: 'Configurações Gerais' };
+        return { group: 'Administração', label: 'Segurança & Sessões Ativas' };
       default:
         return { group: 'SEEK Core', label: 'Central de Trabalho' };
     }
@@ -304,8 +304,9 @@ const MainLayout: React.FC = () => {
       case 'admin-workflows':
         return <AdminModule initialTab="alcadas" />;
       case 'admin-audit':
-      case 'admin-settings':
         return <AdminModule initialTab="auditoria" />;
+      case 'admin-settings':
+        return <AdminModule initialTab="seguranca" />;
 
       default:
         return <MyWorkstation />;

@@ -771,6 +771,34 @@ export function initializeDatabase() {
       detalhes_json TEXT,
       timestamp TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      refresh_token_hash TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      is_revoked INTEGER DEFAULT 0,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      last_active_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS password_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      password_hash TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      token_hash TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Migrações seguras de colunas em tabelas existentes
@@ -778,6 +806,9 @@ export function initializeDatabase() {
   try { db.exec(`ALTER TABLE financial_records ADD COLUMN origin_id TEXT`); } catch {}
   try { db.exec(`ALTER TABLE financial_records ADD COLUMN bank_id TEXT`); } catch {}
   try { db.exec(`ALTER TABLE financial_records ADD COLUMN bank_name TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN mfa_enabled INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE users ADD COLUMN mfa_secret TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE audit_logs ADD COLUMN correlation_id TEXT`); } catch {}
 
   // Parâmetros oficiais de acesso e ambiente
   try {
@@ -1522,12 +1553,20 @@ export function seedInitialData() {
 // Inicializa o banco automaticamente ao importar
 initializeDatabase();
 
-// 7. HELPER PARA AUDITORIA IMUTÁVEL
-export function logAudit(userName: string, userRole: string, action: string, module: string, entity: string, description: string, ip: string = '189.44.120.10') {
+export function logAudit(
+  userName: string,
+  userRole: string,
+  action: string,
+  module: string,
+  entity: string,
+  description: string,
+  ip: string = '127.0.0.1',
+  correlationId?: string
+) {
   const id = `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
   db.prepare(`
-    INSERT INTO audit_logs (id, timestamp, user_name, user_role, action, module, entity, description, ip_address)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, now, userName, userRole, action, module, entity, description, ip);
+    INSERT INTO audit_logs (id, timestamp, user_name, user_role, action, module, entity, description, ip_address, correlation_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, now, userName, userRole, action, module, entity, description, ip, correlationId || null);
 }

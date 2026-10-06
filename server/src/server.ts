@@ -36,6 +36,14 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Middleware de Rastreabilidade Corporativa: Correlation ID (x-correlation-id)
+app.use((req, res, next) => {
+  const correlationId = (req.headers['x-correlation-id'] as string) || `seek-corr-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  (req as any).correlationId = correlationId;
+  res.setHeader('x-correlation-id', correlationId);
+  next();
+});
+
 // 1. Rotas Públicas de Autenticação e Verificação de Saúde
 app.use('/api/auth', authRouter);
 

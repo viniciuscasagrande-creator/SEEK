@@ -248,7 +248,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const recoverPassword = async (email: string): Promise<boolean> => {
     try {
-      return await api.recoverPassword(email);
+      const res = await api.recoverPassword(email);
+      return Boolean(res.success);
     } catch {
       return true;
     }
