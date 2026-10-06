@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db, logAudit } from '../db.js';
+import { db, logAudit, createCorporateNotification } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { checkSeparationOfDuties } from '../utils/security.js';
 import { purchasingService } from '../services/purchasing.service.js';
@@ -81,6 +81,13 @@ purchasingRouter.post('/requisitions', (req: Request, res: Response) => {
       `Nova solicitação de compra cadastrada (R$ ${parsedAmount.toFixed(2)} - ${department})`,
       req.ip || '189.44.120.10'
     );
+
+    createCorporateNotification({
+      title: 'Nova solicitação de compra',
+      message: `${code} — ${description} (R$ ${parsedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) precisa de acompanhamento.`,
+      type: 'PURCHASE',
+      linkRoute: 'purchasing-requisitions'
+    });
 
     return res.status(201).json({
       success: true,
@@ -334,6 +341,13 @@ purchasingRouter.post('/orders', (req: Request, res: Response) => {
       `Ordem de compra submetida às alçadas (R$ ${parsedAmount.toFixed(2)} - ${suppName}) com reserva orçamentária no CC ${cCenter}`,
       req.ip || '189.44.120.10'
     );
+
+    createCorporateNotification({
+      title: 'Ordem de compra aguardando aprovação',
+      message: `${code} — ${title} no valor de R$ ${parsedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} foi enviada para alçada.`,
+      type: 'APPROVAL',
+      linkRoute: 'approvals'
+    });
 
     return res.status(201).json({
       success: true,

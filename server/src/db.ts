@@ -1858,6 +1858,28 @@ export function seedInitialData() {
 // Inicializa o banco automaticamente ao importar
 initializeDatabase();
 
+export function createCorporateNotification(input: {
+  title: string;
+  message: string;
+  type?: string;
+  linkRoute?: string;
+  userId?: string;
+}) {
+  const id = `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  db.prepare(`
+    INSERT INTO notifications (id, user_id, title, message, type, link_route, read)
+    VALUES (?, ?, ?, ?, ?, ?, 0)
+  `).run(
+    id,
+    input.userId || 'user-all',
+    input.title,
+    input.message,
+    input.type || 'SYSTEM',
+    input.linkRoute || 'my-workstation'
+  );
+  return id;
+}
+
 export function logAudit(
   userName: string,
   userRole: string,

@@ -276,14 +276,25 @@ export const Header: React.FC<HeaderProps> = ({
                     </span>
                   )}
                 </div>
-                {unreadNotificationsCount > 0 && (
+                <div className="flex items-center space-x-2">
+                  {unreadNotificationsCount > 0 && (
+                    <button
+                      onClick={() => markAllNotificationsAsRead()}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      Ler todas
+                    </button>
+                  )}
                   <button
-                    onClick={() => markAllNotificationsAsRead()}
-                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    onClick={() => {
+                      onNavigate('notifications' as any);
+                      setNotificationsOpen(false);
+                    }}
+                    className="text-[10px] font-bold text-blue-700 hover:underline cursor-pointer"
                   >
-                    Ler todas
+                    Ver todas →
                   </button>
-                )}
+                </div>
               </div>
 
               <div className="space-y-2 max-h-72 overflow-y-auto">
@@ -340,6 +351,20 @@ export const Header: React.FC<HeaderProps> = ({
                     Nenhuma notificação no momento.
                   </div>
                 )}
+              </div>
+
+              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs px-1">
+                <span className="text-[11px] text-slate-500">{notifications.length} notificações</span>
+                <button
+                  onClick={() => {
+                    onNavigate('notifications' as any);
+                    setNotificationsOpen(false);
+                  }}
+                  className="text-xs font-bold text-blue-700 hover:underline flex items-center space-x-1 cursor-pointer"
+                >
+                  <span>Abrir Central de Notificações</span>
+                  <ExternalLink className="h-3 w-3" />
+                </button>
               </div>
             </div>
           )}

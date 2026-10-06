@@ -1299,6 +1299,17 @@ export const api = {
     }
   },
 
+  // SEEK V1.9: Central de Trabalho Operacional
+  async getWorkCenter(): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/work-center`);
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
   // PACOTE 4: Notificações
   async getNotifications(): Promise<any> {
     try {

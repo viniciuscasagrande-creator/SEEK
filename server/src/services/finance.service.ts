@@ -1,6 +1,6 @@
 // SEEK Core — Serviço de Domínio Financeiro, Tesouraria, Liquidação e Conciliação
 import crypto from 'crypto';
-import { db } from '../db.js';
+import { db, createCorporateNotification } from '../db.js';
 import { accountingService } from './accounting.service.js';
 import {
   financeRepository,
@@ -116,6 +116,15 @@ export class FinanceService {
       ipAddress
     });
 
+    if (type === 'PAGAR') {
+      createCorporateNotification({
+        title: 'Novo título a pagar',
+        message: `${code} — ${data.title} no valor de R$ ${parsedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, vencimento ${data.dueDate}.`,
+        type: 'FINANCE',
+        linkRoute: 'finance-payables'
+      });
+    }
+
     return {
       ...entity,
       entityName: entity.entity_name,
@@ -178,6 +187,14 @@ export class FinanceService {
       return { bankTransactionId, accountingEntry };
     });
     const result = tx();
+
+    createCorporateNotification({
+      title: 'Pagamento realizado',
+      message: `${record.code} — ${record.title} foi liquidado no valor de R$ ${record.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+      type: 'FINANCE',
+      linkRoute: 'finance-payables'
+    });
+
     return { success: true, record: { ...record, status:'PAGO', paymentDate, bankId: options.bankId, bankName: bank?.bank_name || null }, ...result };
   }
 

@@ -43,6 +43,7 @@ export type ActiveView =
   | 'approvals'
   | 'agenda'
   | 'notifications-view'
+  | 'notifications'
   | 'favorites-view'
   | 'crm'
   | 'crm-pipeline'

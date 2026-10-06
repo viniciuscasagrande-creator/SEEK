@@ -13,6 +13,7 @@ import { MyWorkstation } from './components/modules/MyWorkstation';
 import { ExecutiveDashboard } from './components/modules/ExecutiveDashboard';
 import { ApprovalsCenter } from './components/modules/ApprovalsCenter';
 import { AgendaModule } from './components/modules/AgendaModule';
+import { NotificationCenter } from './components/modules/NotificationCenter';
 import { CRMModule } from './components/modules/CRMModule';
 import { FinanceModule } from './components/modules/FinanceModule';
 import { FinanceReconciliationModule } from './components/modules/FinanceReconciliationModule';
@@ -67,8 +68,9 @@ const MainLayout: React.FC = () => {
         return { group: 'Início', label: 'Minhas Aprovações & Alçadas' };
       case 'agenda':
         return { group: 'Início', label: 'Agenda Corporativa' };
+      case 'notifications':
       case 'notifications-view':
-        return { group: 'Início', label: 'Notificações Corporativas' };
+        return { group: 'Início', label: 'Central de Notificações' };
       case 'favorites-view':
         return { group: 'Início', label: 'Módulos Favoritos' };
 
@@ -199,16 +201,18 @@ const MainLayout: React.FC = () => {
   const renderActiveModule = () => {
     switch (activeView) {
       case 'my-workstation':
-        return <MyWorkstation />;
+        return <MyWorkstation onNavigate={setActiveView} />;
       case 'executive-dashboard':
         return <ExecutiveDashboard />;
       case 'approvals':
         return <ApprovalsCenter />;
       case 'agenda':
         return <AgendaModule />;
+      case 'notifications':
       case 'notifications-view':
+        return <NotificationCenter onNavigate={setActiveView} />;
       case 'favorites-view':
-        return <MyWorkstation />;
+        return <MyWorkstation onNavigate={setActiveView} />;
 
       // CRM
       case 'crm':

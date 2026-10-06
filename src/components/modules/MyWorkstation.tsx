@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
   FileSignature,
   Headphones,
-  Calendar,
-  AlertCircle,
   ThumbsUp,
   ThumbsDown,
   ExternalLink,
-  Filter,
-  CheckSquare
+  CheckSquare,
+  AlertTriangle,
+  WalletCards,
+  ArrowRight,
+  RefreshCw,
+  LayoutDashboard,
+  Layers,
+  Inbox
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
@@ -18,8 +22,20 @@ import { MY_TASKS, MY_TICKETS, DOCUMENTS_TO_SIGN } from '../../data/mockData';
 import { StatusBadge } from '../common/StatusBadge';
 import { StatCard } from '../common/StatCard';
 import { Modal } from '../common/Modal';
+import { ScrollSpyNav } from '../common/ScrollSpyNav';
+import { api } from '../../services/api';
+import type { ActiveView } from '../layout/Sidebar';
 
-export const MyWorkstation: React.FC = () => {
+interface MyWorkstationProps {
+  onNavigate?: (view: ActiveView) => void;
+}
+
+interface WorkCenterData {
+  summary: { pendingActions: number; critical: number; approvals: number; overdue: number; unreadNotifications: number };
+  queue: Array<{ id: string; kind: string; module: string; title: string; description: string; route: string; priority: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CRITICA'; status: string; dueDate?: string | null; amount?: number | null }>;
+}
+
+export const MyWorkstation: React.FC<MyWorkstationProps> = ({ onNavigate }) => {
   const { currentUser, activeCompany, activeBranch } = useAuth();
   const { approvals, approveRequest, rejectRequest } = useWorkflow();
 
@@ -38,6 +54,25 @@ export const MyWorkstation: React.FC = () => {
   const [decisionComment, setDecisionComment] = useState('');
   const [tasks, setTasks] = useState(MY_TASKS);
   const [documents, setDocuments] = useState(DOCUMENTS_TO_SIGN);
+  const [workCenter, setWorkCenter] = useState<WorkCenterData | null>(null);
+  const [workLoading, setWorkLoading] = useState(false);
+
+  const loadWorkCenter = async () => {
+    setWorkLoading(true);
+    try {
+      const data = await api.getWorkCenter();
+      if (data?.summary && Array.isArray(data?.queue)) setWorkCenter(data);
+    } finally {
+      setWorkLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadWorkCenter();
+  }, [activeCompany.id, activeBranch.id]);
+
+  const workSummary = workCenter?.summary;
+  const workQueue = useMemo(() => workCenter?.queue || [], [workCenter]);
 
   // Filtrar aprovações pendentes que competem ao perfil ou departamento
   const myPendingApprovals = approvals.filter(a => a.status === 'PENDENTE');
@@ -79,8 +114,19 @@ export const MyWorkstation: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* ScrollSpy Navigation */}
+      <ScrollSpyNav
+        sections={[
+          { id: 'work-banner', label: 'Panorama Geral', icon: LayoutDashboard },
+          { id: 'work-indicators', label: 'Indicadores do Dia', icon: Layers },
+          { id: 'work-queue', label: 'Fila Operacional', icon: Inbox },
+          { id: 'work-approvals', label: 'Aprovações & Tarefas', icon: CheckSquare },
+          { id: 'work-docs', label: 'Documentos & Suporte', icon: FileSignature }
+        ]}
+      />
+
       {/* Top Banner de Boas-vindas Corporativo */}
-      <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-blue-900 via-slate-900 to-indigo-950 p-6 text-white shadow-md">
+      <div id="work-banner" className="rounded-2xl border border-slate-200 bg-linear-to-r from-blue-900 via-slate-900 to-indigo-950 p-6 text-white shadow-md">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2">
@@ -114,7 +160,7 @@ export const MyWorkstation: React.FC = () => {
       </div>
 
       {/* Grid de Indicadores Pessoais / Meu Dia */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div id="work-indicators" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Minhas Aprovações"
           value={myPendingApprovals.length}
@@ -149,8 +195,61 @@ export const MyWorkstation: React.FC = () => {
         />
       </div>
 
+      {/* SEEK V1.9 — Fila Operacional Integrada do Core */}
+      <div id="work-queue" className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white">
+                <WalletCards className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Fila Operacional Integrada</h2>
+                <p className="text-[11px] text-slate-500">Pendências reais consolidadas de aprovações, Financeiro, Fiscal, Compras, RH e Contratos conforme sua permissão.</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-bold text-slate-700">{workSummary?.pendingActions ?? workQueue.length} ações</span>
+            <span className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] font-bold text-rose-700">{workSummary?.critical ?? 0} críticas</span>
+            <span className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700">{workSummary?.overdue ?? 0} vencidas</span>
+            <button onClick={loadWorkCenter} className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 cursor-pointer">
+              <RefreshCw className={`h-3.5 w-3.5 ${workLoading ? 'animate-spin' : ''}`} /> Atualizar
+            </button>
+          </div>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {workQueue.slice(0, 10).map(item => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => onNavigate?.(item.route as ActiveView)}
+              className="group flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${item.priority === 'CRITICA' ? 'bg-rose-50 text-rose-700' : item.priority === 'ALTA' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                {item.priority === 'CRITICA' ? <AlertTriangle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">{item.module}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${item.priority === 'CRITICA' ? 'bg-rose-100 text-rose-700' : item.priority === 'ALTA' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{item.priority}</span>
+                </div>
+                <div className="mt-0.5 truncate text-xs font-bold text-slate-900">{item.title}</div>
+                <div className="mt-0.5 truncate text-[11px] text-slate-500">{item.description}</div>
+              </div>
+              {typeof item.amount === 'number' && <div className="hidden shrink-0 text-right sm:block"><div className="text-xs font-black text-slate-900">R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div><div className="text-[10px] text-slate-400">{item.status.replaceAll('_', ' ')}</div></div>}
+              <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600" />
+            </button>
+          ))}
+          {!workLoading && workQueue.length === 0 && (
+            <div className="py-10 text-center text-xs text-slate-400">Nenhuma pendência operacional disponível para o seu perfil neste momento.</div>
+          )}
+        </div>
+      </div>
+
       {/* Grid Central: Minhas Aprovações & Minhas Tarefas */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div id="work-approvals" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* BLOCO 1: Minhas Aprovações Pendentes (Motor de Workflows) */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -199,14 +298,14 @@ export const MyWorkstation: React.FC = () => {
                     <div className="flex items-center space-x-1.5">
                       <button
                         onClick={() => openDecisionModal('reject', item.id, item.title)}
-                        className="flex items-center space-x-1 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+                        className="flex items-center space-x-1 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
                       >
                         <ThumbsDown className="h-3 w-3" />
                         <span>Rejeitar</span>
                       </button>
                       <button
                         onClick={() => openDecisionModal('approve', item.id, item.title)}
-                        className="flex items-center space-x-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-2xs"
+                        className="flex items-center space-x-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-2xs cursor-pointer"
                       >
                         <ThumbsUp className="h-3 w-3" />
                         <span>Aprovar</span>
@@ -228,7 +327,7 @@ export const MyWorkstation: React.FC = () => {
               </div>
               <h2 className="text-sm font-bold text-slate-800">Minhas Tarefas & Prazos</h2>
             </div>
-            <button className="text-xs font-semibold text-blue-600 hover:underline">Ver todas</button>
+            <button className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer">Ver todas</button>
           </div>
 
           <div className="mt-4 space-y-2.5">
@@ -276,7 +375,7 @@ export const MyWorkstation: React.FC = () => {
       </div>
 
       {/* Grid Inferior: Documentos para Assinar & Chamados no Service Desk */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div id="work-docs" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* BLOCO 3: Documentos Corporativos Aguardando Assinatura */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -311,7 +410,7 @@ export const MyWorkstation: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => handleSignDocument(doc.id)}
-                    className="flex items-center space-x-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors"
+                    className="flex items-center space-x-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <span>Assinar</span>
                     <ExternalLink className="h-3 w-3" />
@@ -397,13 +496,13 @@ export const MyWorkstation: React.FC = () => {
           <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
             <button
               onClick={() => setDecisionModal({ isOpen: false, type: 'approve', requestId: '', requestTitle: '' })}
-              className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={confirmDecision}
-              className={`rounded-lg px-4 py-2 text-xs font-bold text-white shadow-xs ${
+              className={`rounded-lg px-4 py-2 text-xs font-bold text-white shadow-xs cursor-pointer ${
                 decisionModal.type === 'approve'
                   ? 'bg-emerald-600 hover:bg-emerald-700'
                   : 'bg-rose-600 hover:bg-rose-700'

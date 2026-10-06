@@ -17,6 +17,7 @@ import { serviceDeskRouter } from './routes/serviceDesk.routes.js';
 import { documentsRouter } from './routes/documents.routes.js';
 import { governanceRouter } from './routes/governance.routes.js';
 import { notificationsRouter } from './routes/notifications.routes.js';
+import { workCenterRouter } from './routes/workCenter.routes.js';
 import { seekAiRouter } from './routes/seekAi.routes.js';
 import accountingRouter from './routes/accounting.routes.js';
 import fiscalRouter from './routes/fiscal.routes.js';
@@ -78,6 +79,7 @@ app.use('/api/service-desk', authenticateToken, requireModule('service-desk'), s
 app.use('/api/documents', authenticateToken, requireModule('documents'), documentsRouter);
 app.use('/api/governance', authenticateToken, requireModule('governance'), governanceRouter);
 app.use('/api/notifications', authenticateToken, notificationsRouter);
+app.use('/api/work-center', authenticateToken, workCenterRouter);
 app.use('/api/seek-ai', authenticateToken, seekAiRouter);
 
 // Compatibilidade com rotas diretas legadas do protótipo (protegidas por token)

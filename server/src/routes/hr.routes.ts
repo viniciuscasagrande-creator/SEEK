@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db, logAudit } from '../db.js';
+import { db, logAudit, createCorporateNotification } from '../db.js';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 import { isPrivilegedRole, maskSalary } from '../utils/security.js';
 import { payrollService } from '../services/payroll.service.js';
@@ -210,6 +210,13 @@ hrRouter.post('/vacations', (req: Request, res: Response) => {
       `Solicitados ${days} dias de férias de ${startDate} a ${endDate}`,
       req.ip || '189.44.120.10'
     );
+
+    createCorporateNotification({
+      title: 'Férias aguardando aprovação',
+      message: `${empName} solicitou ${days} dias de férias (${startDate} a ${endDate}).`,
+      type: 'HR',
+      linkRoute: 'approvals'
+    });
 
     return res.status(201).json({ success: true, id, approvalId });
   } catch (error: any) {
