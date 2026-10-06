@@ -1,11 +1,9 @@
-// SEEK Backend — Banco de Dados Local Persistente (SQLite / PostgreSQL Ready)
-// Hiper Pacote 4: Administração Empresarial (RH/DP, Ponto, Organograma, Estoque, Patrimônio, Projetos, Service Desk, GED, Governança, Notificações)
-
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,9 +18,116 @@ export const db = new Database(dbPath);
 // Habilita WAL mode para alta performance e concorrência no SQLite
 db.pragma('journal_mode = WAL');
 
+// ========================================================
+// DUAL-ENGINE: SUPORTE COMPATÍVEL SQLITE WAL / POSTGRESQL
+// ========================================================
+export const isPostgresConfigured = Boolean(
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.DB_TYPE === 'postgres'
+);
+
+export const pgPool = isPostgresConfigured
+  ? new pg.Pool({
+      connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL
+    })
+  : null;
+
+export function getDatabaseEngine(): 'sqlite' | 'postgres' {
+  return isPostgresConfigured ? 'postgres' : 'sqlite';
+}
+
+/**
+ * Converte query com placeholders '?' para o padrão PostgreSQL '$1, $2, ...'
+ */
+export function formatSqlForEngine(sql: string, engine: 'sqlite' | 'postgres'): string {
+  if (engine === 'sqlite') return sql;
+  let counter = 1;
+  return sql.replace(/\?/g, () => `$${counter++}`);
+}
+
+/**
+ * Executa uma consulta assíncrona compatível com PostgreSQL e SQLite
+ */
+export async function asyncQuery<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  if (isPostgresConfigured && pgPool) {
+    const formattedSql = formatSqlForEngine(sql, 'postgres');
+    const res = await pgPool.query(formattedSql, params);
+    return res.rows as T[];
+  } else {
+    const isSelect = /^\s*(SELECT|PRAGMA)/i.test(sql);
+    if (isSelect) {
+      return db.prepare(sql).all(...params) as T[];
+    } else {
+      const res = db.prepare(sql).run(...params);
+      return [{ ...res }] as any;
+    }
+  }
+}
+
+/**
+ * Executa bloco transacional com rollback automático em caso de exceção
+ */
+export async function runTransaction<T>(fn: (client: any) => Promise<T> | T): Promise<T> {
+  if (isPostgresConfigured && pgPool) {
+    const client = await pgPool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } else {
+    // Suporte a transações assíncronas e atômicas no SQLite
+    db.prepare('BEGIN').run();
+    try {
+      const result = await fn(db);
+      db.prepare('COMMIT').run();
+      return result;
+    } catch (err) {
+      try {
+        db.prepare('ROLLBACK').run();
+      } catch {}
+      throw err;
+    }
+  }
+}
+
+/**
+ * Retorna o status das migrations aplicadas no banco de dados
+ */
+export function getMigrationsStatus(): { engine: string; totalApplied: number; migrations: any[] } {
+  try {
+    const rows = db.prepare('SELECT * FROM schema_migrations ORDER BY version ASC').all() as any[];
+    return {
+      engine: getDatabaseEngine(),
+      totalApplied: rows.length,
+      migrations: rows
+    };
+  } catch {
+    return {
+      engine: getDatabaseEngine(),
+      totalApplied: 0,
+      migrations: []
+    };
+  }
+}
+
 // 1. INICIALIZAÇÃO DAS TABELAS DO SEEK CORE E ADMINISTRAÇÃO EMPRESARIAL
 export function initializeDatabase() {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      version TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      checksum TEXT NOT NULL,
+      applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS companies (
       id TEXT PRIMARY KEY,
       code TEXT UNIQUE NOT NULL,

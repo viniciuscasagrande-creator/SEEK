@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db.js';
+import { db, getMigrationsStatus, isPostgresConfigured } from '../db.js';
 import { AuthenticatedRequest, requireRole } from '../middleware/auth.js';
 
 export const coreRouter = Router();
@@ -98,6 +98,23 @@ coreRouter.get('/audit-logs', requireRole(['ADMIN_GERAL', 'AUDITORIA', 'DIRETORI
   try {
     const logs = db.prepare('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200').all();
     return res.json({ total: logs.length, logs });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Status do Banco de Dados e Migrations (Dual Engine: SQLite / PostgreSQL)
+coreRouter.get('/database', (_req: Request, res: Response) => {
+  try {
+    const status = getMigrationsStatus();
+    return res.json({
+      status: 'ONLINE',
+      engine: status.engine,
+      totalMigrationsApplied: status.totalApplied,
+      migrations: status.migrations,
+      isPostgresConfigured,
+      timestamp: new Date().toISOString()
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

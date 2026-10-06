@@ -13,7 +13,9 @@
     "server:build": "npm --prefix server run build",
     "server:start": "npm --prefix server start",
     "server:reseed": "npm --prefix server run reseed",
-    "server:test": "npm --prefix server test"
+    "server:migrate": "npm --prefix server run migrate",
+    "server:test": "npm --prefix server test",
+    "server:test:fase1": "npm --prefix server run test:fase1"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

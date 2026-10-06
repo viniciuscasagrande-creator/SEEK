@@ -10,15 +10,19 @@
     "start": "node dist/server.js",
     "seed": "tsx src/seed.ts",
     "reseed": "tsx src/reseed.ts",
+    "migrate": "tsx src/migrate.ts",
+    "test:fase1": "tsx src/test_fase1_db.ts",
     "test": "tsx src/test_auth_fase0.ts"
   },
   "dependencies": {
+    "@types/pg": "^8.23.1",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
