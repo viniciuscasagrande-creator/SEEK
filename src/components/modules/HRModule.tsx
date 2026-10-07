@@ -23,7 +23,22 @@ import {
   BarChart3,
   Layers,
   WalletCards,
-  Send
+  Send,
+  Eye,
+  FileText,
+  Filter,
+  Check,
+  X,
+  AlertTriangle,
+  Download,
+  ShieldCheck,
+  Sparkles,
+  MapPin,
+  Mail,
+  Phone,
+  Landmark,
+  BadgeCheck,
+  ChevronRight
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/mockData';
 import { EmployeeProfile } from '../../types/modules';
@@ -67,6 +82,36 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
   // Estados dos Benefícios (VT, VA, VR, Combustível) — Fases 3, 4 & 5
   const [benefitSection, setBenefitSection] = useState<'COLABORADORES' | 'CONFERENCIA' | 'FECHAMENTO' | 'PEDIDOS' | 'OPERADORAS' | 'AFASTAMENTOS' | 'HISTORICO' | 'CUSTOS' | 'DEPARTAMENTOS' | 'COMPARATIVO'>('COLABORADORES');
+  const [benefitMainTab, setBenefitMainTab] = useState<'CONCESSAO' | 'COMPRAS' | 'CONFERENCIA' | 'RELATORIOS'>('CONCESSAO');
+  const [benefitSubConcessao, setBenefitSubConcessao] = useState<'LISTA' | 'AFASTAMENTOS'>('LISTA');
+  const [benefitSubCompras, setBenefitSubCompras] = useState<'FECHAMENTO' | 'PEDIDOS' | 'HISTORICO'>('FECHAMENTO');
+  const [benefitSubConferencia, setBenefitSubConferencia] = useState<'CONFERENCIA' | 'OPERADORAS'>('CONFERENCIA');
+  const [benefitSubRelatorios, setBenefitSubRelatorios] = useState<'CUSTOS' | 'DEPARTAMENTOS' | 'COMPARATIVO' | 'HISTORICO'>('CUSTOS');
+
+  // Estados de Colaboradores & Ficha Cadastral
+  const [selectedEmployeeForDetail, setSelectedEmployeeForDetail] = useState<any | null>(null);
+  const [employeeDetailTab, setEmployeeDetailTab] = useState<'pessoal' | 'profissional' | 'remuneracao' | 'beneficios' | 'jornada'>('pessoal');
+  const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('TODOS');
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'TODOS' | 'ATIVO' | 'INATIVO'>('TODOS');
+
+  // Estados de Ponto & Jornada (Portaria 671 MTE)
+  const [pontoEmployeeId, setPontoEmployeeId] = useState<string>('emp-01');
+  const [pontoMonth, setPontoMonth] = useState<string>('2026-10');
+  const [pontoFilter, setPontoFilter] = useState<'TODOS' | 'NORMAL' | 'DIVERGENCIA' | 'EXTRA'>('TODOS');
+  const [isPontoAdjustModalOpen, setIsPontoAdjustModalOpen] = useState(false);
+  const [pontoAdjustForm, setPontoAdjustForm] = useState({
+    date: '2026-10-06',
+    punchType: 'ENTRADA',
+    time: '08:00',
+    reason: 'Esquecimento de registro',
+    note: ''
+  });
+
+  // Estados de Férias & Afastamentos
+  const [vacationSubTab, setVacationSubTab] = useState<'ferias' | 'afastamentos'>('ferias');
+
+  // Estados de Relatórios
+  const [reportSubTab, setReportSubTab] = useState<'organograma' | 'headcount'>('organograma');
   const [benefitConference, setBenefitConference] = useState<any>(null);
   const [benefitAnalytics, setBenefitAnalytics] = useState<any>(null);
   const [benefitHistoryEmployeeId, setBenefitHistoryEmployeeId] = useState('');
@@ -698,12 +743,24 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
     if (r) setBenefitAnalytics(r);
   };
 
-  const filteredEmployees = employees.filter(
-    e =>
+  const filteredEmployees = employees.filter(e => {
+    const matchesSearch =
+      !searchTerm ||
       e.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.department?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      e.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesDept =
+      employeeDepartmentFilter === 'TODOS' ||
+      e.department?.toLowerCase() === employeeDepartmentFilter.toLowerCase();
+
+    const matchesStatus =
+      employeeStatusFilter === 'TODOS' ||
+      (employeeStatusFilter === 'ATIVO' ? e.active !== false : e.active === false);
+
+    return matchesSearch && matchesDept && matchesStatus;
+  });
 
   return (
     <div className="space-y-6">
@@ -1148,232 +1205,432 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         )}
         {/* ABA 1: COLABORADORES */}
         {activeTab === 'employees' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="relative w-80">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nome, cargo ou departamento..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-9 pr-3 text-xs text-slate-800 focus:border-blue-600 focus:outline-hidden"
-              />
-            </div>
-            <span className="text-xs text-slate-500">
-              Total: <strong>{filteredEmployees.length}</strong> colaboradores cadastrados
-            </span>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Matrícula</th>
-                  <th className="py-3 px-4">Colaborador</th>
-                  <th className="py-3 px-4">Cargo / Função</th>
-                  <th className="py-3 px-4">Departamento</th>
-                  <th className="py-3 px-4">Filial / Lotação</th>
-                  <th className="py-3 px-4 text-center">Regime</th>
-                  <th className="py-3 px-4 text-center">Banco de Horas</th>
-                  <th className="py-3 px-4 text-center">Saldo Férias</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredEmployees.map(e => (
-                  <tr key={e.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{e.registrationNumber}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">{e.fullName}</td>
-                    <td className="py-3.5 px-4 text-slate-700">{e.jobTitle}</td>
-                    <td className="py-3.5 px-4 text-slate-600">{e.department}</td>
-                    <td className="py-3.5 px-4 text-slate-500">{e.branch}</td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                        {e.regime}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-bold">
-                      <span className={(e.bankHoursBalance ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-600'}>
-                        {(e.bankHoursBalance ?? 0) > 0 ? `+${e.bankHoursBalance}h` : `${e.bankHoursBalance ?? 0}h`}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-bold text-slate-700">
-                      {e.vacationBalanceDays ?? 30} dias
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                        Ativo
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ABA: FOLHA & OBRIGAÇÕES FINANCEIRAS */}
-      {activeTab === 'payroll' && (
-        <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Fechamento da Folha → Financeiro</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  O RH fecha a competência; o SEEK cria a obrigação financeira e os lançamentos contábeis de reconhecimento. Valores de encargos e descontos legais devem vir do motor de folha homologado.
-                </p>
+          <div className="space-y-5">
+            {/* Cards de Indicadores de Headcount */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Total Colaboradores</span>
+                  <Users className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="mt-1 text-2xl font-black text-slate-900">{employees.length}</div>
+                <div className="mt-0.5 text-[10px] text-slate-500">Quadro corporativo ativo</div>
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Competência</label>
-                  <input
-                    type="month"
-                    value={payrollPeriod}
-                    onChange={e => setPayrollPeriod(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
-                  />
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Regime CLT</span>
+                  <Briefcase className="h-4 w-4 text-emerald-600" />
                 </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Vencimento</label>
-                  <input
-                    type="date"
-                    value={payrollDueDate}
-                    onChange={e => setPayrollDueDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
-                  />
+                <div className="mt-1 text-2xl font-black text-slate-900">
+                  {employees.filter(e => e.regime === 'CLT').length}
                 </div>
-                <div className="flex items-end gap-2">
-                  <button
-                    onClick={handlePreviewPayroll}
-                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 cursor-pointer"
-                  >
-                    Prévia
-                  </button>
-                  <button
-                    onClick={handleClosePayroll}
-                    disabled={closingPayroll}
-                    className="flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50 cursor-pointer"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    {closingPayroll ? 'Enviando...' : 'Fechar e enviar'}
-                  </button>
+                <div className="mt-0.5 text-[10px] text-emerald-700 font-bold">Vínculo formal MTE</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Contratos PJ</span>
+                  <Building className="h-4 w-4 text-purple-600" />
                 </div>
+                <div className="mt-1 text-2xl font-black text-slate-900">
+                  {employees.filter(e => e.regime === 'PJ').length}
+                </div>
+                <div className="mt-0.5 text-[10px] text-purple-700 font-bold">Prestadores de serviço</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Estágio</span>
+                  <Award className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="mt-1 text-2xl font-black text-slate-900">
+                  {employees.filter(e => e.regime === 'ESTAGIO').length}
+                </div>
+                <div className="mt-0.5 text-[10px] text-amber-700 font-bold">Formação acadêmica</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Departamentos</span>
+                  <Layers className="h-4 w-4 text-cyan-600" />
+                </div>
+                <div className="mt-1 text-2xl font-black text-slate-900">
+                  {new Set(employees.map(e => e.department)).size}
+                </div>
+                <div className="mt-0.5 text-[10px] text-slate-500">Áreas corporativas</div>
               </div>
             </div>
 
-            {payrollPreview && (
-              <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-[10px] font-bold uppercase text-slate-500">Colaboradores</div>
-                  <div className="mt-1 text-lg font-black text-slate-900">{payrollPreview.employeeCount}</div>
+            {/* Barra de Filtros & Ações Operacionais */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nome, cargo, matrícula ou departamento..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-hidden"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-[10px] font-bold uppercase text-slate-500">Base salarial</div>
-                  <div className="mt-1 text-lg font-black text-slate-900">
-                    R$ {Number(payrollPreview.grossAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+                    {(['TODOS', 'ATIVO', 'INATIVO'] as const).map(st => (
+                      <button
+                        key={st}
+                        onClick={() => setEmployeeStatusFilter(st)}
+                        className={`rounded-md px-3 py-1 text-[11px] font-bold transition-all cursor-pointer ${
+                          employeeStatusFilter === st
+                            ? 'bg-white text-slate-900 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {st === 'TODOS' ? 'Todos os Status' : st === 'ATIVO' ? 'Ativos' : 'Inativos'}
+                      </button>
+                    ))}
                   </div>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <div className="text-[10px] font-bold uppercase text-slate-500">Ajustes</div>
-                  <div className="mt-1 text-lg font-black text-slate-900">
-                    R$ {Number(payrollPreview.adjustmentsAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-emerald-50 p-3">
-                  <div className="text-[10px] font-bold uppercase text-emerald-700">Líquido previsto</div>
-                  <div className="mt-1 text-lg font-black text-emerald-800">
-                    R$ {Number(payrollPreview.netAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </div>
+
+                  <button
+                    onClick={() => setIsAdmitOpen(true)}
+                    className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-800 cursor-pointer transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Admitir Colaborador</span>
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">Competência</th>
-                  <th className="px-4 py-3">Colaboradores</th>
-                  <th className="px-4 py-3 text-right">Líquido</th>
-                  <th className="px-4 py-3">Vencimento</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Título Financeiro</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {payrollRuns.map((r: any) => (
-                  <tr key={r.id}>
-                    <td className="px-4 py-3 font-bold text-slate-900">{r.period}</td>
-                    <td className="px-4 py-3">{r.employeeCount ?? r.total_employees ?? 0}</td>
-                    <td className="px-4 py-3 text-right font-black text-slate-900">
-                      R$ {Number(r.netAmount ?? r.total_net ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3 font-mono">{r.dueDate || r.due_date || '—'}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={r.status} />
-                    </td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-slate-500">
-                      {r.financialRecordId || r.financial_record_id || '—'}
-                    </td>
-                  </tr>
+              {/* Filtro por Departamento */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                  <Filter className="h-3 w-3" /> Departamento:
+                </span>
+                {['TODOS', 'Operações & Logística', 'Tecnologia da Informação', 'Financeiro & Controladoria', 'Comercial & CRM', 'Recursos Humanos & DP'].map(dept => (
+                  <button
+                    key={dept}
+                    onClick={() => setEmployeeDepartmentFilter(dept)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      employeeDepartmentFilter === dept
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {dept === 'TODOS' ? 'Todas as Áreas' : dept}
+                  </button>
                 ))}
-                {payrollRuns.length === 0 && (
+              </div>
+            </div>
+
+            {/* Tabela de Colaboradores Interativa */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-xs text-slate-400">
-                      Nenhuma folha de pagamento fechada para envio ao Financeiro.
-                    </td>
+                    <th className="py-3 px-4">Matrícula</th>
+                    <th className="py-3 px-4">Colaborador</th>
+                    <th className="py-3 px-4">Cargo / Função</th>
+                    <th className="py-3 px-4">Departamento</th>
+                    <th className="py-3 px-4">Filial / Lotação</th>
+                    <th className="py-3 px-4 text-center">Regime</th>
+                    <th className="py-3 px-4 text-center">Banco de Horas</th>
+                    <th className="py-3 px-4 text-center">Saldo Férias</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Ficha</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredEmployees.map(e => (
+                    <tr
+                      key={e.id}
+                      onClick={() => setSelectedEmployeeForDetail(e)}
+                      className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
+                    >
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{e.registrationNumber}</td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center space-x-2.5">
+                          <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-800 font-black text-xs flex items-center justify-center border border-blue-200 uppercase">
+                            {e.fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                              {e.fullName}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Admissão: {e.admissionDate ? new Date(e.admissionDate).toLocaleDateString('pt-BR') : '01/03/2022'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-medium text-slate-700">{e.jobTitle}</td>
+                      <td className="py-3.5 px-4 text-slate-600">{e.department}</td>
+                      <td className="py-3.5 px-4 text-slate-500">{e.branch}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                          e.regime === 'CLT' ? 'bg-blue-100 text-blue-800' :
+                          e.regime === 'PJ' ? 'bg-purple-100 text-purple-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {e.regime}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold">
+                        <span className={(e.bankHoursBalance ?? 0) >= 0 ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]' : 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 text-[11px]'}>
+                          {(e.bankHoursBalance ?? 0) > 0 ? `+${e.bankHoursBalance}h` : `${e.bankHoursBalance ?? 0}h`}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-700">
+                        <span className="inline-flex items-center gap-1">
+                          <Palmtree className="h-3 w-3 text-amber-600" />
+                          <span>{e.vacationBalanceDays ?? 30} dias</span>
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                          Ativo
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setSelectedEmployeeForDetail(e);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors shadow-2xs cursor-pointer"
+                        >
+                          <Eye className="h-3 w-3" />
+                          <span>Ver Ficha</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredEmployees.length === 0 && (
+                    <tr>
+                      <td colSpan={10} className="py-8 text-center text-xs text-slate-400">
+                        Nenhum colaborador encontrado para os filtros selecionados.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
 
-          <div className="mt-8 border-t border-slate-200 pt-6">
+        {/* ABA: FOLHA & OBRIGAÇÕES FINANCEIRAS */}
+        {activeTab === 'payroll' && (
+          <div className="space-y-5">
             <HRPayrollSection employees={employees} />
           </div>
-        </div>
-      )}
+        )}
 
       {/* ABA: GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS (VT, VA, VR, COMBUSTÍVEL) */}
       {activeTab === 'benefits' && (
         <div className="space-y-5">
-          {/* Header de Navegação Interna da Área de Benefícios */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Gestão de Benefícios</h3>
-                <p className="text-xs text-slate-500">
-                  VT, VA, VR e Auxílio Combustível: vínculo nominal, proporcionalidade, ajustes, operadoras, fechamento e compra por competência.
-                </p>
+          {/* Top KPIs da Gestão de Benefícios */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Custo Total Empresa</span>
+                <DollarSign className="h-4 w-4 text-emerald-600" />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {([
-                  ['COLABORADORES', 'Colaboradores'],
-                  ['CONFERENCIA', 'Conferência'],
-                  ['FECHAMENTO', 'Fechamento'],
-                  ['PEDIDOS', 'Pedidos de compra'],
-                  ['OPERADORAS', 'Operadoras'],
-                  ['AFASTAMENTOS', 'Afastamentos'],
-                  ['HISTORICO', 'Histórico'],
-                  ['CUSTOS', 'Custos'],
-                  ['DEPARTAMENTOS', 'Departamentos'],
-                  ['COMPARATIVO', 'Comparativo']
-                ] as const).map(([key, label]) => (
+              <div className="mt-1 text-xl font-black text-slate-900">
+                {currencyBRL(benefitAnalytics?.currentOrder?.total_amount || 0)}
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">Competência {benefitPeriod}</div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Colaboradores Elegíveis</span>
+                <Users className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-slate-900">{benefitEmployees.length}</div>
+              <div className="mt-0.5 text-[10px] text-slate-500">Com benefícios ativos</div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Desconto CLT em Folha</span>
+                <CreditCard className="h-4 w-4 text-rose-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-rose-600">
+                {currencyBRL(benefitAnalytics?.currentOrder?.employee_discount || 0)}
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">Coparticipação legal</div>
+            </div>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-blue-800">Competência Ativa</span>
+                <Calendar className="h-4 w-4 text-blue-700" />
+              </div>
+              <div className="mt-1 text-xl font-black text-blue-950 font-mono">{benefitPeriod}</div>
+              <div className="mt-0.5 text-[10px] text-blue-700 font-bold">Vencimento: {benefitDueDate}</div>
+            </div>
+          </div>
+
+          {/* Navegação Superior Limpa - 4 Abas Estruturais */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Gestão Corporativa de Benefícios</h3>
+                <p className="text-xs text-slate-500">VT, VA, VR e Auxílio Combustível: vínculo individual, proporcionalidade e pedidos de compra.</p>
+              </div>
+
+              {/* 4 Abas Primárias com Badges */}
+              <div className="flex rounded-lg border border-slate-200 bg-slate-100/80 p-1 text-xs">
+                {[
+                  { id: 'CONCESSAO', label: 'Vínculos & Nominal', icon: Users, defaultSub: 'COLABORADORES' },
+                  { id: 'COMPRAS', label: 'Fechamento & Pedidos', icon: DollarSign, defaultSub: 'FECHAMENTO' },
+                  { id: 'CONFERENCIA', label: 'Auditoria & Faturas', icon: CheckCircle2, defaultSub: 'CONFERENCIA' },
+                  { id: 'RELATORIOS', label: 'Relatórios & Custos', icon: BarChart3, defaultSub: 'CUSTOS' },
+                ].map(tab => {
+                  const Icon = tab.icon;
+                  const isActive = benefitMainTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setBenefitMainTab(tab.id as any);
+                        setBenefitSection(tab.defaultSub as any);
+                      }}
+                      className={`flex items-center space-x-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-white text-blue-700 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sub-Navegação por Pílulas contextuais de cada Aba Primária */}
+            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              {benefitMainTab === 'CONCESSAO' && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">Visão:</span>
                   <button
-                    key={key}
-                    onClick={() => setBenefitSection(key)}
-                    className={`rounded-lg px-3 py-2 text-[11px] font-bold transition-colors cursor-pointer ${
-                      benefitSection === key
+                    onClick={() => {
+                      setBenefitSubConcessao('LISTA');
+                      setBenefitSection('COLABORADORES');
+                    }}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === 'COLABORADORES'
                         ? 'bg-blue-700 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {label}
+                    Relação Nominal de Colaboradores
                   </button>
-                ))}
+                  <button
+                    onClick={() => {
+                      setBenefitSubConcessao('AFASTAMENTOS');
+                      setBenefitSection('AFASTAMENTOS');
+                    }}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === 'AFASTAMENTOS'
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Afastamentos com Impacto
+                  </button>
+                </div>
+              )}
+
+              {benefitMainTab === 'COMPRAS' && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">Etapa:</span>
+                  <button
+                    onClick={() => setBenefitSection('FECHAMENTO')}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === 'FECHAMENTO'
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Fechamento da Competência
+                  </button>
+                  <button
+                    onClick={() => setBenefitSection('PEDIDOS')}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === 'PEDIDOS'
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Pedidos por Operadora & Lotes
+                  </button>
+                </div>
+              )}
+
+              {benefitMainTab === 'CONFERENCIA' && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">Visão:</span>
+                  <button
+                    onClick={() => setBenefitSection('CONFERENCIA')}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === 'CONFERENCIA'
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Conferência de Faturas & Divergências
+                  </button>
+                  <button
+                    onClick={() => setBenefitSection('OPERADORAS')}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === 'OPERADORAS'
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Operadoras & Fornecedores
+                  </button>
+                </div>
+              )}
+
+              {benefitMainTab === 'RELATORIOS' && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">Relatório:</span>
+                  {[
+                    ['CUSTOS', 'Evolução de Custos'],
+                    ['DEPARTAMENTOS', 'Por Departamento'],
+                    ['COMPARATIVO', 'Comparativo Mensal'],
+                    ['HISTORICO', 'Histórico Individual']
+                  ].map(([sec, lbl]) => (
+                    <button
+                      key={sec}
+                      onClick={() => setBenefitSection(sec as any)}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                        benefitSection === sec
+                          ? 'bg-blue-700 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="text-[11px] text-slate-400 ml-auto">
+                Competência: <strong className="text-slate-700 font-mono">{benefitPeriod}</strong>
               </div>
             </div>
           </div>
@@ -2438,124 +2695,453 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
-      {/* ABA 2: ESPELHO DE PONTO & BANCO DE HORAS */}
-      {activeTab === 'ponto' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Espelho de Ponto Eletrônico (Portaria 671 MTE)</h3>
-              <p className="text-xs text-slate-500">Controle biométrico/digital de batidas de ponto, tolerância e banco de horas diário.</p>
+      {/* ABA 2: ESPELHO DE PONTO & BANCO DE HORAS (PORTARIA 671 MTE) */}
+      {activeTab === 'ponto' && (() => {
+        const selectedPontoEmp = employees.find(e => e.id === pontoEmployeeId) || employees[0];
+        const empTimeRecords = timeRecords.filter(t => t.employee_id === pontoEmployeeId || !t.employee_id);
+        const displayRecords = empTimeRecords.length > 0 ? empTimeRecords : [
+          { id: 'p1', date: '2026-10-06', clock_in: '08:02', clock_out_lunch: '12:01', clock_in_lunch: '13:00', clock_out: '17:05', total_hours: 8.05, balance_minutes: 5, status: 'NORMAL' },
+          { id: 'p2', date: '2026-10-05', clock_in: '07:58', clock_out_lunch: '12:00', clock_in_lunch: '13:02', clock_out: '17:10', total_hours: 8.17, balance_minutes: 10, status: 'BANCO_POSITIVO' },
+          { id: 'p3', date: '2026-10-04', clock_in: '08:00', clock_out_lunch: '12:00', clock_in_lunch: '13:00', clock_out: '17:00', total_hours: 8.0, balance_minutes: 0, status: 'NORMAL' },
+          { id: 'p4', date: '2026-10-03', clock_in: '08:05', clock_out_lunch: '12:05', clock_in_lunch: '13:00', clock_out: '17:00', total_hours: 8.0, balance_minutes: 0, status: 'NORMAL' },
+          { id: 'p5', date: '2026-10-02', clock_in: '08:00', clock_out_lunch: '12:00', clock_in_lunch: '13:00', clock_out: '17:15', total_hours: 8.25, balance_minutes: 15, status: 'BANCO_POSITIVO' }
+        ];
+
+        return (
+          <div className="space-y-5">
+            {/* KPIs Consolidados de Ponto */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Horas Normais do Mês</span>
+                  <Clock className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="mt-1 text-xl font-black text-slate-900">176h 00m</div>
+                <div className="mt-0.5 text-[10px] text-slate-500">Carga mensal 22 dias úteis</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Banco de Horas Acumulado</span>
+                  <Timer className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="mt-1 text-xl font-black text-emerald-700">
+                  +{(selectedPontoEmp?.bankHoursBalance ?? 8.5)}h 00m
+                </div>
+                <div className="mt-0.5 text-[10px] text-emerald-700 font-bold">Saldo positivo a compensar</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Assiduidade Geral</span>
+                  <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                </div>
+                <div className="mt-1 text-xl font-black text-teal-700">98.7%</div>
+                <div className="mt-0.5 text-[10px] text-slate-500">Zero faltas não justificadas</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Ocorrências / Ajustes</span>
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="mt-1 text-xl font-black text-slate-900">0 pendentes</div>
+                <div className="mt-0.5 text-[10px] text-slate-500">Todas batidas homologadas</div>
+              </div>
             </div>
 
-            <button
-              onClick={handleClockPunch}
-              className="flex items-center space-x-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs transition-colors"
-            >
-              <Timer className="h-4 w-4" />
-              <span>Bater Ponto Agora</span>
-            </button>
-          </div>
+            {/* Barra Operacional: Seletor de Colaborador e Filtros */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Colaborador</label>
+                    <select
+                      value={pontoEmployeeId}
+                      onChange={e => setPontoEmployeeId(e.target.value)}
+                      className="min-w-64 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                    >
+                      {employees.map(emp => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.fullName} ({emp.registrationNumber}) — {emp.jobTitle}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Data</th>
-                  <th className="py-3 px-4 text-center">Entrada (1)</th>
-                  <th className="py-3 px-4 text-center">Saída Intervalo (2)</th>
-                  <th className="py-3 px-4 text-center">Retorno Intervalo (3)</th>
-                  <th className="py-3 px-4 text-center">Saída Final (4)</th>
-                  <th className="py-3 px-4 text-right">Horas Trabalhadas</th>
-                  <th className="py-3 px-4 text-center">Saldo Diário</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {timeRecords.map((t: any) => (
-                  <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-900">{t.date}</td>
-                    <td className="py-3 px-4 text-center font-mono font-medium">{t.clock_in || '—'}</td>
-                    <td className="py-3 px-4 text-center font-mono text-slate-600">{t.clock_out_lunch || '—'}</td>
-                    <td className="py-3 px-4 text-center font-mono text-slate-600">{t.clock_in_lunch || '—'}</td>
-                    <td className="py-3 px-4 text-center font-mono font-medium">{t.clock_out || '—'}</td>
-                    <td className="py-3 px-4 text-right font-black text-slate-800">{t.total_hours || 8.0}h</td>
-                    <td className="py-3 px-4 text-center font-bold text-emerald-700">
-                      +{(t.balance_minutes ?? 0)} min
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                        {t.status || 'NORMAL'}
-                      </span>
-                    </td>
-                  </tr>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Competência</label>
+                    <input
+                      type="month"
+                      value={pontoMonth}
+                      onChange={e => setPontoMonth(e.target.value)}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-mono font-bold text-slate-800"
+                    >
+                    </input>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setPontoAdjustForm({
+                        date: '2026-10-06',
+                        punchType: 'ENTRADA',
+                        time: '08:00',
+                        reason: 'Esquecimento de registro',
+                        note: ''
+                      });
+                      setIsPontoAdjustModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Ajustar / Justificar</span>
+                  </button>
+
+                  <button
+                    onClick={handleClockPunch}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <Timer className="h-3.5 w-3.5" />
+                    <span>Bater Ponto Agora</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Badges de Filtro de Status */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+                <span className="text-[10px] font-bold uppercase text-slate-400 mr-1 flex items-center gap-1">
+                  <Filter className="h-3 w-3" /> Situação:
+                </span>
+                {(['TODOS', 'NORMAL', 'DIVERGENCIA', 'EXTRA'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setPontoFilter(f)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                      pontoFilter === f
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {f === 'TODOS' ? 'Todos os Registros' : f === 'NORMAL' ? 'Normal' : f === 'DIVERGENCIA' ? 'Divergências' : 'Horas Extras / Banco'}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
 
-      {/* ABA 3: FÉRIAS & AUSÊNCIAS */}
+            {/* Espelho de Ponto Eletrônico Portaria 671 MTE */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+              <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                    Espelho de Ponto Oficial — {selectedPontoEmp?.fullName} ({selectedPontoEmp?.registrationNumber})
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Portaria 671 MTE • REP Digital Homologado • Carga Diária: 8h48m ou 8h00m com 1h intervalo
+                  </p>
+                </div>
+                <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                  REP Conforme Portaria 671
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Data</th>
+                      <th className="py-3 px-4 text-center">Entrada (1)</th>
+                      <th className="py-3 px-4 text-center">Saída Intervalo (2)</th>
+                      <th className="py-3 px-4 text-center">Retorno Intervalo (3)</th>
+                      <th className="py-3 px-4 text-center">Saída Final (4)</th>
+                      <th className="py-3 px-4 text-right">Horas Trabalhadas</th>
+                      <th className="py-3 px-4 text-center">Saldo Diário</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {displayRecords
+                      .filter((t: any) => {
+                        if (pontoFilter === 'TODOS') return true;
+                        if (pontoFilter === 'NORMAL') return t.status === 'NORMAL';
+                        if (pontoFilter === 'DIVERGENCIA') return t.status === 'DIVERGENCIA';
+                        if (pontoFilter === 'EXTRA') return t.status === 'BANCO_POSITIVO' || Number(t.balance_minutes) > 0;
+                        return true;
+                      })
+                      .map((t: any) => (
+                        <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-4 font-bold text-slate-900">{t.date}</td>
+                          <td className="py-3 px-4 text-center font-mono font-medium">{t.clock_in || '—'}</td>
+                          <td className="py-3 px-4 text-center font-mono text-slate-600">{t.clock_out_lunch || '—'}</td>
+                          <td className="py-3 px-4 text-center font-mono text-slate-600">{t.clock_in_lunch || '—'}</td>
+                          <td className="py-3 px-4 text-center font-mono font-medium">{t.clock_out || '—'}</td>
+                          <td className="py-3 px-4 text-right font-black text-slate-800">{t.total_hours || 8.0}h</td>
+                          <td className="py-3 px-4 text-center font-bold">
+                            <span className={(t.balance_minutes ?? 0) >= 0 ? 'text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px]' : 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded text-[11px]'}>
+                              {(t.balance_minutes ?? 0) >= 0 ? `+${t.balance_minutes ?? 0}m` : `${t.balance_minutes}m`}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                              t.status === 'BANCO_POSITIVO' ? 'bg-emerald-100 text-emerald-800' :
+                              t.status === 'DIVERGENCIA' ? 'bg-rose-100 text-rose-800' :
+                              'bg-slate-100 text-slate-700'
+                            }`}>
+                              {t.status || 'NORMAL'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={() => {
+                                setPontoAdjustForm({
+                                  date: t.date,
+                                  punchType: 'ENTRADA',
+                                  time: t.clock_in || '08:00',
+                                  reason: 'Ajuste de batida',
+                                  note: ''
+                                });
+                                setIsPontoAdjustModalOpen(true);
+                              }}
+                              className="text-[11px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+                            >
+                              Ajustar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ABA 3: FÉRIAS & AFASTAMENTOS */}
       {activeTab === 'vacations' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Programação de Férias & Ausências Legais</h3>
-              <p className="text-xs text-slate-500">Solicitação integrada diretamente com o Motor de Alçadas do SEEK Core.</p>
+        <div className="space-y-5">
+          {/* Indicadores de Férias & Ausências */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Férias Programadas</span>
+                <Palmtree className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-slate-900">
+                {vacationRequests.length > 0 ? vacationRequests.length : 14} programadas
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">Ano vigente 2026</div>
             </div>
 
-            <button
-              onClick={() => setIsVacationOpen(true)}
-              className="flex items-center space-x-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-700 shadow-2xs transition-colors"
-            >
-              <Palmtree className="h-4 w-4" />
-              <span>Solicitar Férias</span>
-            </button>
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Aguardando Alçada</span>
+                <Clock className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-blue-700">
+                {vacationRequests.filter(v => v.status === 'PENDENTE' || v.status === 'EM_APROVACAO').length || 2} pendente(s)
+              </div>
+              <div className="mt-0.5 text-[10px] text-blue-700 font-bold">Alçada de gestor</div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Afastamentos Legais</span>
+                <AlertCircle className="h-4 w-4 text-purple-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-purple-700">
+                {benefitAbsences.length || 1} ativo(s)
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">Licenças e atestados</div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase text-slate-500">Saldo Médio da Empresa</span>
+                <Award className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-slate-900">24 dias</div>
+              <div className="mt-0.5 text-[10px] text-emerald-700 font-bold">Sem férias vencidas</div>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Colaborador</th>
-                  <th className="py-3 px-4">Data Início</th>
-                  <th className="py-3 px-4">Data Fim</th>
-                  <th className="py-3 px-4 text-center">Dias de Gozo</th>
-                  <th className="py-3 px-4 text-center">Status Alçada</th>
-                  <th className="py-3 px-4">Data Solicitação</th>
-                  <th className="py-3 px-4 text-right">Financeiro</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {vacationRequests.map((v: any) => (
-                  <tr key={v.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-900">{v.employee_name}</td>
-                    <td className="py-3 px-4 text-slate-700">{v.start_date}</td>
-                    <td className="py-3 px-4 text-slate-700">{v.end_date}</td>
-                    <td className="py-3 px-4 text-center font-black text-slate-900">{v.days_count} dias</td>
-                    <td className="py-3 px-4 text-center">
-                      <StatusBadge status={v.status} />
-                    </td>
-                    <td className="py-3 px-4 text-slate-500">{v.created_at?.substring(0, 10)}</td>
-                    <td className="py-3 px-4 text-right">
-                      {v.status === 'APROVADO' ? (
-                        <button
-                          onClick={() => handleVacationFinancial(v)}
-                          className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 transition-colors cursor-pointer"
-                        >
-                          Gerar obrigação
-                        </button>
-                      ) : v.financial_record_id ? (
-                        <span className="text-[10px] font-bold text-emerald-700">Enviado</span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400">Aguardando</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Sub-Navegação: Férias vs Afastamentos */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex rounded-lg border border-slate-200 bg-slate-100/80 p-1 text-xs">
+                <button
+                  onClick={() => setVacationSubTab('ferias')}
+                  className={`flex items-center space-x-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    vacationSubTab === 'ferias'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Palmtree className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Programação de Férias & Alçadas</span>
+                </button>
+                <button
+                  onClick={() => setVacationSubTab('afastamentos')}
+                  className={`flex items-center space-x-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    vacationSubTab === 'afastamentos'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <AlertCircle className="h-3.5 w-3.5 text-purple-600" />
+                  <span>Afastamentos & Licenças Legais</span>
+                </button>
+              </div>
+
+              {vacationSubTab === 'ferias' ? (
+                <button
+                  onClick={() => setIsVacationOpen(true)}
+                  className="flex items-center space-x-1.5 rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-amber-700 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Palmtree className="h-4 w-4" />
+                  <span>Solicitar Férias</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setAbsenceForm({
+                      employeeId: benefitEmployees[0]?.id || employees[0]?.id || '',
+                      startDate: `${benefitPeriod}-01`,
+                      endDate: `${benefitPeriod}-05`,
+                      reason: 'Atestado Médico / Licença',
+                      notes: ''
+                    });
+                    setIsRegisterAbsenceOpen(true);
+                  }}
+                  className="flex items-center space-x-1.5 rounded-lg bg-purple-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-purple-800 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>+ Registrar Afastamento</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Sub-Aba 1: Férias */}
+          {vacationSubTab === 'ferias' && (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+              <div className="border-b border-slate-100 bg-slate-50/70 p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                    Solicitações de Férias & Fluxo de Alçada
+                  </h4>
+                  <p className="text-[11px] text-slate-500">Integrado ao motor de aprovação corporativo e reconhecimento no Financeiro</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Colaborador</th>
+                      <th className="py-3 px-4">Data Início</th>
+                      <th className="py-3 px-4">Data Fim</th>
+                      <th className="py-3 px-4 text-center">Dias de Gozo</th>
+                      <th className="py-3 px-4 text-center">Status Alçada</th>
+                      <th className="py-3 px-4">Data Solicitação</th>
+                      <th className="py-3 px-4 text-right">Financeiro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {vacationRequests.map((v: any) => (
+                      <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-4 font-bold text-slate-900">{v.employee_name}</td>
+                        <td className="py-3 px-4 text-slate-700">{v.start_date}</td>
+                        <td className="py-3 px-4 text-slate-700">{v.end_date}</td>
+                        <td className="py-3 px-4 text-center font-black text-slate-900">{v.days_count} dias</td>
+                        <td className="py-3 px-4 text-center">
+                          <StatusBadge status={v.status} />
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{v.created_at?.substring(0, 10)}</td>
+                        <td className="py-3 px-4 text-right">
+                          {v.status === 'APROVADO' ? (
+                            <button
+                              onClick={() => handleVacationFinancial(v)}
+                              className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 transition-colors cursor-pointer"
+                            >
+                              Gerar obrigação
+                            </button>
+                          ) : v.financial_record_id ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              Enviado ({v.financial_record_id})
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Aguardando Aprovação</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {vacationRequests.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                          Nenhuma solicitação de férias registrada no momento.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Sub-Aba 2: Afastamentos */}
+          {vacationSubTab === 'afastamentos' && (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+              <div className="border-b border-slate-100 bg-slate-50/70 p-4 flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                    Afastamentos, Atestados Médicos & Licenças Previdenciárias
+                  </h4>
+                  <p className="text-[11px] text-slate-500">Impactam proporcionalidade de benefícios e afastamentos em folha de pagamento</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Colaborador</th>
+                      <th className="py-3 px-4">Data Início</th>
+                      <th className="py-3 px-4">Data Fim</th>
+                      <th className="py-3 px-4">Motivo Legal</th>
+                      <th className="py-3 px-4">Observações / CID</th>
+                      <th className="py-3 px-4">Registrado Por</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {benefitAbsences.map((a: any) => (
+                      <tr key={a.id} className="hover:bg-slate-50">
+                        <td className="py-3 px-4 font-bold text-slate-900">{a.employee_name || a.employeeId}</td>
+                        <td className="py-3 px-4 font-mono text-slate-700">{a.start_date}</td>
+                        <td className="py-3 px-4 font-mono text-slate-700">{a.end_date}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800">
+                          <span className="rounded bg-purple-50 px-2 py-0.5 text-[11px] font-bold text-purple-700 border border-purple-200">
+                            {a.reason}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{a.notes || '—'}</td>
+                        <td className="py-3 px-4 text-slate-500 text-[11px]">{a.created_by || 'RH Corporativo'}</td>
+                      </tr>
+                    ))}
+                    {benefitAbsences.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                          Nenhum afastamento legal registrado no momento.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2601,56 +3187,138 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900">Estrutura Organizacional & Hierarquia Corporativa</h3>
-              <p className="text-xs text-slate-500">Mapeamento dinâmico de subordinação hierárquica e alçadas de decisão corporativa.</p>
-            </div>
-
-            {/* Nível 1: Conselho & Diretoria */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase text-blue-700 tracking-wider">Nível Estratégico — Conselho & C-Level</span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
-                  <span className="font-bold text-xs text-slate-900 block">Roberto Vianna Guimarães</span>
-                  <span className="text-[11px] text-blue-800 font-semibold block">Diretor Presidente / C-Level</span>
-                  <span className="text-[10px] text-slate-500 mt-1 block">Alçada Executiva: R$ 500.000,00</span>
-                </div>
-                <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
-                  <span className="font-bold text-xs text-slate-900 block">Administrador Geral</span>
-                  <span className="text-[11px] text-blue-800 font-semibold block">Administrador Geral SEEK</span>
-                  <span className="text-[10px] text-slate-500 mt-1 block">Alçada Global: R$ 1.000.000,00</span>
-                </div>
+          {/* Sub-Toggle de Relatórios */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex rounded-lg border border-slate-200 bg-slate-100/80 p-1 text-xs">
+                <button
+                  onClick={() => setReportSubTab('organograma')}
+                  className={`flex items-center space-x-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    reportSubTab === 'organograma'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Estrutura & Organograma</span>
+                </button>
+                <button
+                  onClick={() => setReportSubTab('headcount')}
+                  className={`flex items-center space-x-1.5 rounded-md px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                    reportSubTab === 'headcount'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <BarChart3 className="h-3.5 w-3.5 text-cyan-600" />
+                  <span>Distribuição por Departamento & Custos</span>
+                </button>
               </div>
-            </div>
 
-            {/* Nível 2: Gestores Departamentais */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">Nível Tático — Gerências & Lideranças</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="font-bold text-xs text-slate-900 block">Helena Silveira</span>
-                  <span className="text-[10px] text-slate-600 block">Gerente Financeira</span>
-                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 75.000</span>
-                </div>
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="font-bold text-xs text-slate-900 block">Eduardo Martins</span>
-                  <span className="text-[10px] text-slate-600 block">Gestor de Operações & TI</span>
-                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 50.000</span>
-                </div>
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="font-bold text-xs text-slate-900 block">Lucas Bertolli</span>
-                  <span className="text-[10px] text-slate-600 block">Líder Comercial & CRM</span>
-                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 25.000</span>
-                </div>
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="font-bold text-xs text-slate-900 block">Camila Duarte</span>
-                  <span className="text-[10px] text-slate-600 block">Gerente de RH & DP</span>
-                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 30.000</span>
-                </div>
-              </div>
+              <span className="text-xs text-slate-400">
+                Dados consolidados da folha e quadro funcional
+              </span>
             </div>
           </div>
+
+          {/* Visualização 1: Estrutura & Organograma */}
+          {reportSubTab === 'organograma' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-900">Estrutura Organizacional & Hierarquia Corporativa</h3>
+                <p className="text-xs text-slate-500">Mapeamento dinâmico de subordinação hierárquica e alçadas de decisão corporativa.</p>
+              </div>
+
+              {/* Nível 1: Conselho & Diretoria */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-blue-700 tracking-wider">Nível Estratégico — Conselho & C-Level</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
+                    <span className="font-bold text-xs text-slate-900 block">Roberto Vianna Guimarães</span>
+                    <span className="text-[11px] text-blue-800 font-semibold block">Diretor Presidente / C-Level</span>
+                    <span className="text-[10px] text-slate-500 mt-1 block">Alçada Executiva: R$ 500.000,00</span>
+                  </div>
+                  <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
+                    <span className="font-bold text-xs text-slate-900 block">Administrador Geral</span>
+                    <span className="text-[11px] text-blue-800 font-semibold block">Administrador Geral SEEK</span>
+                    <span className="text-[10px] text-slate-500 mt-1 block">Alçada Global: R$ 1.000.000,00</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nível 2: Gestores Departamentais */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">Nível Tático — Gerências & Lideranças</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                    <span className="font-bold text-xs text-slate-900 block">Helena Silveira</span>
+                    <span className="text-[10px] text-slate-600 block">Gerente Financeira</span>
+                    <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 75.000</span>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                    <span className="font-bold text-xs text-slate-900 block">Eduardo Martins</span>
+                    <span className="text-[10px] text-slate-600 block">Gestor de Operações & TI</span>
+                    <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 50.000</span>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                    <span className="font-bold text-xs text-slate-900 block">Lucas Bertolli</span>
+                    <span className="text-[10px] text-slate-600 block">Líder Comercial & CRM</span>
+                    <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 25.000</span>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                    <span className="font-bold text-xs text-slate-900 block">Camila Duarte</span>
+                    <span className="text-[10px] text-slate-600 block">Gerente de RH & DP</span>
+                    <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 30.000</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Visualização 2: Distribuição por Departamento & Custos */}
+          {reportSubTab === 'headcount' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-bold text-slate-900">Distribuição de Headcount por Departamento</h3>
+                <p className="text-xs text-slate-500">Mapeamento de colaboradores por área corporativa e regime de contratação.</p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="py-3 px-4">Departamento</th>
+                      <th className="py-3 px-4 text-center">Colaboradores</th>
+                      <th className="py-3 px-4 text-center">CLT</th>
+                      <th className="py-3 px-4 text-center">PJ</th>
+                      <th className="py-3 px-4 text-center">Estágio</th>
+                      <th className="py-3 px-4 text-right">% do Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Array.from(new Set(employees.map(e => e.department))).map(dept => {
+                      const deptEmployees = employees.filter(e => e.department === dept);
+                      const cltCount = deptEmployees.filter(e => e.regime === 'CLT').length;
+                      const pjCount = deptEmployees.filter(e => e.regime === 'PJ').length;
+                      const estagioCount = deptEmployees.filter(e => e.regime === 'ESTAGIO').length;
+                      const pct = ((deptEmployees.length / employees.length) * 100).toFixed(1);
+
+                      return (
+                        <tr key={dept} className="hover:bg-slate-50">
+                          <td className="py-3 px-4 font-bold text-slate-900">{dept}</td>
+                          <td className="py-3 px-4 text-center font-black text-slate-800">{deptEmployees.length}</td>
+                          <td className="py-3 px-4 text-center text-blue-700 font-semibold">{cltCount}</td>
+                          <td className="py-3 px-4 text-center text-purple-700 font-semibold">{pjCount}</td>
+                          <td className="py-3 px-4 text-center text-amber-700 font-semibold">{estagioCount}</td>
+                          <td className="py-3 px-4 text-right font-bold text-slate-700">{pct}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -3399,6 +4067,385 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                 className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white hover:bg-blue-800 shadow-xs cursor-pointer"
               >
                 Cadastrar Operadora
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal / Drawer: Ficha Cadastral do Colaborador */}
+      {selectedEmployeeForDetail && (
+        <Modal
+          isOpen={Boolean(selectedEmployeeForDetail)}
+          onClose={() => setSelectedEmployeeForDetail(null)}
+          title={`Ficha Cadastral — ${selectedEmployeeForDetail.fullName}`}
+          subtitle={`${selectedEmployeeForDetail.registrationNumber} • ${selectedEmployeeForDetail.jobTitle} • ${selectedEmployeeForDetail.department}`}
+        >
+          <div className="space-y-4 text-xs">
+            {/* Header da Ficha com Avatar e Badges */}
+            <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/70">
+              <div className="flex items-center space-x-3">
+                <div className="h-12 w-12 rounded-full bg-blue-700 text-white font-black text-sm flex items-center justify-center uppercase shadow-xs">
+                  {selectedEmployeeForDetail.fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('')}
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">{selectedEmployeeForDetail.fullName}</h4>
+                  <div className="text-[11px] text-slate-500 font-mono">
+                    Matrícula: <strong>{selectedEmployeeForDetail.registrationNumber}</strong> • {selectedEmployeeForDetail.branch}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${
+                  selectedEmployeeForDetail.regime === 'CLT' ? 'bg-blue-100 text-blue-800' :
+                  selectedEmployeeForDetail.regime === 'PJ' ? 'bg-purple-100 text-purple-800' :
+                  'bg-amber-100 text-amber-800'
+                }`}>
+                  {selectedEmployeeForDetail.regime}
+                </span>
+                <span className="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                  Ativo
+                </span>
+              </div>
+            </div>
+
+            {/* Abas Internas da Ficha Cadastral */}
+            <div className="flex rounded-lg border border-slate-200 bg-slate-100/70 p-1 text-[11px] font-bold">
+              {[
+                { id: 'pessoal', label: 'Pessoal & Docs' },
+                { id: 'profissional', label: 'Vínculo & Cargo' },
+                { id: 'remuneracao', label: 'Salário & Banco' },
+                { id: 'beneficios', label: 'Benefícios' },
+                { id: 'jornada', label: 'Jornada & Férias' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setEmployeeDetailTab(t.id as any)}
+                  className={`flex-1 py-1.5 rounded-md text-center transition-all cursor-pointer ${
+                    employeeDetailTab === t.id
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Conteúdo Aba 1: Dados Pessoais & Documentos */}
+            {employeeDetailTab === 'pessoal' && (
+              <div className="space-y-3 p-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">CPF</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">***.482.919-**</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">RG / Órgão</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">12.849.201-4 SSP/PR</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">PIS / PASEP</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">170.49281.92-3</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">E-mail Corporativo</span>
+                    <span className="font-medium text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                      <Mail className="h-3 w-3 text-slate-400" />
+                      {selectedEmployeeForDetail.fullName.toLowerCase().split(' ')[0]}.{selectedEmployeeForDetail.fullName.toLowerCase().split(' ').slice(-1)[0]}@seekcorp.com.br
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Telefone / WhatsApp</span>
+                    <span className="font-medium text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                      <Phone className="h-3 w-3 text-slate-400" />
+                      (41) 98842-1920
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Endereço Residencial</span>
+                  <span className="font-medium text-slate-800 text-xs flex items-center gap-1 mt-0.5">
+                    <MapPin className="h-3 w-3 text-slate-400" />
+                    Av. Sete de Setembro, 4210, Apto 802 — Batel, Curitiba - PR, CEP 80240-000
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Conteúdo Aba 2: Vínculo & Cargo */}
+            {employeeDetailTab === 'profissional' && (
+              <div className="space-y-3 p-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Cargo Oficial</span>
+                    <span className="font-bold text-slate-900 text-xs">{selectedEmployeeForDetail.jobTitle}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Departamento</span>
+                    <span className="font-bold text-slate-900 text-xs">{selectedEmployeeForDetail.department}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Data de Admissão</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">
+                      {selectedEmployeeForDetail.admissionDate ? new Date(selectedEmployeeForDetail.admissionDate).toLocaleDateString('pt-BR') : '01/03/2022'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Regime de Trabalho</span>
+                    <span className="font-bold text-slate-800 text-xs">{selectedEmployeeForDetail.regime} (Presencial / Híbrido)</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Filial / Lotação</span>
+                    <span className="font-medium text-slate-800 text-xs">{selectedEmployeeForDetail.branch}</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Gestor Direto / Reporte Hierárquico</span>
+                  <span className="font-bold text-slate-900 text-xs">
+                    {selectedEmployeeForDetail.managerName || 'Roberto Vianna Guimarães (Diretor Presidente)'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Conteúdo Aba 3: Salário & Dados Bancários */}
+            {employeeDetailTab === 'remuneracao' && (
+              <div className="space-y-3 p-1">
+                <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-emerald-800">Salário Base Mensal</span>
+                    <div className="text-xl font-black text-emerald-950 font-mono mt-0.5">
+                      {selectedEmployeeForDetail.salary
+                        ? Number(selectedEmployeeForDetail.salary).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        : 'R$ 7.850,00'}
+                    </div>
+                  </div>
+                  <span className="rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                    Remuneração Fixa
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Banco</span>
+                    <span className="font-bold text-slate-800 text-xs">033 — Santander Brasil</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Agência / Conta</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">Ag. 3401 • C/C 0109482-1</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Chave PIX</span>
+                    <span className="font-mono text-slate-700 text-xs">cpf_titular@seekcorp.com.br</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Conteúdo Aba 4: Benefícios Vinculados */}
+            {employeeDetailTab === 'beneficios' && (() => {
+              const bEmp = benefitEmployees.find(b => b.id === selectedEmployeeForDetail.id || b.fullName === selectedEmployeeForDetail.fullName);
+              const activeBenefits = bEmp?.benefits?.filter((b: any) => b.enabled) || [
+                { type: 'VT', providerName: 'Mobilidade Corporativa', companyCost: 220, employeeDiscount: 44 },
+                { type: 'VR', providerName: 'Cartão Benefícios Sodexo', companyCost: 770, employeeDiscount: 0 },
+                { type: 'VA', providerName: 'Cartão Benefícios Sodexo', companyCost: 450, employeeDiscount: 0 }
+              ];
+
+              return (
+                <div className="space-y-3 p-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">Benefícios Corporativos Ativos</span>
+                    <button
+                      onClick={() => {
+                        const target = bEmp || selectedEmployeeForDetail;
+                        handleOpenConfigureBenefits(target);
+                      }}
+                      className="rounded-lg bg-blue-700 px-3 py-1 text-[11px] font-bold text-white hover:bg-blue-800 shadow-2xs cursor-pointer"
+                    >
+                      Configurar Benefícios
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {activeBenefits.map((b: any, idx: number) => (
+                      <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-xs text-slate-900 block">{benefitLabel(b.type)}</span>
+                          <span className="text-[10px] text-slate-500 block">{b.providerName || 'Operadora Padrão'}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-xs text-slate-900 block font-mono">
+                            {currencyBRL(b.companyCost)}
+                          </span>
+                          <span className="text-[9px] text-rose-600 block">
+                            Desc: {currencyBRL(b.employeeDiscount)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Conteúdo Aba 5: Jornada & Férias */}
+            {employeeDetailTab === 'jornada' && (
+              <div className="space-y-3 p-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Carga Horária Semanal</span>
+                    <span className="text-lg font-black text-slate-900 mt-1 block">44 Horas</span>
+                    <span className="text-[10px] text-slate-500">Escala Seg a Sex (8h48m diários)</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Saldo Banco de Horas</span>
+                    <span className={`text-lg font-black mt-1 block ${(selectedEmployeeForDetail.bankHoursBalance ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      {(selectedEmployeeForDetail.bankHoursBalance ?? 0) > 0 ? `+${selectedEmployeeForDetail.bankHoursBalance}h` : `${selectedEmployeeForDetail.bankHoursBalance ?? 0}h`}
+                    </span>
+                    <span className="text-[10px] text-slate-500">Acordo de compensação Portaria 671</span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-amber-800">Saldo de Férias a Gozar</span>
+                    <div className="text-xl font-black text-amber-950 mt-0.5">
+                      {selectedEmployeeForDetail.vacationBalanceDays ?? 30} dias
+                    </div>
+                    <span className="text-[10px] text-amber-700">Período aquisitivo homologado</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsVacationOpen(true);
+                    }}
+                    className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 shadow-2xs cursor-pointer"
+                  >
+                    Solicitar Férias
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeForDetail(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Fechar Ficha
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal: Solicitar Ajuste / Justificativa de Ponto Eletrônico */}
+      {isPontoAdjustModalOpen && (
+        <Modal
+          isOpen={isPontoAdjustModalOpen}
+          onClose={() => setIsPontoAdjustModalOpen(false)}
+          title="Ajuste / Justificativa de Ponto (Portaria 671 MTE)"
+          subtitle="Registro de ocorrência, esquecimento, atestado ou serviço externo com trilha de auditoria"
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setNotification(`✅ Justificativa de ponto registrada para ${pontoAdjustForm.date}!`);
+              setIsPontoAdjustModalOpen(false);
+              setTimeout(() => setNotification(null), 5000);
+            }}
+            className="space-y-4 text-xs"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Data da Ocorrência *</label>
+                <input
+                  type="date"
+                  required
+                  value={pontoAdjustForm.date}
+                  onChange={e => setPontoAdjustForm({ ...pontoAdjustForm, date: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tipo de Batida *</label>
+                <select
+                  value={pontoAdjustForm.punchType}
+                  onChange={e => setPontoAdjustForm({ ...pontoAdjustForm, punchType: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden font-medium"
+                >
+                  <option value="ENTRADA">Entrada (1ª Batida)</option>
+                  <option value="SAIDA_ALMOCO">Saída Almoço (2ª Batida)</option>
+                  <option value="RETORNO_ALMOCO">Retorno Almoço (3ª Batida)</option>
+                  <option value="SAIDA_FINAL">Saída Final (4ª Batida)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Horário Realizado *</label>
+                <input
+                  type="time"
+                  required
+                  value={pontoAdjustForm.time}
+                  onChange={e => setPontoAdjustForm({ ...pontoAdjustForm, time: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 font-mono font-bold text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Motivo Legal *</label>
+                <select
+                  value={pontoAdjustForm.reason}
+                  onChange={e => setPontoAdjustForm({ ...pontoAdjustForm, reason: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden font-medium"
+                >
+                  <option value="Esquecimento de registro">Esquecimento de registro</option>
+                  <option value="Trabalho externo / Viagem">Trabalho externo / Viagem</option>
+                  <option value="Atestado / Consulta Médica">Atestado / Consulta Médica</option>
+                  <option value="Falha técnica no equipamento">Falha técnica no equipamento</option>
+                  <option value="Ajuste autorizado pelo Gestor">Ajuste autorizado pelo Gestor</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Justificativa Detalhada *</label>
+              <textarea
+                rows={3}
+                required
+                value={pontoAdjustForm.note}
+                onChange={e => setPontoAdjustForm({ ...pontoAdjustForm, note: e.target.value })}
+                placeholder="Descreva detalhadamente o ocorrido para fins de fiscalização MTE..."
+                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsPontoAdjustModalOpen(false)}
+                className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white hover:bg-blue-800 shadow-xs cursor-pointer"
+              >
+                Salvar Justificativa
               </button>
             </div>
           </form>
