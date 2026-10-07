@@ -1323,6 +1323,137 @@ export function initializeDatabase() {
     }
   } catch {}
 
+  // Migração 014: RH Benefícios Fase 3 (Operadoras, ajustes manuais e pedidos de compra por operadora)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_providers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      document TEXT,
+      benefit_type TEXT NOT NULL,
+      contact_name TEXT,
+      contact_email TEXT,
+      contact_phone TEXT,
+      payment_method TEXT,
+      billing_day INTEGER,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(name, benefit_type)
+    )`);
+
+    const provInfo = db.prepare(`PRAGMA table_info(benefit_providers)`).all() as any[];
+    const tradeNameCol = provInfo.find(c => c.name === 'trade_name');
+    if (tradeNameCol && tradeNameCol.notnull === 1) {
+      db.pragma('foreign_keys = OFF');
+      db.exec(`
+        DROP TABLE IF EXISTS benefit_providers_v3;
+        CREATE TABLE benefit_providers_v3 (
+          id TEXT PRIMARY KEY,
+          company_id TEXT DEFAULT 'comp-1',
+          name TEXT NOT NULL,
+          trade_name TEXT,
+          legal_name TEXT,
+          document TEXT,
+          cnpj TEXT,
+          benefit_type TEXT NOT NULL DEFAULT 'VA',
+          contact_name TEXT,
+          contact_email TEXT,
+          contact_phone TEXT,
+          payment_method TEXT DEFAULT 'BOLETO',
+          billing_day INTEGER DEFAULT 20,
+          active INTEGER NOT NULL DEFAULT 1,
+          status TEXT DEFAULT 'ATIVO',
+          integration_type TEXT DEFAULT 'MANUAL',
+          api_endpoint TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(name, benefit_type)
+        );
+        INSERT OR IGNORE INTO benefit_providers_v3 (
+          id, company_id, name, trade_name, legal_name, document, cnpj, benefit_type, status, created_at
+        )
+        SELECT id, company_id, COALESCE(trade_name, legal_name, 'Operadora'), trade_name, legal_name, cnpj, cnpj, 'VA', status, created_at
+        FROM benefit_providers;
+        DROP TABLE benefit_providers;
+        ALTER TABLE benefit_providers_v3 RENAME TO benefit_providers;
+      `);
+      db.pragma('foreign_keys = ON');
+    }
+
+    const provCols = new Set((db.prepare(`PRAGMA table_info(benefit_providers)`).all() as any[]).map(c => c.name));
+    if (!provCols.has('name')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN name TEXT`);
+    if (!provCols.has('document')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN document TEXT`);
+    if (!provCols.has('benefit_type')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN benefit_type TEXT DEFAULT 'VA'`);
+    if (!provCols.has('contact_name')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN contact_name TEXT`);
+    if (!provCols.has('contact_email')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN contact_email TEXT`);
+    if (!provCols.has('contact_phone')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN contact_phone TEXT`);
+    if (!provCols.has('payment_method')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN payment_method TEXT DEFAULT 'BOLETO'`);
+    if (!provCols.has('billing_day')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN billing_day INTEGER DEFAULT 20`);
+    if (!provCols.has('active')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN active INTEGER NOT NULL DEFAULT 1`);
+    if (!provCols.has('updated_at')) db.exec(`ALTER TABLE benefit_providers ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP`);
+    if (provCols.has('trade_name')) {
+      db.exec(`UPDATE benefit_providers SET name = COALESCE(name, trade_name, legal_name) WHERE name IS NULL`);
+    }
+    if (provCols.has('cnpj')) {
+      db.exec(`UPDATE benefit_providers SET document = COALESCE(document, cnpj) WHERE document IS NULL`);
+    }
+  } catch (err) {
+    console.error('Migration 014 benefit_providers error:', err);
+  }
+
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_adjustments (
+      id TEXT PRIMARY KEY,
+      period TEXT NOT NULL,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      benefit_type TEXT NOT NULL,
+      adjustment_type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      reason TEXT NOT NULL,
+      created_by TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch {}
+
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_purchase_batches (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL REFERENCES benefit_orders(id) ON DELETE CASCADE,
+      provider_name TEXT NOT NULL,
+      benefit_type TEXT NOT NULL,
+      employee_count INTEGER NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'AGUARDANDO_COMPRA',
+      financial_record_id TEXT,
+      sent_at TEXT,
+      paid_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(order_id, provider_name, benefit_type)
+    )`);
+  } catch {}
+
+  try {
+    const boiCols = new Set((db.prepare(`PRAGMA table_info(benefit_order_items)`).all() as any[]).map(c => c.name));
+    if (!boiCols.has('adjustment_amount')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN adjustment_amount REAL NOT NULL DEFAULT 0`);
+    if (!boiCols.has('final_company_cost')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN final_company_cost REAL NOT NULL DEFAULT 0`);
+  } catch {}
+
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_adjustments_period_employee ON benefit_adjustments(period, employee_id, benefit_type)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_purchase_batches_order ON benefit_purchase_batches(order_id)`); } catch {}
+
+  try {
+    const provCheck = db.prepare('SELECT COUNT(*) as count FROM benefit_providers').get() as { count: number };
+    if (provCheck.count === 0) {
+      db.prepare(`
+        INSERT INTO benefit_providers (id, name, benefit_type, payment_method, billing_day, active) VALUES
+        ('bprov-vt-01', 'Mobilidade Corporativa', 'VT', 'BOLETO', 20, 1),
+        ('bprov-va-01', 'Cartão Benefícios', 'VA', 'BOLETO', 20, 1),
+        ('bprov-vr-01', 'Cartão Benefícios', 'VR', 'BOLETO', 20, 1),
+        ('bprov-fuel-01', 'Auxílio Combustível', 'COMBUSTIVEL', 'PIX', 20, 1)
+      `).run();
+    }
+  } catch {}
+
   // Parâmetros oficiais de acesso e ambiente
   try {
     db.prepare(`

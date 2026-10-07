@@ -62,7 +62,8 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const [payrollPreview, setPayrollPreview] = useState<any>(null);
   const [closingPayroll, setClosingPayroll] = useState(false);
 
-  // Estados dos Benefícios (VT, VA, VR, Combustível)
+  // Estados dos Benefícios (VT, VA, VR, Combustível) — Fase 3
+  const [benefitSection, setBenefitSection] = useState<'COLABORADORES' | 'FECHAMENTO' | 'PEDIDOS' | 'OPERADORAS' | 'AFASTAMENTOS'>('COLABORADORES');
   const [benefitEmployees, setBenefitEmployees] = useState<any[]>([]);
   const [benefitOrders, setBenefitOrders] = useState<any[]>([]);
   const [benefitPeriod, setBenefitPeriod] = useState('2026-10');
@@ -70,6 +71,11 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const [benefitPreview, setBenefitPreview] = useState<any>(null);
   const [benefitFilter, setBenefitFilter] = useState<'TODOS'|'VT'|'VA'|'VR'|'COMBUSTIVEL'>('TODOS');
   const [benefitAbsences, setBenefitAbsences] = useState<any[]>([]);
+  const [benefitProviders, setBenefitProviders] = useState<any[]>([]);
+  const [benefitAdjustments, setBenefitAdjustments] = useState<any[]>([]);
+  const [benefitPurchases, setBenefitPurchases] = useState<any[]>([]);
+
+  // Modais de Benefícios
   const [isRegisterAbsenceOpen, setIsRegisterAbsenceOpen] = useState(false);
   const [absenceForm, setAbsenceForm] = useState({
     employeeId: '',
@@ -77,6 +83,44 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
     endDate: '2026-10-05',
     reason: 'Atestado Médico / Licença',
     notes: ''
+  });
+
+  const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState<{
+    employeeId: string;
+    employeeName: string;
+    benefitType: 'VT' | 'VA' | 'VR' | 'COMBUSTIVEL';
+    adjustmentType: 'CREDITO' | 'DESCONTO';
+    amount: string;
+    reason: string;
+  }>({
+    employeeId: '',
+    employeeName: '',
+    benefitType: 'VT',
+    adjustmentType: 'CREDITO',
+    amount: '',
+    reason: ''
+  });
+
+  const [isProviderOpen, setIsProviderOpen] = useState(false);
+  const [providerForm, setProviderForm] = useState<{
+    name: string;
+    document: string;
+    benefitType: 'VT' | 'VA' | 'VR' | 'COMBUSTIVEL';
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    paymentMethod: string;
+    billingDay: string;
+  }>({
+    name: '',
+    document: '',
+    benefitType: 'VA',
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    paymentMethod: 'BOLETO',
+    billingDay: '20'
   });
 
   // Modal de Configuração de Benefícios por Colaborador
@@ -145,6 +189,15 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
       const serverBenefitAbsences = await api.getBenefitAbsences();
       if (serverBenefitAbsences) setBenefitAbsences(serverBenefitAbsences);
+
+      const serverBenefitProviders = await api.getBenefitProviders();
+      if (serverBenefitProviders) setBenefitProviders(serverBenefitProviders);
+
+      const serverBenefitAdjustments = await api.getBenefitAdjustments(benefitPeriod);
+      if (serverBenefitAdjustments) setBenefitAdjustments(serverBenefitAdjustments);
+
+      const serverBenefitPurchases = await api.getBenefitPurchases();
+      if (serverBenefitPurchases) setBenefitPurchases(serverBenefitPurchases);
     } catch {
       // fallback
     }
@@ -415,6 +468,87 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       loadData();
     } else {
       setNotification(`⚠️ ${res?.error || 'Falha ao enviar benefícios ao Financeiro.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleOpenAdjustment = (emp: any, defaultType: string = 'VT') => {
+    const activeBenefit = (emp.benefits || []).find((b: any) => b.enabled);
+    const bType = (activeBenefit?.type || defaultType) as 'VT' | 'VA' | 'VR' | 'COMBUSTIVEL';
+    setAdjustmentForm({
+      employeeId: emp.id,
+      employeeName: emp.fullName,
+      benefitType: bType,
+      adjustmentType: 'CREDITO',
+      amount: '',
+      reason: ''
+    });
+    setIsAdjustmentOpen(true);
+  };
+
+  const handleSaveAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustmentForm.employeeId || !(Number(adjustmentForm.amount) > 0) || !adjustmentForm.reason) return;
+    const res = await api.createBenefitAdjustment({
+      period: benefitPeriod,
+      employeeId: adjustmentForm.employeeId,
+      benefitType: adjustmentForm.benefitType,
+      adjustmentType: adjustmentForm.adjustmentType,
+      amount: Number(adjustmentForm.amount),
+      reason: adjustmentForm.reason,
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification(`✅ Ajuste de ${adjustmentForm.adjustmentType.toLowerCase()} registrado para ${adjustmentForm.employeeName}.`);
+      setIsAdjustmentOpen(false);
+      setBenefitPreview(null);
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha ao registrar ajuste.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleSaveProvider = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!providerForm.name || !providerForm.benefitType) return;
+    const res = await api.createBenefitProvider({
+      ...providerForm,
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification(`✅ Operadora ${providerForm.name} cadastrada com sucesso.`);
+      setIsProviderOpen(false);
+      setProviderForm({
+        name: '',
+        document: '',
+        benefitType: 'VA',
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        paymentMethod: 'BOLETO',
+        billingDay: '20'
+      });
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha ao cadastrar operadora.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleSendBenefitPurchase = async (batch: any) => {
+    const res = await api.sendBenefitPurchaseToFinance(batch.id, {
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      const label = batch.benefit_type === 'COMBUSTIVEL' ? 'Auxílio Combustível' : batch.benefit_type;
+      setNotification(`✅ Pedido ${label} · ${batch.provider_name} enviado ao Financeiro (Título ${res.financialRecord?.code || ''}).`);
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha ao enviar pedido ao Financeiro.'}`);
     }
     setTimeout(() => setNotification(null), 5000);
   };
@@ -902,14 +1036,512 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       {/* ABA: GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS (VT, VA, VR, COMBUSTÍVEL) */}
       {activeTab === 'benefits' && (
         <div className="space-y-5">
-          {/* Card de Colaboradores e Benefícios */}
+          {/* Header de Navegação Interna da Área de Benefícios */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h3 className="text-sm font-black text-slate-900">Benefícios dos Colaboradores</h3>
-                <p className="text-xs text-slate-500">Relação nominal e gestão de VT, VA, VR e Auxílio Combustível.</p>
+                <h3 className="text-sm font-black text-slate-900">Gestão de Benefícios</h3>
+                <p className="text-xs text-slate-500">
+                  VT, VA, VR e Auxílio Combustível: vínculo nominal, proporcionalidade, ajustes, operadoras, fechamento e compra por competência.
+                </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['COLABORADORES', 'Colaboradores'],
+                  ['FECHAMENTO', 'Fechamento'],
+                  ['PEDIDOS', 'Pedidos de compra'],
+                  ['OPERADORAS', 'Operadoras'],
+                  ['AFASTAMENTOS', 'Afastamentos']
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setBenefitSection(key)}
+                    className={`rounded-lg px-3 py-2 text-[11px] font-bold transition-colors cursor-pointer ${
+                      benefitSection === key
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SUB-ABA 1: COLABORADORES */}
+          {benefitSection === 'COLABORADORES' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Relação nominal de colaboradores</h3>
+                  <p className="text-xs text-slate-500">
+                    Consulte e edite os benefícios de cada colaborador. Use Ajuste para crédito/desconto excepcional da competência.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(['TODOS', 'VT', 'VA', 'VR', 'COMBUSTIVEL'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setBenefitFilter(f)}
+                      className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                        benefitFilter === f ? 'bg-blue-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {f === 'COMBUSTIVEL' ? 'Combustível' : f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Colaborador</th>
+                      <th className="py-3 px-2">Departamento</th>
+                      <th className="py-3 px-2 text-right">VT</th>
+                      <th className="py-3 px-2 text-right">VA</th>
+                      <th className="py-3 px-2 text-right">VR</th>
+                      <th className="py-3 px-2 text-right">Combustível</th>
+                      <th className="py-3 px-2 text-right">Custo Empresa</th>
+                      <th className="py-3 px-3 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {benefitEmployees.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-slate-400">
+                          Nenhum colaborador com benefício cadastrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      benefitEmployees
+                        .filter(e => benefitFilter === 'TODOS' || (e.benefits || []).some((b: any) => b.type === benefitFilter && b.enabled))
+                        .map(emp => {
+                          const getB = (t: string) => (emp.benefits || []).find((b: any) => b.type === t && b.enabled);
+                          const vals = ['VT', 'VA', 'VR', 'COMBUSTIVEL'].map(t => getB(t));
+                          const totalEmpresa = vals.reduce((acc: number, b: any) => acc + Number(b?.companyCost || 0), 0);
+
+                          return (
+                            <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-3">
+                                <div className="font-bold text-slate-900">{emp.fullName}</div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {emp.registrationNumber} • {emp.jobTitle}
+                                </div>
+                              </td>
+                              <td className="py-3 px-2 text-slate-700">{emp.department}</td>
+                              {vals.map((b: any, idx: number) => (
+                                <td key={idx} className="py-3 px-2 text-right">
+                                  <div className="font-semibold text-slate-800">
+                                    {b && Number(b.companyCost) > 0 ? (
+                                      Number(b.companyCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                    ) : (
+                                      <span className="text-slate-300 font-normal">—</span>
+                                    )}
+                                  </div>
+                                  {b?.providerName && (
+                                    <div className="text-[9px] text-slate-400 font-medium truncate max-w-[120px]" title={b.providerName}>
+                                      {b.providerName}
+                                    </div>
+                                  )}
+                                </td>
+                              ))}
+                              <td className="py-3 px-2 text-right font-black text-slate-900">
+                                {totalEmpresa.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex justify-center items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenConfigureBenefits(emp)}
+                                    className="rounded-lg border border-blue-200 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
+                                  >
+                                    Configurar
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenAdjustment(emp)}
+                                    className="rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+                                  >
+                                    Ajuste
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 2: FECHAMENTO */}
+          {benefitSection === 'FECHAMENTO' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-3">Fechamento do Lote Mensal</h4>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-slate-500">Competência</label>
+                    <input
+                      type="month"
+                      value={benefitPeriod}
+                      onChange={e => {
+                        setBenefitPeriod(e.target.value);
+                        setBenefitPreview(null);
+                        api.getBenefitAdjustments(e.target.value).then(res => setBenefitAdjustments(res || []));
+                      }}
+                      className="mt-1 block rounded-lg border border-slate-200 p-2 text-xs font-medium text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-slate-500">Vencimento / Crédito</label>
+                    <input
+                      type="date"
+                      value={benefitDueDate}
+                      onChange={e => setBenefitDueDate(e.target.value)}
+                      className="mt-1 block rounded-lg border border-slate-200 p-2 text-xs font-medium text-slate-800"
+                    />
+                  </div>
+                  <button
+                    onClick={handlePreviewBenefits}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Recalcular prévia
+                  </button>
+                  <button
+                    onClick={handleCloseBenefits}
+                    className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors cursor-pointer shadow-xs"
+                  >
+                    Fechar competência
+                  </button>
+                </div>
+
+                {benefitPreview && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <div className="text-xs font-bold text-slate-700 mb-2">
+                      Prévia Competência {benefitPreview.period} ({benefitPreview.employeeCount} colaboradores com benefícios):
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-5">
+                      {[
+                        ['VT', benefitPreview.totals?.VT],
+                        ['VA', benefitPreview.totals?.VA],
+                        ['VR', benefitPreview.totals?.VR],
+                        ['Combustível', benefitPreview.totals?.COMBUSTIVEL],
+                        ['Total Empresa', benefitPreview.totalAmount]
+                      ].map(([label, val]: any, i: number) => (
+                        <div key={label} className={`rounded-xl p-3 border ${i === 4 ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
+                          <div className="text-[10px] font-bold uppercase text-slate-500">{label}</div>
+                          <div className={`mt-1 text-base font-black ${i === 4 ? 'text-blue-900' : 'text-slate-900'}`}>
+                            {Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Memória de Cálculo da Prévia com Ajustes */}
+                    <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden bg-white">
+                      <div className="border-b bg-slate-50 px-4 py-2.5 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800">
+                          Memória de cálculo detalhada · {benefitPreview.businessDays || 22} dias úteis · Ajustes manuais destacados
+                        </span>
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                          Proporcionalidade & Ajustes aplicados
+                        </span>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                            <tr>
+                              <th className="p-3">Colaborador</th>
+                              <th className="py-3 px-2">Benefício</th>
+                              <th className="py-3 px-2 text-center">Elegíveis</th>
+                              <th className="py-3 px-2 text-center">Admissão</th>
+                              <th className="py-3 px-2 text-center">Férias</th>
+                              <th className="py-3 px-2 text-center">Afast.</th>
+                              <th className="py-3 px-2 text-right">Ajuste</th>
+                              <th className="py-3 px-3 text-right">Final Empresa</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {benefitPreview.items?.map((item: any, idx: number) => {
+                              const adj = Number(item.adjustment_amount || 0);
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50">
+                                  <td className="p-3 font-semibold text-slate-900">{item.full_name}</td>
+                                  <td className="py-3 px-2 font-medium text-slate-700">{item.benefit_type === 'COMBUSTIVEL' ? 'Combustível' : item.benefit_type}</td>
+                                  <td className="py-3 px-2 text-center font-bold text-slate-800">
+                                    {item.eligible_days}/{item.business_days}
+                                  </td>
+                                  <td className="py-3 px-2 text-center font-semibold text-slate-600">
+                                    {item.admission_days_deducted > 0 ? `-${item.admission_days_deducted}` : '0'}
+                                  </td>
+                                  <td className="py-3 px-2 text-center font-semibold text-amber-700">
+                                    {item.vacation_days_deducted > 0 ? `-${item.vacation_days_deducted}` : '0'}
+                                  </td>
+                                  <td className="py-3 px-2 text-center font-semibold text-rose-700">
+                                    {item.leave_days_deducted > 0 ? `-${item.leave_days_deducted}` : '0'}
+                                  </td>
+                                  <td className={`py-3 px-2 text-right font-bold ${adj > 0 ? 'text-emerald-600' : adj < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                    {adj === 0 ? '—' : `${adj > 0 ? '+' : ''}${adj.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+                                  </td>
+                                  <td className="py-3 px-3 text-right font-black text-slate-900">
+                                    {Number(item.calculated_company_cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Ajustes da Competência */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Ajustes da competência {benefitPeriod}</h3>
+                    <p className="text-xs text-slate-500">Créditos e descontos excepcionais entram na memória de cálculo antes do fechamento.</p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
+                    {benefitAdjustments.filter((a: any) => a.period === benefitPeriod).length} ajuste(s) registrado(s)
+                  </span>
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Colaborador</th>
+                        <th className="py-3 px-2">Benefício</th>
+                        <th className="py-3 px-2 text-center">Tipo</th>
+                        <th className="py-3 px-2 text-right">Valor</th>
+                        <th className="py-3 px-2">Motivo</th>
+                        <th className="py-3 px-3 text-center">Registrado por</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {benefitAdjustments.filter((a: any) => a.period === benefitPeriod).length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-4 text-center text-slate-400">
+                            Nenhum ajuste excepcional registrado para a competência {benefitPeriod}.
+                          </td>
+                        </tr>
+                      ) : (
+                        benefitAdjustments.filter((a: any) => a.period === benefitPeriod).map((a: any) => (
+                          <tr key={a.id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-slate-900">{a.employee_name || a.employee_id}</td>
+                            <td className="py-3 px-2 text-slate-700">{a.benefit_type === 'COMBUSTIVEL' ? 'Combustível' : a.benefit_type}</td>
+                            <td className="py-3 px-2 text-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${a.adjustment_type === 'CREDITO' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {a.adjustment_type}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-right font-black text-slate-900">
+                              {Number(a.amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </td>
+                            <td className="py-3 px-2 text-slate-600">{a.reason}</td>
+                            <td className="py-3 px-3 text-center text-[10px] text-slate-400">{a.created_by || 'RH'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 3: PEDIDOS DE COMPRA */}
+          {benefitSection === 'PEDIDOS' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="pb-3 border-b border-slate-100">
+                  <h3 className="text-sm font-black text-slate-900">Pedidos de compra por operadora</h3>
+                  <p className="text-xs text-slate-500">
+                    Após o fechamento, o SEEK separa automaticamente a compra por benefício e fornecedor. Cada pedido pode seguir individualmente ao Financeiro.
+                  </p>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Competência</th>
+                        <th className="py-3 px-2">Benefício</th>
+                        <th className="py-3 px-2">Operadora / Fornecedor</th>
+                        <th className="py-3 px-2 text-center">Colaboradores</th>
+                        <th className="py-3 px-2 text-right">Valor Total</th>
+                        <th className="py-3 px-2 text-center">Status</th>
+                        <th className="py-3 px-3 text-center">Financeiro</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {benefitPurchases.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-6 text-center text-slate-400">
+                            Nenhum pedido de compra gerado. Feche uma competência para gerar os pedidos agrupados por operadora.
+                          </td>
+                        </tr>
+                      ) : (
+                        benefitPurchases.map((p: any) => (
+                          <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-slate-900">{p.period}</td>
+                            <td className="py-3 px-2 font-medium text-slate-700">
+                              {p.benefit_type === 'COMBUSTIVEL' ? 'Auxílio Combustível' : p.benefit_type}
+                            </td>
+                            <td className="py-3 px-2 font-semibold text-slate-900">{p.provider_name}</td>
+                            <td className="py-3 px-2 text-center font-bold text-slate-700">{p.employee_count}</td>
+                            <td className="py-3 px-2 text-right font-black text-slate-900">
+                              {Number(p.total_amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <StatusBadge status={p.status} />
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              {p.financial_record_id ? (
+                                <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                  {p.financial_record_id}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleSendBenefitPurchase(p)}
+                                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
+                                >
+                                  Enviar ao Financeiro
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Tabela de Fechamentos Mensais */}
+              <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+                <div className="p-4 border-b border-slate-200">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Histórico de Fechamentos de Benefícios</h4>
+                </div>
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Competência</th>
+                      <th className="py-3 px-2 text-center">Colaboradores</th>
+                      <th className="py-3 px-2 text-right">VT</th>
+                      <th className="py-3 px-2 text-right">VA</th>
+                      <th className="py-3 px-2 text-right">VR</th>
+                      <th className="py-3 px-2 text-right">Combustível</th>
+                      <th className="py-3 px-2 text-right">Total Empresa</th>
+                      <th className="py-3 px-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {benefitOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-slate-400">
+                          Nenhum fechamento realizado.
+                        </td>
+                      </tr>
+                    ) : (
+                      benefitOrders.map((o: any) => (
+                        <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 font-bold text-slate-900">{o.period}</td>
+                          <td className="py-3 px-2 text-center text-slate-700">{o.employee_count}</td>
+                          <td className="py-3 px-2 text-right text-slate-700">{Number(o.vt_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                          <td className="py-3 px-2 text-right text-slate-700">{Number(o.va_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                          <td className="py-3 px-2 text-right text-slate-700">{Number(o.vr_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                          <td className="py-3 px-2 text-right text-slate-700">{Number(o.fuel_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                          <td className="py-3 px-2 text-right font-black text-slate-900">{Number(o.total_amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                          <td className="py-3 px-2 text-center"><StatusBadge status={o.status} /></td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 4: OPERADORAS */}
+          {benefitSection === 'OPERADORAS' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Operadoras e Fornecedores</h3>
+                  <p className="text-xs text-slate-500">Cadastro usado para organizar as compras mensais de VT, VA, VR e Auxílio Combustível.</p>
+                </div>
+                <button
+                  onClick={() => setIsProviderOpen(true)}
+                  className="rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs cursor-pointer"
+                >
+                  + Nova Operadora
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Operadora</th>
+                      <th className="py-3 px-2">Benefício</th>
+                      <th className="py-3 px-2">Documento / CNPJ</th>
+                      <th className="py-3 px-2">Pagamento</th>
+                      <th className="py-3 px-2 text-center">Dia Venc.</th>
+                      <th className="py-3 px-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {benefitProviders.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6 text-center text-slate-400">
+                          Nenhuma operadora cadastrada.
+                        </td>
+                      </tr>
+                    ) : (
+                      benefitProviders.map((p: any) => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-900">{p.name}</td>
+                          <td className="py-3 px-2 font-medium text-slate-700">
+                            {p.benefit_type === 'COMBUSTIVEL' ? 'Auxílio Combustível' : p.benefit_type}
+                          </td>
+                          <td className="py-3 px-2 font-mono text-slate-600">{p.document || '—'}</td>
+                          <td className="py-3 px-2 text-slate-700">{p.payment_method || '—'}</td>
+                          <td className="py-3 px-2 text-center font-bold text-slate-800">{p.billing_day || '—'}</td>
+                          <td className="py-3 px-2 text-center">
+                            {Number(p.active) !== 0 ? (
+                              <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px]">
+                                Ativa
+                              </span>
+                            ) : (
+                              <span className="font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full text-[10px]">
+                                Inativa
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 5: AFASTAMENTOS */}
+          {benefitSection === 'AFASTAMENTOS' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Afastamentos considerados nos benefícios</h3>
+                  <p className="text-xs text-slate-500">Períodos aqui registrados reduzem dias elegíveis somente nos benefícios configurados para descontar afastamento.</p>
+                </div>
                 <button
                   onClick={() => {
                     setAbsenceForm({
@@ -921,314 +1553,48 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                     });
                     setIsRegisterAbsenceOpen(true);
                   }}
-                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
                 >
                   + Registrar afastamento
                 </button>
-                {(['TODOS', 'VT', 'VA', 'VR', 'COMBUSTIVEL'] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setBenefitFilter(f)}
-                    className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
-                      benefitFilter === f ? 'bg-blue-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    {f === 'COMBUSTIVEL' ? 'Combustível' : f}
-                  </button>
-                ))}
               </div>
-            </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
-                  <tr>
-                    <th className="p-3">Colaborador</th>
-                    <th className="py-3 px-2">Departamento</th>
-                    <th className="py-3 px-2 text-right">VT</th>
-                    <th className="py-3 px-2 text-right">VA</th>
-                    <th className="py-3 px-2 text-right">VR</th>
-                    <th className="py-3 px-2 text-right">Combustível</th>
-                    <th className="py-3 px-2 text-right">Custo Empresa</th>
-                    <th className="py-3 px-3 text-center">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {benefitEmployees.length === 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
                     <tr>
-                      <td colSpan={8} className="p-6 text-center text-slate-400">
-                        Nenhum colaborador com benefício cadastrado.
-                      </td>
+                      <th className="p-3">Colaborador</th>
+                      <th className="py-3 px-2">Data Início</th>
+                      <th className="py-3 px-2">Data Fim</th>
+                      <th className="py-3 px-2">Motivo</th>
+                      <th className="py-3 px-2">Observações</th>
+                      <th className="py-3 px-3">Registrado por</th>
                     </tr>
-                  ) : (
-                    benefitEmployees
-                      .filter(e => benefitFilter === 'TODOS' || (e.benefits || []).some((b: any) => b.type === benefitFilter && b.enabled))
-                      .map(emp => {
-                        const getB = (t: string) => (emp.benefits || []).find((b: any) => b.type === t && b.enabled);
-                        const vals = ['VT', 'VA', 'VR', 'COMBUSTIVEL'].map(t => getB(t));
-                        const totalEmpresa = vals.reduce((acc: number, b: any) => acc + Number(b?.companyCost || 0), 0);
-
-                        return (
-                          <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3">
-                              <div className="font-bold text-slate-900">{emp.fullName}</div>
-                              <div className="text-[10px] text-slate-500 font-mono">
-                                {emp.registrationNumber} • {emp.jobTitle}
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 text-slate-700">{emp.department}</td>
-                            {vals.map((b: any, idx: number) => (
-                              <td key={idx} className="py-3 px-2 text-right font-medium text-slate-700">
-                                {b && Number(b.companyCost) > 0 ? (
-                                  <span title={`Operadora: ${b.providerName || 'N/D'}`}>
-                                    {Number(b.companyCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-300">—</span>
-                                )}
-                              </td>
-                            ))}
-                            <td className="py-3 px-2 text-right font-black text-slate-900">
-                              {totalEmpresa.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <button
-                                onClick={() => handleOpenConfigureBenefits(emp)}
-                                className="rounded-lg border border-blue-200 px-3 py-1 text-xs font-bold text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
-                              >
-                                Configurar
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Fechamento Mensal de Benefícios */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-3">Fechamento do Lote Mensal</h4>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase text-slate-500">Competência</label>
-                <input
-                  type="month"
-                  value={benefitPeriod}
-                  onChange={e => setBenefitPeriod(e.target.value)}
-                  className="mt-1 block rounded-lg border border-slate-200 p-2 text-xs font-medium text-slate-800"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase text-slate-500">Vencimento / Crédito</label>
-                <input
-                  type="date"
-                  value={benefitDueDate}
-                  onChange={e => setBenefitDueDate(e.target.value)}
-                  className="mt-1 block rounded-lg border border-slate-200 p-2 text-xs font-medium text-slate-800"
-                />
-              </div>
-              <button
-                onClick={handlePreviewBenefits}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Prévia do fechamento
-              </button>
-              <button
-                onClick={handleCloseBenefits}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors cursor-pointer shadow-xs"
-              >
-                Fechar benefícios
-              </button>
-            </div>
-
-            {benefitPreview && (
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <div className="text-xs font-bold text-slate-700 mb-2">
-                  Prévia Competência {benefitPreview.period} ({benefitPreview.employeeCount} colaboradores com benefícios):
-                </div>
-                <div className="grid gap-3 sm:grid-cols-5">
-                  {[
-                    ['VT', benefitPreview.totals?.VT],
-                    ['VA', benefitPreview.totals?.VA],
-                    ['VR', benefitPreview.totals?.VR],
-                    ['Combustível', benefitPreview.totals?.COMBUSTIVEL],
-                    ['Total Empresa', benefitPreview.totalAmount]
-                  ].map(([label, val]: any, i: number) => (
-                    <div key={label} className={`rounded-xl p-3 border ${i === 4 ? 'bg-blue-50/50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
-                      <div className="text-[10px] font-bold uppercase text-slate-500">{label}</div>
-                      <div className={`mt-1 text-base font-black ${i === 4 ? 'text-blue-900' : 'text-slate-900'}`}>
-                        {Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Memória de Cálculo da Prévia */}
-                <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden bg-white">
-                  <div className="border-b bg-slate-50 px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">
-                      Memória de cálculo detalhada · {benefitPreview.businessDays || 22} dias úteis na competência
-                    </span>
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                      Proporcionalidade aplicada
-                    </span>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
-                        <tr>
-                          <th className="p-3">Colaborador</th>
-                          <th className="py-3 px-2">Benefício</th>
-                          <th className="py-3 px-2 text-center">Modo</th>
-                          <th className="py-3 px-2 text-center">Dias Elegíveis</th>
-                          <th className="py-3 px-2 text-center">Admissão</th>
-                          <th className="py-3 px-2 text-center">Férias</th>
-                          <th className="py-3 px-2 text-center">Afastamento</th>
-                          <th className="py-3 px-3 text-right">Valor Final Empresa</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {benefitPreview.items?.map((item: any, idx: number) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="p-3 font-semibold text-slate-900">{item.full_name}</td>
-                            <td className="py-3 px-2 font-medium text-slate-700">{item.benefit_type === 'COMBUSTIVEL' ? 'Combustível' : item.benefit_type}</td>
-                            <td className="py-3 px-2 text-center">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                                {item.calculation_mode || 'MENSAL'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-2 text-center font-bold text-slate-800">
-                              {item.eligible_days} / {item.business_days}
-                            </td>
-                            <td className="py-3 px-2 text-center font-semibold text-slate-600">
-                              {item.admission_days_deducted > 0 ? `-${item.admission_days_deducted}` : '0'}
-                            </td>
-                            <td className="py-3 px-2 text-center font-semibold text-amber-700">
-                              {item.vacation_days_deducted > 0 ? `-${item.vacation_days_deducted}` : '0'}
-                            </td>
-                            <td className="py-3 px-2 text-center font-semibold text-rose-700">
-                              {item.leave_days_deducted > 0 ? `-${item.leave_days_deducted}` : '0'}
-                            </td>
-                            <td className="py-3 px-3 text-right font-black text-slate-900">
-                              {Number(item.calculated_company_cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Afastamentos Registrados nos Benefícios */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">Afastamentos Registrados nos Benefícios</h4>
-                <p className="text-xs text-slate-500">Períodos que reduzem dias elegíveis conforme regras ativas de cada benefício (sem duplicar com férias).</p>
-              </div>
-              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-                {benefitAbsences.length} afastamento(s) registrado(s)
-              </span>
-            </div>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
-                  <tr>
-                    <th className="p-3">Colaborador</th>
-                    <th className="py-3 px-2">Data Início</th>
-                    <th className="py-3 px-2">Data Fim</th>
-                    <th className="py-3 px-2">Motivo</th>
-                    <th className="py-3 px-2">Observações</th>
-                    <th className="py-3 px-3">Registrado por</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {benefitAbsences.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-4 text-center text-slate-400">
-                        Nenhum afastamento registrado.
-                      </td>
-                    </tr>
-                  ) : (
-                    benefitAbsences.map((a: any) => (
-                      <tr key={a.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-slate-900">{a.employee_name || a.employeeId}</td>
-                        <td className="py-3 px-2 font-mono text-slate-700">{a.start_date}</td>
-                        <td className="py-3 px-2 font-mono text-slate-700">{a.end_date}</td>
-                        <td className="py-3 px-2 font-medium text-slate-800">{a.reason}</td>
-                        <td className="py-3 px-2 text-slate-500">{a.notes || '—'}</td>
-                        <td className="py-3 px-3 text-slate-500 text-[11px]">{a.created_by || 'Sistema'}</td>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {benefitAbsences.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-4 text-center text-slate-400">
+                          Nenhum afastamento registrado.
+                        </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      benefitAbsences.map((a: any) => (
+                        <tr key={a.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-slate-900">{a.employee_name || a.employeeId}</td>
+                          <td className="py-3 px-2 font-mono text-slate-700">{a.start_date}</td>
+                          <td className="py-3 px-2 font-mono text-slate-700">{a.end_date}</td>
+                          <td className="py-3 px-2 font-medium text-slate-800">{a.reason}</td>
+                          <td className="py-3 px-2 text-slate-500">{a.notes || '—'}</td>
+                          <td className="py-3 px-3 text-slate-500 text-[11px]">{a.created_by || 'Sistema'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-
-          {/* Histórico de Fechamentos / Pedidos de Compra */}
-          <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
-            <div className="p-4 border-b border-slate-200">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Histórico de Fechamentos de Benefícios</h4>
-            </div>
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Competência</th>
-                  <th className="py-3 px-2">Colaboradores</th>
-                  <th className="py-3 px-2 text-right">VT</th>
-                  <th className="py-3 px-2 text-right">VA</th>
-                  <th className="py-3 px-2 text-right">VR</th>
-                  <th className="py-3 px-2 text-right">Combustível</th>
-                  <th className="py-3 px-2 text-right">Total Empresa</th>
-                  <th className="py-3 px-2 text-center">Status</th>
-                  <th className="py-3 px-3 text-center">Financeiro</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {benefitOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="p-6 text-center text-slate-400">
-                      Nenhum fechamento de benefícios realizado até o momento.
-                    </td>
-                  </tr>
-                ) : (
-                  benefitOrders.map((o: any) => (
-                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-bold text-slate-900">{o.period}</td>
-                      <td className="py-3 px-2 text-slate-700">{o.employee_count} colaboradores</td>
-                      <td className="py-3 px-2 text-right text-slate-700">{Number(o.vt_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="py-3 px-2 text-right text-slate-700">{Number(o.va_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="py-3 px-2 text-right text-slate-700">{Number(o.vr_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="py-3 px-2 text-right text-slate-700">{Number(o.fuel_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="py-3 px-2 text-right font-black text-slate-900">{Number(o.total_amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="py-3 px-2 text-center"><StatusBadge status={o.status} /></td>
-                      <td className="py-3 px-3 text-center">
-                        {o.financial_record_id ? (
-                          <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                            {o.financial_record_id}
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleSendBenefitsFinance(o)}
-                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
-                          >
-                            Enviar ao Financeiro
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          )}
         </div>
       )}
 
@@ -1631,6 +1997,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                             <label className="block text-[10px] font-bold text-slate-600 uppercase">Operadora / Fornecedor</label>
                             <input
                               type="text"
+                              list={`providers-${item.type}`}
                               value={cfg.providerName}
                               onChange={e => {
                                 const val = e.target.value;
@@ -1642,6 +2009,13 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                               placeholder={item.defaultProvider}
                               className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white text-slate-800"
                             />
+                            <datalist id={`providers-${item.type}`}>
+                              {benefitProviders
+                                .filter((p: any) => p.benefit_type === item.type)
+                                .map((p: any) => (
+                                  <option key={p.id} value={p.name} />
+                                ))}
+                            </datalist>
                           </div>
 
                           <div>
@@ -1905,6 +2279,245 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                 className="rounded-lg bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700 shadow-xs"
               >
                 Registrar Afastamento
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Lançar Ajuste Manual */}
+      {isAdjustmentOpen && (
+        <Modal
+          isOpen={isAdjustmentOpen}
+          onClose={() => setIsAdjustmentOpen(false)}
+          title={`Lançar Ajuste de Benefício — ${adjustmentForm.employeeName}`}
+          subtitle={`Competência ${benefitPeriod} • Crédito ou desconto com motivo obrigatório`}
+        >
+          <form onSubmit={handleSaveAdjustment} className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Colaborador</label>
+                <input
+                  type="text"
+                  disabled
+                  value={adjustmentForm.employeeName}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-slate-600 font-medium"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Competência</label>
+                <input
+                  type="text"
+                  disabled
+                  value={benefitPeriod}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-100 p-2.5 text-slate-600 font-mono font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Benefício *</label>
+                <select
+                  required
+                  value={adjustmentForm.benefitType}
+                  onChange={e => setAdjustmentForm({ ...adjustmentForm, benefitType: e.target.value as any })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-medium focus:border-blue-600 focus:outline-hidden"
+                >
+                  <option value="VT">Vale-Transporte (VT)</option>
+                  <option value="VA">Vale-Alimentação (VA)</option>
+                  <option value="VR">Vale-Refeição (VR)</option>
+                  <option value="COMBUSTIVEL">Auxílio Combustível</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tipo de Ajuste *</label>
+                <select
+                  required
+                  value={adjustmentForm.adjustmentType}
+                  onChange={e => setAdjustmentForm({ ...adjustmentForm, adjustmentType: e.target.value as any })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-bold focus:border-blue-600 focus:outline-hidden"
+                >
+                  <option value="CREDITO">Crédito (+ Valor adicional)</option>
+                  <option value="DESCONTO">Desconto (- Redução de valor)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Valor do Ajuste (R$) *</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                value={adjustmentForm.amount}
+                onChange={e => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })}
+                placeholder="0,00"
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-900 font-black focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Motivo do Ajuste (obrigatório) *</label>
+              <textarea
+                rows={3}
+                required
+                value={adjustmentForm.reason}
+                onChange={e => setAdjustmentForm({ ...adjustmentForm, reason: e.target.value })}
+                placeholder="Descreva o motivo detalhado para fins de auditoria (ex: Diferença retroativa, estorno de VR não utilizado, etc.)..."
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsAdjustmentOpen(false)}
+                className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white hover:bg-indigo-700 shadow-xs cursor-pointer"
+              >
+                Salvar Ajuste
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Nova Operadora / Fornecedor */}
+      {isProviderOpen && (
+        <Modal
+          isOpen={isProviderOpen}
+          onClose={() => setIsProviderOpen(false)}
+          title="Nova Operadora / Fornecedor de Benefício"
+          subtitle="Cadastre o emissor/convênio para geração dos pedidos de compra na competência"
+        >
+          <form onSubmit={handleSaveProvider} className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nome / Razão Social *</label>
+                <input
+                  type="text"
+                  required
+                  value={providerForm.name}
+                  onChange={e => setProviderForm({ ...providerForm, name: e.target.value })}
+                  placeholder="Ex: Sodexo Pass do Brasil, Alelo..."
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tipo de Benefício *</label>
+                <select
+                  required
+                  value={providerForm.benefitType}
+                  onChange={e => setProviderForm({ ...providerForm, benefitType: e.target.value as any })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-medium focus:border-blue-600 focus:outline-hidden"
+                >
+                  <option value="VA">Vale-Alimentação (VA)</option>
+                  <option value="VR">Vale-Refeição (VR)</option>
+                  <option value="VT">Vale-Transporte (VT)</option>
+                  <option value="COMBUSTIVEL">Auxílio Combustível</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">CNPJ / Documento</label>
+                <input
+                  type="text"
+                  value={providerForm.document}
+                  onChange={e => setProviderForm({ ...providerForm, document: e.target.value })}
+                  placeholder="00.000.000/0001-00"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-mono focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Contato / Consultor</label>
+                <input
+                  type="text"
+                  value={providerForm.contactName}
+                  onChange={e => setProviderForm({ ...providerForm, contactName: e.target.value })}
+                  placeholder="Ex: Ana Consultoria Corporativa"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">E-mail de Contato</label>
+                <input
+                  type="email"
+                  value={providerForm.contactEmail}
+                  onChange={e => setProviderForm({ ...providerForm, contactEmail: e.target.value })}
+                  placeholder="pedidos@operadora.com.br"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Telefone / WhatsApp</label>
+                <input
+                  type="text"
+                  value={providerForm.contactPhone}
+                  onChange={e => setProviderForm({ ...providerForm, contactPhone: e.target.value })}
+                  placeholder="(11) 4004-0000"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Forma de Pagamento Preferencial</label>
+                <select
+                  value={providerForm.paymentMethod}
+                  onChange={e => setProviderForm({ ...providerForm, paymentMethod: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                >
+                  <option value="BOLETO">Boleto Bancário</option>
+                  <option value="PIX">PIX Corporativo</option>
+                  <option value="TED">Transferência TED / DOC</option>
+                  <option value="CARTAO">Cartão Corporativo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Dia de Fechamento / Vencimento (1 a 31)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={providerForm.billingDay}
+                  onChange={e => setProviderForm({ ...providerForm, billingDay: e.target.value })}
+                  placeholder="20"
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-bold focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsProviderOpen(false)}
+                className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="rounded-lg bg-blue-700 px-4 py-2 font-bold text-white hover:bg-blue-800 shadow-xs cursor-pointer"
+              >
+                Cadastrar Operadora
               </button>
             </div>
           </form>

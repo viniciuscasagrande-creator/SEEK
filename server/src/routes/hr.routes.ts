@@ -504,6 +504,11 @@ function calculateBenefitRows(period: string) {
     FROM benefit_absences
     WHERE end_date >= ? AND start_date <= ?
   `).all(ymd(start), ymd(end)) as any[];
+  const adjustments = db.prepare(`
+    SELECT employee_id, benefit_type, adjustment_type, amount, reason
+    FROM benefit_adjustments
+    WHERE period = ?
+  `).all(period) as any[];
 
   return benefits.map((r: any) => {
     const admission = toDate(r.admission_date);
@@ -569,6 +574,11 @@ function calculateBenefitRows(period: string) {
       company = Math.max(0, gross - discount);
     }
 
+    const rowAdjustments = adjustments.filter(a => a.employee_id === r.employee_id && a.benefit_type === r.benefit_type);
+    const adjustmentAmount = rowAdjustments.reduce((sum, a) => sum + (String(a.adjustment_type).toUpperCase() === 'DESCONTO' ? -Math.abs(Number(a.amount || 0)) : Math.abs(Number(a.amount || 0))), 0);
+    const finalCompany = Math.max(0, company + adjustmentAmount);
+    const adjustmentText = rowAdjustments.length ? `; ajustes ${adjustmentAmount >= 0 ? '+' : ''}R$ ${adjustmentAmount.toFixed(2)}` : '';
+
     return {
       ...r,
       business_days: totalBusinessDays,
@@ -578,8 +588,11 @@ function calculateBenefitRows(period: string) {
       leave_days_deducted: leaveDeduct,
       calculated_monthly_value: Number(gross.toFixed(2)),
       calculated_employee_discount: Number(discount.toFixed(2)),
-      calculated_company_cost: Number(company.toFixed(2)),
-      calculation_detail: `${eligibleDays}/${totalBusinessDays} dias úteis elegíveis; admissão -${admissionDeduct}; férias -${vacationDeduct}; afastamentos -${leaveDeduct}`
+      calculated_company_cost: Number(finalCompany.toFixed(2)),
+      base_company_cost: Number(company.toFixed(2)),
+      adjustment_amount: Number(adjustmentAmount.toFixed(2)),
+      final_company_cost: Number(finalCompany.toFixed(2)),
+      calculation_detail: `${eligibleDays}/${totalBusinessDays} dias úteis elegíveis; admissão -${admissionDeduct}; férias -${vacationDeduct}; afastamentos -${leaveDeduct}${adjustmentText}`
     };
   });
 }
@@ -733,6 +746,106 @@ hrRouter.post('/benefits/orders/preview', (req: Request, res: Response) => {
   }
 });
 
+hrRouter.get('/benefits/providers', (_req: Request, res: Response) => {
+  try {
+    const providers = db.prepare(`SELECT * FROM benefit_providers ORDER BY benefit_type, name`).all();
+    return res.json({ providers });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/providers', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { name, document, benefitType, contactName, contactEmail, contactPhone, paymentMethod, billingDay, userName, userRole } = req.body;
+    if (!name || !BENEFIT_TYPES.includes(benefitType)) {
+      return res.status(400).json({ error: 'Nome e tipo de benefício válidos são obrigatórios.' });
+    }
+    const id = `bprov-${Date.now()}`;
+    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || userRole || 'RH';
+
+    db.prepare(`
+      INSERT INTO benefit_providers (id, name, document, benefit_type, contact_name, contact_email, contact_phone, payment_method, billing_day, active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `).run(id, name, document || null, benefitType, contactName || null, contactEmail || null, contactPhone || null, paymentMethod || null, billingDay ? Number(billingDay) : null);
+
+    logAudit(operator, role, 'CREATE', 'RH & Benefícios', `Operadora ${name}`, `Operadora cadastrada para ${benefitType}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    return res.status(201).json({ success: true, id });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.put('/benefits/providers/:id', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { name, document, contactName, contactEmail, contactPhone, paymentMethod, billingDay, active, userName, userRole } = req.body;
+    const current = db.prepare(`SELECT * FROM benefit_providers WHERE id = ?`).get(req.params.id) as any;
+    if (!current) return res.status(404).json({ error: 'Operadora não encontrada.' });
+
+    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || userRole || 'RH';
+
+    db.prepare(`
+      UPDATE benefit_providers
+      SET name = ?, document = ?, contact_name = ?, contact_email = ?, contact_phone = ?, payment_method = ?, billing_day = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      name || current.name,
+      document ?? current.document,
+      contactName ?? current.contact_name,
+      contactEmail ?? current.contact_email,
+      contactPhone ?? current.contact_phone,
+      paymentMethod ?? current.payment_method,
+      billingDay === undefined ? current.billing_day : Number(billingDay),
+      active === false ? 0 : 1,
+      req.params.id
+    );
+
+    logAudit(operator, role, 'UPDATE', 'RH & Benefícios', `Operadora ${name || current.name}`, 'Cadastro da operadora atualizado.', req.ip || '127.0.0.1', authReq.correlationId);
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.get('/benefits/adjustments', (req: Request, res: Response) => {
+  try {
+    const period = String(req.query.period || '');
+    const rows = period
+      ? db.prepare(`SELECT a.*, e.full_name employee_name FROM benefit_adjustments a JOIN employees e ON e.id = a.employee_id WHERE a.period = ? ORDER BY a.created_at DESC`).all(period)
+      : db.prepare(`SELECT a.*, e.full_name employee_name FROM benefit_adjustments a JOIN employees e ON e.id = a.employee_id ORDER BY a.created_at DESC LIMIT 200`).all();
+    return res.json({ adjustments: rows });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/adjustments', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { period, employeeId, benefitType, adjustmentType, amount, reason, userName, userRole } = req.body;
+    if (!/^\d{4}-\d{2}$/.test(String(period || '')) || !employeeId || !BENEFIT_TYPES.includes(benefitType) || !['CREDITO', 'DESCONTO'].includes(String(adjustmentType || '').toUpperCase()) || !(Number(amount) > 0) || !reason) {
+      return res.status(400).json({ error: 'Competência, colaborador, benefício, tipo, valor e motivo são obrigatórios.' });
+    }
+    const id = `badj-${Date.now()}`;
+    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || userRole || 'RH';
+
+    db.prepare(`
+      INSERT INTO benefit_adjustments (id, period, employee_id, benefit_type, adjustment_type, amount, reason, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, period, employeeId, benefitType, String(adjustmentType).toUpperCase(), Math.abs(Number(amount)), reason, operator);
+
+    logAudit(operator, role, 'CREATE', 'RH & Benefícios', `Ajuste ${period}`, `${benefitType} ${adjustmentType} R$ ${Number(amount).toFixed(2)}. ${reason}`, req.ip || '127.0.0.1', authReq.correlationId);
+    return res.status(201).json({ success: true, id });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -766,9 +879,9 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
           id, order_id, employee_id, employee_name, department, benefit_type, provider_name,
           company_cost, employee_discount, total_value, business_days, eligible_days,
           admission_days_deducted, vacation_days_deducted, leave_days_deducted,
-          calculation_mode, calculation_detail
+          calculation_mode, calculation_detail, adjustment_amount, final_company_cost
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       rows.forEach((r, i) => {
         ins.run(
@@ -779,7 +892,7 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
           r.department,
           r.benefit_type,
           r.provider_name,
-          Number(r.calculated_company_cost || 0),
+          Number((r.base_company_cost ?? r.calculated_company_cost) || 0),
           Number(r.calculated_employee_discount || 0),
           Number(r.calculated_monthly_value || 0),
           r.business_days,
@@ -788,57 +901,88 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
           r.vacation_days_deducted,
           r.leave_days_deducted,
           r.calculation_mode,
-          r.calculation_detail
+          r.calculation_detail,
+          Number(r.adjustment_amount || 0),
+          Number(r.calculated_company_cost || 0)
         );
       });
+
+      // Cria pedidos de compra agrupados por benefício e operadora
+      const grouped = new Map<string, { provider: string; type: string; employees: Set<string>; total: number }>();
+      rows.forEach((r: any) => {
+        const provider = String(r.provider_name || 'Operadora não definida').trim() || 'Operadora não definida';
+        const key = `${r.benefit_type}::${provider}`;
+        const g = grouped.get(key) || { provider, type: r.benefit_type, employees: new Set<string>(), total: 0 };
+        g.employees.add(r.employee_id);
+        g.total += Number(r.calculated_company_cost || 0);
+        grouped.set(key, g);
+      });
+
+      let ix = 0;
+      for (const g of grouped.values()) {
+        db.prepare(`
+          INSERT INTO benefit_purchase_batches (id, order_id, provider_name, benefit_type, employee_count, total_amount, status)
+          VALUES (?, ?, ?, ?, ?, ?, 'AGUARDANDO_COMPRA')
+        `).run(`bp-${Date.now()}-${ix++}`, id, g.provider, g.type, g.employees.size, Number(g.total.toFixed(2)));
+      }
     });
     tx();
 
-    logAudit(operator, role, 'CLOSE', 'RH & Benefícios', `Benefícios ${period}`, `Fechamento de ${rows.length} vínculos com proporcionalidade, total empresa R$ ${Number(total).toFixed(2)}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    logAudit(operator, role, 'CLOSE', 'RH & Benefícios', `Benefícios ${period}`, `Fechamento de ${rows.length} vínculos, total empresa R$ ${Number(total).toFixed(2)}.`, req.ip || '127.0.0.1', authReq.correlationId);
     return res.status(201).json({ success: true, id, totalAmount: total });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-hrRouter.get('/benefits/absences', (_req: Request, res: Response) => {
+hrRouter.get('/benefits/purchases', (req: Request, res: Response) => {
   try {
-    const absences = db.prepare(`
-      SELECT a.*, e.full_name as employee_name
-      FROM benefit_absences a
-      JOIN employees e ON e.id = a.employee_id
-      ORDER BY a.start_date DESC
-    `).all();
-    return res.json({ absences });
+    const orderId = String(req.query.orderId || '');
+    const rows = orderId
+      ? db.prepare(`SELECT p.*, o.period, o.due_date FROM benefit_purchase_batches p JOIN benefit_orders o ON o.id = p.order_id WHERE p.order_id = ? ORDER BY p.benefit_type, p.provider_name`).all(orderId)
+      : db.prepare(`SELECT p.*, o.period, o.due_date FROM benefit_purchase_batches p JOIN benefit_orders o ON o.id = p.order_id ORDER BY o.period DESC, p.benefit_type, p.provider_name`).all();
+    return res.json({ purchases: rows });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-hrRouter.post('/benefits/absences', (req: Request, res: Response) => {
+hrRouter.post('/benefits/purchases/:id/send-finance', (req: Request, res: Response) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const { employeeId, startDate, endDate, reason, notes, userName, userRole } = req.body;
-    if (!employeeId || !startDate || !endDate || !reason) {
-      return res.status(400).json({ error: 'Colaborador, início, fim e motivo são obrigatórios.' });
-    }
-    if (startDate > endDate) {
-      return res.status(400).json({ error: 'Data inicial não pode ser posterior à data final.' });
-    }
-    const emp = db.prepare(`SELECT full_name FROM employees WHERE id = ?`).get(employeeId) as any;
-    if (!emp) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+    const batch = db.prepare(`SELECT p.*, o.period, o.due_date FROM benefit_purchase_batches p JOIN benefit_orders o ON o.id = p.order_id WHERE p.id = ?`).get(req.params.id) as any;
+    if (!batch) return res.status(404).json({ error: 'Pedido de compra não encontrado.' });
+    if (batch.financial_record_id) return res.status(409).json({ error: 'Este pedido já foi enviado ao Financeiro.' });
+    if (batch.provider_name === 'Operadora não definida') return res.status(422).json({ error: 'Defina a operadora/fornecedor nos colaboradores antes de enviar este pedido.' });
 
-    const id = `babs-${Date.now()}`;
-    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
-    const role = authReq.user?.roleTitle || userRole || 'RH';
+    const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
+    const label = batch.benefit_type === 'COMBUSTIVEL' ? 'Auxílio Combustível' : batch.benefit_type;
 
-    db.prepare(`
-      INSERT INTO benefit_absences (id, employee_id, start_date, end_date, reason, notes, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, employeeId, startDate, endDate, reason, notes || null, operator);
+    const record = financeService.createRecord({
+      type: 'PAGAR',
+      title: `${label} ${batch.period} — ${batch.provider_name}`,
+      entityName: batch.provider_name,
+      costCenter: 'Administrativo & Recursos Humanos',
+      category: 'Benefícios de Colaboradores',
+      amount: batch.total_amount,
+      dueDate: batch.due_date,
+      originType: 'BENEFICIO_COMPRA',
+      originId: batch.id,
+      userName: operator,
+      userRole: role
+    }, authReq.user, req.ip || '127.0.0.1');
 
-    logAudit(operator, role, 'CREATE', 'RH & Benefícios', `Afastamento ${emp.full_name}`, `${reason}: ${startDate} a ${endDate}.`, req.ip || '127.0.0.1', authReq.correlationId);
-    return res.status(201).json({ success: true, id });
+    db.prepare(`UPDATE benefit_purchase_batches SET status = 'ENVIADO_FINANCEIRO', financial_record_id = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?`).run(record.id, batch.id);
+    db.prepare(`UPDATE benefit_orders SET status = 'EM_COMPRA' WHERE id = ? AND status = 'FECHADO'`).run(batch.order_id);
+
+    createCorporateNotification({
+      title: 'Compra de benefício enviada ao Financeiro',
+      message: `${label} · ${batch.provider_name} · ${batch.employee_count} colaborador(es) · R$ ${Number(batch.total_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+      type: 'HR',
+      linkRoute: 'finance-payables'
+    });
+    return res.json({ success: true, financialRecord: record });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -850,6 +994,11 @@ hrRouter.post('/benefits/orders/:id/send-finance', (req: Request, res: Response)
     const order = db.prepare(`SELECT * FROM benefit_orders WHERE id = ?`).get(req.params.id) as any;
     if (!order) return res.status(404).json({ error: 'Fechamento não encontrado.' });
     if (order.financial_record_id) return res.status(409).json({ error: 'Este fechamento já foi enviado ao Financeiro.' });
+
+    const batches = (db.prepare(`SELECT COUNT(*) count FROM benefit_purchase_batches WHERE order_id = ?`).get(order.id) as any)?.count || 0;
+    if (batches > 0) {
+      return res.status(409).json({ error: 'Este fechamento possui pedidos de compra por operadora. Envie os pedidos individualmente ao Financeiro.' });
+    }
 
     const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
     const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
@@ -876,18 +1025,6 @@ hrRouter.post('/benefits/orders/:id/send-finance', (req: Request, res: Response)
       linkRoute: 'finance-payables'
     });
     return res.json({ success: true, financialRecord: record });
-  } catch (error: any) {
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-// Endpoints complementares para compatibilidade retroativa
-hrRouter.get('/benefits/providers', (req: Request, res: Response) => {
-  try {
-    const authReq = req as AuthenticatedRequest;
-    const companyId = authReq.companyId || 'comp-1';
-    const providers = benefitsService.listProviders(companyId);
-    return res.json({ total: providers.length, providers });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
