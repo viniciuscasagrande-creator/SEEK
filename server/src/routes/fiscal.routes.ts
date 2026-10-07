@@ -1,48 +1,112 @@
 import { Router, Request, Response } from 'express';
-import { db, logAudit } from '../db.js';
+import { db, logAudit, createCorporateNotification } from '../db.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { financeService } from '../services/finance.service.js';
 
 const router = Router();
 
-// 1. GET /api/fiscal/taxes - Lista Obrigações Tributárias e Apuração
+// 1. GET /api/fiscal/taxes - Obrigações tributárias com rastreabilidade financeira
 router.get('/taxes', (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
     const { period, status } = req.query;
-    let query = 'SELECT * FROM tax_obligations';
+    const companyId = (req.query.companyId as string) || authReq.companyId || authReq.user?.companyId;
+    let query = `
+      SELECT t.*,
+        f.code AS financial_code,
+        f.status AS financial_status,
+        f.payment_date AS financial_payment_date,
+        f.bank_name AS financial_bank_name
+      FROM tax_obligations t
+      LEFT JOIN financial_records f ON f.id = t.financial_record_id
+      WHERE 1=1`;
     const params: any[] = [];
 
-    if (period) {
-      query += ' WHERE period = ?';
-      params.push(period);
-    }
-
-    if (status) {
-      query += (params.length ? ' AND' : ' WHERE') + ' status = ?';
-      params.push(status);
-    }
-
-    query += ' ORDER BY due_date ASC';
+    if (companyId) { query += ' AND COALESCE(t.company_id, ?) = ?'; params.push(companyId, companyId); }
+    if (period) { query += ' AND t.period = ?'; params.push(period); }
+    if (status) { query += ' AND t.status = ?'; params.push(status); }
+    query += ' ORDER BY t.due_date ASC';
 
     const obligations = db.prepare(query).all(...params) as any[];
-
     const totalPendente = obligations
-      .filter(o => o.status === 'PENDENTE' || o.status === 'CALCULADO')
+      .filter(o => o.status !== 'PAGO')
       .reduce((acc, o) => acc + (o.tax_amount || 0), 0);
-
     const totalPago = obligations
       .filter(o => o.status === 'PAGO')
       .reduce((acc, o) => acc + (o.tax_amount || 0), 0);
+    const enviadosFinanceiro = obligations.filter(o => Boolean(o.financial_record_id) && o.status !== 'PAGO').length;
 
-    res.json({
-      success: true,
-      obligations,
-      summary: {
-        totalPendente,
-        totalPago,
-        count: obligations.length
-      }
-    });
+    res.json({ success: true, obligations, summary: { totalPendente, totalPago, count: obligations.length, enviadosFinanceiro } });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 1.1 POST /api/fiscal/taxes/:id/send-finance - Fiscal gera obrigação; Financeiro executa o pagamento
+router.post('/taxes/:id/send-finance', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const obligationId = req.params.id as string;
+    const obligation = db.prepare('SELECT * FROM tax_obligations WHERE id = ?').get(obligationId) as any;
+    if (!obligation) return res.status(404).json({ success: false, message: 'Obrigação fiscal não encontrada.' });
+    if (obligation.status === 'PAGO') return res.status(409).json({ success: false, message: 'Obrigação fiscal já liquidada.' });
+
+    if (obligation.financial_record_id) {
+      const existing = db.prepare('SELECT * FROM financial_records WHERE id = ?').get(obligation.financial_record_id) as any;
+      if (existing) return res.json({ success: true, reused: true, message: `Obrigação já enviada ao Financeiro como ${existing.code}.`, financialRecord: existing });
+    }
+
+    const existingByOrigin = db.prepare("SELECT * FROM financial_records WHERE origin_type='FISCAL' AND origin_id=?").get(obligation.id) as any;
+    if (existingByOrigin) {
+      db.prepare(`UPDATE tax_obligations SET financial_record_id=?, sent_to_finance_at=COALESCE(sent_to_finance_at, CURRENT_TIMESTAMP) WHERE id=?`)
+        .run(existingByOrigin.id, obligation.id);
+      return res.json({ success: true, reused: true, message: `Título fiscal existente ${existingByOrigin.code} foi vinculado à obrigação.`, financialRecord: existingByOrigin });
+    }
+
+    const operator = authReq.user?.fullName || req.body.userName || 'Especialista Fiscal';
+    const operatorRole = authReq.user?.roleTitle || req.body.userRole || 'Fiscal';
+    const entityName = obligation.entity_name || (obligation.tax_type === 'ISS' ? 'Município / Secretaria de Finanças' : 'Receita Federal / Órgão Arrecadador');
+    const category = `Tributos — ${obligation.tax_type}`;
+
+    const tx = db.transaction(() => {
+      const financialRecord = financeService.createRecord({
+        type: 'PAGAR',
+        title: `${obligation.tax_type} — competência ${obligation.period} — ${obligation.code}`,
+        entityName,
+        costCenter: obligation.cost_center || 'Administrativo & Fiscal',
+        category,
+        amount: obligation.tax_amount,
+        dueDate: obligation.due_date,
+        paymentMethod: 'GUIA / DÉBITO BANCÁRIO',
+        originType: 'FISCAL',
+        originId: obligation.id,
+        companyId: obligation.company_id || authReq.user?.companyId || 'comp-1',
+        userName: operator,
+        userRole: operatorRole
+      }, authReq.user, req.ip || '127.0.0.1');
+
+      db.prepare(`
+        UPDATE tax_obligations
+        SET financial_record_id=?, status='CALCULADO', sent_to_finance_at=?, sent_to_finance_by=?
+        WHERE id=?
+      `).run(financialRecord.id, new Date().toISOString(), operator, obligation.id);
+
+      return financialRecord;
+    });
+
+    const financialRecord = tx();
+    createCorporateNotification({
+      title: 'Imposto aguardando pagamento',
+      message: `${obligation.code} — ${obligation.tax_type} no valor de R$ ${Number(obligation.tax_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, vencimento ${obligation.due_date}.`,
+      type: 'FINANCE',
+      linkRoute: 'finance-payables'
+    });
+    logAudit(operator, operatorRole, 'SEND_TO_FINANCE', 'Fiscal', obligation.code, `Obrigação ${obligation.tax_type} enviada ao Financeiro. Título ${financialRecord.code}, R$ ${Number(obligation.tax_amount).toFixed(2)}, vencimento ${obligation.due_date}.`, req.ip || '127.0.0.1', authReq.correlationId);
+
+    return res.status(201).json({ success: true, message: `Obrigação ${obligation.code} enviada ao Financeiro como ${financialRecord.code}.`, financialRecord });
+  } catch (error: any) {
+    const status = error.statusCode || (String(error.message).includes('UNIQUE') ? 409 : 500);
+    return res.status(status).json({ success: false, message: error.message });
   }
 });
 
@@ -82,84 +146,30 @@ router.post('/calculate', (req: Request, res: Response) => {
   }
 });
 
-// 3. POST /api/fiscal/pay-tax - Baixa / Recolhimento de Guia Fiscal com Integração Contábil & Financeira
+// 3. POST /api/fiscal/pay-tax - Compatibilidade: pagamento deve ocorrer no Financeiro
 router.post('/pay-tax', (req: Request, res: Response) => {
   try {
-    const { obligationId, paymentMethod = 'Débito em Conta C/C Bradesco', userName, userRole } = req.body;
-
-    if (!obligationId) {
-      return res.status(400).json({ success: false, message: 'ID da obrigação fiscal é obrigatório.' });
+    const { obligationId } = req.body;
+    if (!obligationId) return res.status(400).json({ success: false, message: 'ID da obrigação fiscal é obrigatório.' });
+    const obligation = db.prepare(`
+      SELECT t.*, f.code AS financial_code, f.status AS financial_status
+      FROM tax_obligations t
+      LEFT JOIN financial_records f ON f.id=t.financial_record_id
+      WHERE t.id=?
+    `).get(obligationId) as any;
+    if (!obligation) return res.status(404).json({ success: false, message: 'Obrigação fiscal não encontrada.' });
+    if (obligation.status === 'PAGO') return res.status(409).json({ success: false, message: 'Esta obrigação fiscal já foi liquidada.' });
+    if (!obligation.financial_record_id) {
+      return res.status(409).json({ success: false, code: 'SEND_TO_FINANCE_REQUIRED', message: 'Envie primeiro a obrigação ao Financeiro. A liquidação fiscal não é executada diretamente pelo módulo Fiscal.' });
     }
-
-    const obligation = db.prepare('SELECT * FROM tax_obligations WHERE id = ?').get(obligationId) as any;
-    if (!obligation) {
-      return res.status(404).json({ success: false, message: 'Obrigação fiscal não encontrada.' });
-    }
-
-    if (obligation.status === 'PAGO') {
-      return res.status(400).json({ success: false, message: 'Esta obrigação fiscal já foi liquidada.' });
-    }
-
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const today = now.substring(0, 10);
-    const period = today.substring(0, 7);
-
-    const payTx = db.transaction(() => {
-      // 1. Atualiza guia tributária para PAGO
-      db.prepare(`
-        UPDATE tax_obligations
-        SET status = 'PAGO', payment_date = ?
-        WHERE id = ?
-      `).run(now, obligationId);
-
-      // 2. Cria lançamento contábil automático por partidas dobradas
-      // Débito: 2.01.03.001 (Impostos Federais) ou 2.01.03.002 (ISS)
-      // Crédito: 1.01.01.001 (Banco Bradesco C/C)
-      const debitAccount = obligation.tax_type === 'ISS' ? '2.01.03.002' : '2.01.03.001';
-      const creditAccount = '1.01.01.001';
-      const entryId = `entry-${Date.now()}`;
-      const entryCode = `LAN-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
-      db.prepare(`
-        INSERT INTO accounting_entries (id, code, date, period, description, debit_account_code, credit_account_code, amount, cost_center, origin_type, origin_id, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'FINANCEIRO', ?, ?)
-      `).run(
-        entryId,
-        entryCode,
-        today,
-        period,
-        `Recolhimento tributário guia ${obligation.code} (${obligation.tax_type})`,
-        debitAccount,
-        creditAccount,
-        obligation.tax_amount,
-        'Administrativo & Recursos Humanos',
-        obligation.id,
-        userName || 'Camila Zanin'
-      );
-
-      // Atualiza saldos contábeis
-      db.prepare('UPDATE chart_of_accounts SET balance = balance - ? WHERE code = ?').run(obligation.tax_amount, debitAccount);
-      db.prepare('UPDATE chart_of_accounts SET balance = balance - ? WHERE code = ?').run(obligation.tax_amount, creditAccount);
-    });
-
-    payTx();
-
-    logAudit(
-      userName || 'Camila Zanin',
-      userRole || 'Especialista Fiscal',
-      'APPROVE',
-      'Fiscal',
-      obligation.code,
-      `Recolhimento efetuado para guia fiscal ${obligation.code} (${obligation.tax_type}) no valor de R$ ${obligation.tax_amount.toFixed(2)}.`
-    );
-
-    res.json({
-      success: true,
-      message: `Guia ${obligation.code} liquidada com sucesso e integrada à Contabilidade e Financeiro!`,
-      obligationId
+    return res.status(409).json({
+      success: false,
+      code: 'PAY_IN_FINANCE',
+      message: `O título ${obligation.financial_code || obligation.financial_record_id} deve ser liquidado em Financeiro > Contas a Pagar. O status retornará automaticamente ao Fiscal.`,
+      financialRecordId: obligation.financial_record_id
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -260,7 +270,6 @@ router.post('/invoices', (req: Request, res: Response) => {
       document_number,
       total_amount,
       iss_rate = 5.0,
-      description,
       userName,
       userRole
     } = req.body;

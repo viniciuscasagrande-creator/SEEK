@@ -17,7 +17,10 @@
     "test:finance": "tsx src/test_finance_transactional.ts",
     "test:ofx": "tsx src/test_finance_e2e_ofx.ts",
     "test:hr": "tsx src/test_hr_payroll.ts",
-    "test:benefits": "tsx src/test_hr_benefits.ts"
+    "test:benefits": "tsx src/test_hr_benefits.ts",
+    "test:hr-integration": "tsx src/test_hr_finance_integration.ts",
+    "test:purchasing-integration": "tsx src/test_purchasing_finance_integration.ts",
+    "test:fiscal-integration": "tsx src/test_fiscal_finance_integration.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",

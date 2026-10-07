@@ -21,7 +21,9 @@ import {
   DollarSign,
   CreditCard,
   BarChart3,
-  Layers
+  Layers,
+  WalletCards,
+  Send
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/mockData';
 import { EmployeeProfile } from '../../types/modules';
@@ -54,6 +56,12 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const [organogramData, setOrganogramData] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
+
+  const [payrollRuns, setPayrollRuns] = useState<any[]>([]);
+  const [payrollPeriod, setPayrollPeriod] = useState('2026-10');
+  const [payrollDueDate, setPayrollDueDate] = useState('2026-11-05');
+  const [payrollPreview, setPayrollPreview] = useState<any>(null);
+  const [closingPayroll, setClosingPayroll] = useState(false);
 
   // Modais
   const [isAdmitOpen, setIsAdmitOpen] = useState(false);
@@ -88,6 +96,9 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
       const serverOrg = await api.getOrganogram();
       if (serverOrg) setOrganogramData(serverOrg.organogram);
+
+      const serverPayroll = await api.getPayrollRuns();
+      if (serverPayroll) setPayrollRuns(serverPayroll);
     } catch {
       // fallback
     }
@@ -187,6 +198,40 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       setIsVacationOpen(false);
     }
     setTimeout(() => setNotification(null), 6000);
+  };
+
+  const handlePreviewPayroll = async () => {
+    const preview = await api.previewPayroll({ period: payrollPeriod });
+    if (preview) setPayrollPreview(preview);
+  };
+
+  const handleClosePayroll = async () => {
+    if (!payrollPeriod || !payrollDueDate) return;
+    setClosingPayroll(true);
+    const result = await api.closePayroll({ period: payrollPeriod, dueDate: payrollDueDate, userName: currentUser?.fullName, userRole: currentUser?.roleTitle });
+    setClosingPayroll(false);
+    if (result?.success) {
+      setNotification(`✅ Folha ${payrollPeriod} fechada e enviada ao Financeiro. Título ${result.financialRecord?.code || ''}.`);
+      setPayrollPreview(null);
+      loadData();
+    } else {
+      setNotification(`⚠️ ${result?.error || 'Não foi possível fechar a folha.'}`);
+    }
+  };
+
+  const handleVacationFinancial = async (vacation: any) => {
+    const rawAmount = window.prompt(`Valor final apurado pelo RH para as férias de ${vacation.employee_name} (R$):`);
+    if (!rawAmount) return;
+    const dueDate = window.prompt('Data limite de pagamento (AAAA-MM-DD):', vacation.start_date || '2026-11-28');
+    if (!dueDate) return;
+    const amount = Number(rawAmount.replace(',', '.'));
+    const result = await api.generateVacationFinancial(vacation.id, { amount, dueDate, userName: currentUser?.fullName, userRole: currentUser?.roleTitle });
+    if (result?.success) {
+      setNotification(`✅ Obrigação de férias enviada ao Financeiro (${result.financialRecord?.code}).`);
+      loadData();
+    } else {
+      setNotification(`⚠️ ${result?.error || 'Não foi possível gerar a obrigação financeira.'}`);
+    }
   };
 
   const filteredEmployees = employees.filter(
@@ -393,16 +438,16 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
         <button
           onClick={() => setActiveTab('payroll')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
+          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
             activeTab === 'payroll'
               ? 'border-blue-700 text-blue-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <DollarSign className="h-4 w-4 text-emerald-600" />
-          <span>Folha & Encargos (Payroll)</span>
+          <WalletCards className="h-4 w-4 text-emerald-600" />
+          <span>Folha & Obrigações</span>
           <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
-            CLT
+            Financeiro
           </span>
         </button>
 
@@ -546,8 +591,128 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
-      {/* ABA: FOLHA DE PAGAMENTO & HOLERITES */}
-      {activeTab === 'payroll' && <HRPayrollSection employees={employees} />}
+      {/* ABA: FOLHA & OBRIGAÇÕES FINANCEIRAS */}
+      {activeTab === 'payroll' && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Fechamento da Folha → Financeiro</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  O RH fecha a competência; o SEEK cria a obrigação financeira e os lançamentos contábeis de reconhecimento. Valores de encargos e descontos legais devem vir do motor de folha homologado.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Competência</label>
+                  <input
+                    type="month"
+                    value={payrollPeriod}
+                    onChange={e => setPayrollPeriod(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Vencimento</label>
+                  <input
+                    type="date"
+                    value={payrollDueDate}
+                    onChange={e => setPayrollDueDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={handlePreviewPayroll}
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 cursor-pointer"
+                  >
+                    Prévia
+                  </button>
+                  <button
+                    onClick={handleClosePayroll}
+                    disabled={closingPayroll}
+                    className="flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {closingPayroll ? 'Enviando...' : 'Fechar e enviar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {payrollPreview && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Colaboradores</div>
+                  <div className="mt-1 text-lg font-black text-slate-900">{payrollPreview.employeeCount}</div>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Base salarial</div>
+                  <div className="mt-1 text-lg font-black text-slate-900">
+                    R$ {Number(payrollPreview.grossAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">Ajustes</div>
+                  <div className="mt-1 text-lg font-black text-slate-900">
+                    R$ {Number(payrollPreview.adjustmentsAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-3">
+                  <div className="text-[10px] font-bold uppercase text-emerald-700">Líquido previsto</div>
+                  <div className="mt-1 text-lg font-black text-emerald-800">
+                    R$ {Number(payrollPreview.netAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase text-slate-600">
+                <tr>
+                  <th className="px-4 py-3">Competência</th>
+                  <th className="px-4 py-3">Colaboradores</th>
+                  <th className="px-4 py-3 text-right">Líquido</th>
+                  <th className="px-4 py-3">Vencimento</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Título Financeiro</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payrollRuns.map((r: any) => (
+                  <tr key={r.id}>
+                    <td className="px-4 py-3 font-bold text-slate-900">{r.period}</td>
+                    <td className="px-4 py-3">{r.employeeCount ?? r.total_employees ?? 0}</td>
+                    <td className="px-4 py-3 text-right font-black text-slate-900">
+                      R$ {Number(r.netAmount ?? r.total_net ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 font-mono">{r.dueDate || r.due_date || '—'}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[10px] text-slate-500">
+                      {r.financialRecordId || r.financial_record_id || '—'}
+                    </td>
+                  </tr>
+                ))}
+                {payrollRuns.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-xs text-slate-400">
+                      Nenhuma folha de pagamento fechada para envio ao Financeiro.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <HRPayrollSection employees={employees} />
+          </div>
+        </div>
+      )}
 
       {/* ABA: GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS */}
       {activeTab === 'benefits' && <HRBenefitsSection />}
@@ -637,6 +802,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                   <th className="py-3 px-4 text-center">Dias de Gozo</th>
                   <th className="py-3 px-4 text-center">Status Alçada</th>
                   <th className="py-3 px-4">Data Solicitação</th>
+                  <th className="py-3 px-4 text-right">Financeiro</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -650,6 +816,20 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                       <StatusBadge status={v.status} />
                     </td>
                     <td className="py-3 px-4 text-slate-500">{v.created_at?.substring(0, 10)}</td>
+                    <td className="py-3 px-4 text-right">
+                      {v.status === 'APROVADO' ? (
+                        <button
+                          onClick={() => handleVacationFinancial(v)}
+                          className="rounded-lg bg-blue-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-blue-800 transition-colors cursor-pointer"
+                        >
+                          Gerar obrigação
+                        </button>
+                      ) : v.financial_record_id ? (
+                        <span className="text-[10px] font-bold text-emerald-700">Enviado</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">Aguardando</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

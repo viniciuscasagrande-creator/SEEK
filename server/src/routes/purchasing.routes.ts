@@ -234,17 +234,42 @@ purchasingRouter.post('/quotations/compare', (req: Request, res: Response) => {
 // ========================================================
 purchasingRouter.get('/orders', (_req: Request, res: Response) => {
   try {
-    const rows = db.prepare('SELECT * FROM purchase_orders ORDER BY created_at DESC').all() as any[];
+    const rows = db.prepare(`
+      SELECT o.*,
+             pr.id AS receipt_id,
+             pr.invoice_date,
+             pr.due_date AS financial_due_date,
+             pr.financial_record_code,
+             pr.status AS receipt_status,
+             fr.status AS financial_status,
+             fr.payment_date AS financial_payment_date
+      FROM purchase_orders o
+      LEFT JOIN purchase_receipts pr ON pr.order_id = o.id
+      LEFT JOIN financial_records fr ON fr.id = o.financial_record_id
+      ORDER BY o.created_at DESC
+    `).all() as any[];
     const orders = rows.map(r => ({
       id: r.id,
       code: r.code,
       title: r.title,
       department: r.department,
+      costCenter: r.cost_center || r.department,
+      requisitionId: r.requisition_id || null,
       requesterName: r.requester_name,
       supplierName: r.supplier_name,
       totalAmount: r.total_amount,
       status: r.status,
       requiredDate: r.required_date,
+      approvedAt: r.approved_at,
+      approvedBy: r.approved_by,
+      receivedAt: r.received_at,
+      invoiceNumber: r.invoice_number,
+      financialRecordId: r.financial_record_id,
+      financialRecordCode: r.financial_record_code,
+      financialStatus: r.financial_status,
+      financialDueDate: r.financial_due_date,
+      financialPaymentDate: r.financial_payment_date,
+      receiptStatus: r.receipt_status,
       itemsJson: r.items_json ? JSON.parse(r.items_json) : [],
       createdAt: r.created_at
     }));
@@ -273,9 +298,9 @@ purchasingRouter.post('/orders', (req: Request, res: Response) => {
     const cCenter = costCenter || 'Operações & Serviços Corporativos';
 
     db.prepare(`
-      INSERT INTO purchase_orders (id, code, title, department, requester_name, supplier_name, total_amount, status, required_date, items_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDENTE_APROVACAO', ?, ?)
-    `).run(id, code, title, department, reqName, suppName, parsedAmount, requiredDate || '2026-10-30', itemsJson);
+      INSERT INTO purchase_orders (id, code, title, department, requester_name, supplier_name, total_amount, status, required_date, items_json, requisition_id, cost_center)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDENTE_APROVACAO', ?, ?, ?, ?)
+    `).run(id, code, title, department, reqName, suppName, parsedAmount, requiredDate || '2026-10-30', itemsJson, requisitionId || null, cCenter);
 
     // Se veio de requisição, marca status como PEDIDO_GERADO
     if (requisitionId) {
@@ -389,60 +414,62 @@ purchasingRouter.patch('/orders/:id/approve', (req: Request, res: Response) => {
 // ========================================================
 purchasingRouter.post('/orders/:id/receive', (req: Request, res: Response) => {
   try {
+    const id = req.params.id as string;
+    const { invoiceNumber, invoiceDate, dueDate, userName, userRole } = req.body;
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
+
+    const result = purchasingService.receiveOrder(
+      id,
+      { invoiceNumber, invoiceDate, dueDate, userName, userRole },
+      currentUser,
+      req.ip || '127.0.0.1',
+      authReq.correlationId
+    );
+    return res.json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || (error.message.includes('não encontrada') ? 404 : 500);
+    return res.status(statusCode).json({ error: error.message });
+  }
+});
+
+// Rastreabilidade ponta a ponta: Compra → Documento → Financeiro → Contabilidade
+purchasingRouter.get('/orders/:id/traceability', (req: Request, res: Response) => {
+  try {
     const { id } = req.params;
-    const { invoiceNumber, userName, userRole } = req.body;
-
     const order = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(id) as any;
-    if (!order) {
-      return res.status(404).json({ error: 'Ordem de compra não encontrada.' });
-    }
+    if (!order) return res.status(404).json({ error: 'Ordem de compra não encontrada.' });
 
-    db.prepare(`UPDATE purchase_orders SET status = 'RECEBIDO' WHERE id = ?`).run(id);
+    const requisition = order.requisition_id
+      ? db.prepare('SELECT * FROM purchase_requisitions WHERE id = ?').get(order.requisition_id)
+      : null;
+    const selectedQuotation = order.requisition_id
+      ? db.prepare('SELECT * FROM purchase_quotations WHERE requisition_id = ? AND selected = 1 LIMIT 1').get(order.requisition_id)
+      : null;
+    const receipt = db.prepare('SELECT * FROM purchase_receipts WHERE order_id = ?').get(id) as any;
+    const financial = order.financial_record_id
+      ? db.prepare('SELECT * FROM financial_records WHERE id = ?').get(order.financial_record_id)
+      : null;
+    const accounting = order.financial_record_id
+      ? db.prepare('SELECT * FROM accounting_entries WHERE origin_id = ? ORDER BY created_at ASC').all(order.financial_record_id)
+      : [];
 
-    // Ajuste Orçamentário: Transfere de comprometido para realizado
-    try {
-      db.prepare(`
-        UPDATE cost_center_budgets
-        SET committed_amount = MAX(0, committed_amount - ?),
-            realized_amount = realized_amount + ?
-        WHERE cost_center = ?
-      `).run(order.total_amount, order.total_amount, order.department);
-    } catch {}
+    return res.json({ order, requisition, selectedQuotation, receipt, financial, accounting });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 
-    // Gera Contas a Pagar automaticamente no Financeiro com vínculo de origem PO
-    const finId = `fin-${Date.now()}`;
-    const finCode = `CP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
-    const notaFiscal = invoiceNumber ? ` (NF: ${invoiceNumber})` : '';
-
-    db.prepare(`
-      INSERT INTO financial_records (id, company_id, code, type, title, entity_name, cost_center, category, amount, due_date, status, payment_method, origin_type, origin_id)
-      VALUES (?, 'comp-1', ?, 'PAGAR', ?, ?, 'Operações & Logística Corporativa', 'Compras de Insumos', ?, ?, 'CONFIRMADO', 'Boleto Bancário', 'PO', ?)
-    `).run(
-      finId,
-      finCode,
-      `Ordem de Compra ${order.code}: ${order.title}${notaFiscal}`,
-      order.supplier_name,
-      order.total_amount,
-      dueDate,
-      order.code
-    );
-
-    logAudit(
-      userName || 'Almoxarifado & Recebimento',
-      userRole || 'Compras',
-      'RECEIVE',
-      'Compras & Estoque',
-      `Ordem ${order.code}`,
-      `Mercadoria/serviço recebido com conferência física/fiscal. Gerado título Contas a Pagar ${finCode} no valor de R$ ${order.total_amount.toFixed(2)}`,
-      req.ip || '189.44.120.10'
-    );
-
-    return res.json({
-      success: true,
-      order: { ...order, status: 'RECEBIDO' },
-      financialRecord: { id: finId, code: finCode, dueDate, originType: 'PO', originId: order.code }
-    });
+purchasingRouter.get('/receipts', (_req: Request, res: Response) => {
+  try {
+    const receipts = db.prepare(`
+      SELECT pr.*, po.code AS order_code, po.title AS order_title, fr.status AS financial_status, fr.payment_date
+      FROM purchase_receipts pr
+      JOIN purchase_orders po ON po.id = pr.order_id
+      LEFT JOIN financial_records fr ON fr.id = pr.financial_record_id
+      ORDER BY pr.received_at DESC
+    `).all();
+    return res.json({ total: receipts.length, receipts });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

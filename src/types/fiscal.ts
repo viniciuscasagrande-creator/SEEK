@@ -12,6 +12,18 @@ export interface TaxObligation {
   status: 'PENDENTE' | 'CALCULADO' | 'PAGO' | 'ATRASADO';
   payment_date?: string | null;
   receipt_url?: string | null;
+  company_id?: string | null;
+  entity_name?: string | null;
+  cost_center?: string | null;
+  guide_number?: string | null;
+  barcode?: string | null;
+  financial_record_id?: string | null;
+  financial_code?: string | null;
+  financial_status?: string | null;
+  financial_payment_date?: string | null;
+  financial_bank_name?: string | null;
+  sent_to_finance_at?: string | null;
+  sent_to_finance_by?: string | null;
   created_at?: string;
 }
 

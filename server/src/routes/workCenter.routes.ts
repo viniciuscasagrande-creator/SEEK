@@ -84,13 +84,13 @@ workCenterRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
       const rows = db.prepare(`
         SELECT id, code, tax_type, period, tax_amount, due_date, status
         FROM tax_obligations
-        WHERE status NOT IN ('PAGO')
+        WHERE status NOT IN ('PAGO') AND financial_record_id IS NULL
         ORDER BY due_date ASC LIMIT 8
       `).all() as any[];
       for (const r of rows) queue.push({
         id: `tax-${r.id}`,
         kind: 'IMPOSTO', module: 'Fiscal', title: `${r.code} — ${r.tax_type}`,
-        description: `Competência ${r.period} • obrigação fiscal pendente`, route: 'fiscal-calendar',
+        description: `Competência ${r.period} • aguardando envio ao Financeiro`, route: 'fiscal-taxes',
         priority: r.status === 'ATRASADO' ? 'CRITICA' : 'ALTA', status: r.status,
         dueDate: r.due_date, amount: r.tax_amount
       });

@@ -44,7 +44,7 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
 
   // Dados
   const [obligations, setObligations] = useState<TaxObligation[]>([]);
-  const [summary, setSummary] = useState({ totalPendente: 0, totalPago: 0, count: 0 });
+  const [summary, setSummary] = useState({ totalPendente: 0, totalPago: 0, count: 0, enviadosFinanceiro: 0 });
   const [calendarEvents, setCalendarEvents] = useState<TaxCalendarEvent[]>([]);
   const [invoices, setInvoices] = useState<FiscalInvoice[]>([]);
 
@@ -103,17 +103,14 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
     }
   };
 
-  const handlePayTax = async (id: string, code: string) => {
-    if (!confirm(`Confirmar recolhimento da guia tributária ${code}? O valor será liquidado com débito bancário e lançado na contabilidade.`)) {
-      return;
-    }
-
-    const res = await api.payTaxObligation(id, 'Débito Automático C/C Bradesco', currentUser.fullName, currentUser.roleTitle);
+  const handleSendToFinance = async (id: string, code: string) => {
+    if (!confirm(`Enviar a obrigação tributária ${code} para o Financeiro? Será criado um único título em Contas a Pagar, mantendo o vínculo com esta guia.`)) return;
+    const res = await api.sendTaxObligationToFinance(id, currentUser?.fullName, currentUser?.roleTitle);
     if (res && res.success) {
       setNotification(`✅ ${res.message}`);
       loadAllData();
     } else {
-      setNotification(`❌ Erro no recolhimento: ${res?.message}`);
+      setNotification(`❌ ${res?.message || 'Não foi possível enviar ao Financeiro.'}`);
     }
   };
 
@@ -181,7 +178,7 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
       )}
 
       {/* Cards de KPIs Fiscais */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
             Tributos a Recolher (Competência {selectedPeriod})
@@ -210,6 +207,21 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
             </span>
           </div>
           <span className="text-[10px] text-slate-400 mt-1 block">Guias de FGTS e Encargos baixadas</span>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+            Enviados ao Financeiro
+          </span>
+          <div className="flex items-baseline justify-between mt-2">
+            <span className="text-xl font-bold text-indigo-700 font-mono">
+              {summary.enviadosFinanceiro}
+            </span>
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+              Contas a Pagar
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400 mt-1 block">Fiscal → Financeiro → Contabilidade</span>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
@@ -313,7 +325,8 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
                   <th className="py-3 px-4 text-right">Alíquota</th>
                   <th className="py-3 px-4 text-right">Valor Apurado (R$)</th>
                   <th className="py-3 px-4">Vencimento</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Status Fiscal</th>
+                  <th className="py-3 px-4">Financeiro</th>
                   <th className="py-3 px-4 text-right">Ação</th>
                 </tr>
               </thead>
@@ -363,18 +376,35 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
                           {isPaid ? 'LIQUIDADO' : 'A RECOLHER'}
                         </span>
                       </td>
+                      <td className="py-3 px-4">
+                        {ob.financial_record_id ? (
+                          <div className="space-y-0.5">
+                            <div className="font-mono text-[11px] font-bold text-indigo-700">{ob.financial_code || ob.financial_record_id}</div>
+                            <div className={`text-[10px] font-semibold ${ob.financial_status === 'PAGO' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              {ob.financial_status === 'PAGO' ? 'Pago pelo Financeiro' : 'Aguardando Financeiro'}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">Ainda não enviado</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-right">
                         {isPaid ? (
                           <span className="text-[11px] text-emerald-700 font-semibold flex items-center justify-end gap-1">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             Pago em {ob.payment_date?.substring(0, 10)}
                           </span>
+                        ) : ob.financial_record_id ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                            <Clock className="h-3.5 w-3.5" /> Aguardando pagamento
+                          </span>
                         ) : (
                           <button
-                            onClick={() => handlePayTax(ob.id, ob.code)}
+                            onClick={() => handleSendToFinance(ob.id, ob.code)}
                             className="inline-flex items-center space-x-1 rounded bg-indigo-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-indigo-800 transition-colors cursor-pointer"
                           >
-                            <span>Recolher Guia</span>
+                            <Send className="h-3.5 w-3.5" />
+                            <span>Enviar ao Financeiro</span>
                           </button>
                         )}
                       </td>

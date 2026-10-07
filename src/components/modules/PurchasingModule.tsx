@@ -114,6 +114,8 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [receivingOrder, setReceivingOrder] = useState<any>(null);
   const [invoiceNumberInput, setInvoiceNumberInput] = useState('');
+  const [invoiceDateInput, setInvoiceDateInput] = useState(new Date().toISOString().substring(0, 10));
+  const [invoiceDueDateInput, setInvoiceDueDateInput] = useState(new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10));
 
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -241,23 +243,32 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
 
   const handleOpenReceive = (order: any) => {
     setReceivingOrder(order);
-    setInvoiceNumberInput('');
+    setInvoiceNumberInput(order.invoiceNumber || '');
+    setInvoiceDateInput(order.invoiceDate || new Date().toISOString().substring(0, 10));
+    setInvoiceDueDateInput(order.financialDueDate || order.requiredDate || new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10));
     setIsReceiveModalOpen(true);
   };
 
   const handleConfirmReceive = async () => {
     if (!receivingOrder) return;
+    if (!invoiceNumberInput.trim()) {
+      alert('Informe o número da Nota Fiscal (NF-e / NFS-e).');
+      return;
+    }
 
-    const res = await api.receivePurchasingOrder(
-      receivingOrder.id,
-      invoiceNumberInput || undefined,
-      currentUser.fullName,
-      currentUser.roleTitle
-    );
+    const res = await api.receivePurchasingOrder(receivingOrder.id, {
+      invoiceNumber: invoiceNumberInput.trim(),
+      invoiceDate: invoiceDateInput,
+      dueDate: invoiceDueDateInput,
+      userName: currentUser.fullName,
+      userRole: currentUser.roleTitle
+    });
 
     if (res && res.success) {
-      setNotification(`📦 Ordem ${receivingOrder.code} recebida com sucesso! Gerado título no Contas a Pagar (${res.financialRecord?.code}).`);
+      setNotification(`📦 Ordem ${receivingOrder.code} recebida com sucesso! Gerado título no Contas a Pagar (${res.financialRecord?.code || ''}).`);
       loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Não foi possível registrar o recebimento fiscal.'}`);
     }
     setIsReceiveModalOpen(false);
     setReceivingOrder(null);
@@ -753,6 +764,7 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
                   <th className="py-2.5 px-3">Fornecedor Contratado</th>
                   <th className="py-2.5 px-3">Alçada de Governança</th>
                   <th className="py-2.5 px-3 text-right">Valor Total</th>
+                  <th className="py-2.5 px-3">Financeiro / Documento</th>
                   <th className="py-2.5 px-3 text-center">Status</th>
                   <th className="py-2.5 px-3 text-right">Ações</th>
                 </tr>
@@ -784,6 +796,17 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                         R$ {amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
+                      <td className="py-2.5 px-3">
+                        {order.financialRecordCode ? (
+                          <div className="space-y-0.5">
+                            <p className="font-mono font-bold text-blue-700">{order.financialRecordCode}</p>
+                            <p className="text-[10px] text-slate-500">NF: {order.invoiceNumber || '—'} • Venc.: {order.financialDueDate || '—'}</p>
+                            <p className="text-[10px] font-bold text-slate-600">Financeiro: {order.financialStatus || 'CONFIRMADO'}</p>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">Aguardando recebimento fiscal</span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-3 text-center">
                         <StatusBadge status={order.status} />
                       </td>
@@ -806,7 +829,7 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
                         )}
                         {isReceived && (
                           <span className="text-[10px] font-bold text-slate-400">
-                            Entregue / Faturado
+                            {order.status === 'PAGO' ? 'Pago / Concluído' : 'Recebido / Faturado'}
                           </span>
                         )}
                       </td>
@@ -993,14 +1016,26 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Número da Nota Fiscal (NF-e / NFS-e)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Número da Nota Fiscal (NF-e / NFS-e) *</label>
               <input
                 type="text"
+                required
                 placeholder="Ex: NFE-001298"
                 value={invoiceNumberInput}
                 onChange={e => setInvoiceNumberInput(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 p-2 text-xs font-mono"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Data de Emissão</label>
+                <input type="date" value={invoiceDateInput} onChange={e => setInvoiceDateInput(e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-xs font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Vencimento Financeiro</label>
+                <input type="date" value={invoiceDueDateInput} onChange={e => setInvoiceDueDateInput(e.target.value)} className="w-full rounded-lg border border-slate-200 p-2 text-xs font-mono" />
+              </div>
             </div>
 
             <div className="rounded-lg bg-blue-50 p-3 border border-blue-200 text-blue-900 text-[11px] space-y-1">
@@ -1009,7 +1044,7 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
                 <span>Integração Automática com o Contas a Pagar</span>
               </span>
               <p>
-                Ao confirmar o recebimento, o SEEK transferirá o valor do saldo orçamentário comprometido para realizado e criará imediatamente o título a pagar no Financeiro com vencimento em 30 dias.
+                Ao confirmar, o SEEK registrará o recebimento físico/fiscal, moverá o orçamento de comprometido para realizado, criará um único título no Contas a Pagar vinculado à ordem e à nota fiscal e fará o reconhecimento contábil automático. A aprovação da ordem, por si só, não gera pagamento.
               </p>
             </div>
 

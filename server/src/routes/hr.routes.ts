@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { isPrivilegedRole, maskSalary } from '../utils/security.js';
 import { payrollService } from '../services/payroll.service.js';
 import { benefitsService } from '../services/benefits.service.js';
+import { financeService } from '../services/finance.service.js';
 
 export const hrRouter = Router();
 
@@ -241,6 +242,112 @@ hrRouter.get('/organogram', (_req: Request, res: Response) => {
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
+});
+// Folha & Obrigações Financeiras — RH é a origem; Financeiro executa o pagamento.
+hrRouter.get('/payroll', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = (req.query.companyId as string) || authReq.user?.companyId || 'comp-1';
+    const rows = db.prepare(`SELECT * FROM payroll_runs WHERE company_id = ? ORDER BY period DESC, created_at DESC`).all(companyId) as any[];
+    const runs = rows.map(r => ({
+      id: r.id, companyId: r.company_id, period: r.period, dueDate: r.due_date, status: r.status,
+      employeeCount: r.employee_count ?? r.total_employees ?? 0,
+      grossAmount: r.gross_amount ?? r.total_gross ?? 0,
+      adjustmentsAmount: r.adjustments_amount ?? 0,
+      deductionsAmount: r.deductions_amount ?? r.total_deductions ?? 0,
+      netAmount: r.net_amount ?? r.total_net ?? 0,
+      financialRecordId: r.financial_record_id,
+      closedBy: r.closed_by ?? r.approved_by,
+      closedAt: r.closed_at ?? r.approved_at,
+      createdAt: r.created_at
+    }));
+    return res.json({ total: runs.length, runs });
+  } catch (error: any) { return res.status(500).json({ error: error.message }); }
+});
+
+hrRouter.post('/payroll/preview', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const companyId = authReq.user?.companyId || 'comp-1';
+    const employees = db.prepare(`SELECT id, full_name, department, salary FROM employees WHERE active=1 AND company_id=? ORDER BY full_name`).all(companyId) as any[];
+    const items = employees.map(e => ({ employeeId: e.id, employeeName: e.full_name, department: e.department, baseSalary: Number(e.salary), adjustments: 0, deductions: 0, netAmount: Number(e.salary) }));
+    const grossAmount = items.reduce((a, i) => a + i.baseSalary, 0);
+    return res.json({ companyId, employeeCount: items.length, grossAmount, adjustmentsAmount: 0, deductionsAmount: 0, netAmount: grossAmount, items });
+  } catch (error: any) { return res.status(500).json({ error: error.message }); }
+});
+
+hrRouter.post('/payroll/close', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { period, dueDate, adjustments = [], deductions = [] } = req.body;
+    if (!/^\d{4}-\d{2}$/.test(period || '') || !dueDate) return res.status(400).json({ error: 'Campos obrigatórios: period (AAAA-MM) e dueDate.' });
+    const companyId = authReq.user?.companyId || 'comp-1';
+    const existing = db.prepare(`SELECT * FROM payroll_runs WHERE company_id=? AND period=?`).get(companyId, period) as any;
+    if (existing) return res.status(409).json({ error: 'A folha desta competência já foi criada.', run: existing });
+    const employees = db.prepare(`SELECT id, full_name, department, salary FROM employees WHERE active=1 AND company_id=? ORDER BY full_name`).all(companyId) as any[];
+    if (!employees.length) return res.status(422).json({ error: 'Não existem colaboradores ativos para fechamento.' });
+    const adjustmentMap = new Map((adjustments || []).map((x: any) => [x.employeeId, Number(x.amount) || 0]));
+    const deductionMap = new Map((deductions || []).map((x: any) => [x.employeeId, Number(x.amount) || 0]));
+    const runId = `payroll-${period.replace('-', '')}-${Date.now()}`;
+    const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
+    let gross = 0, add = 0, ded = 0, net = 0;
+    let financial: any;
+    const closeTx = db.transaction(() => {
+      for (const e of employees) {
+        const base = Number(e.salary) || 0, a = Number(adjustmentMap.get(e.id) || 0), d = Number(deductionMap.get(e.id) || 0), n = Math.max(0, base + a - d);
+        gross += base; add += a; ded += d; net += n;
+        db.prepare(`INSERT INTO payroll_items (id,payroll_run_id,employee_id,employee_name,department,base_salary,adjustments,deductions,net_amount) VALUES(?,?,?,?,?,?,?,?,?)`)
+          .run(`payitem-${runId}-${e.id}`, runId, e.id, e.full_name, e.department, base, a, d, n);
+      }
+      db.prepare(`INSERT INTO payroll_runs (id,company_id,period,due_date,status,employee_count,gross_amount,adjustments_amount,deductions_amount,net_amount,closed_by,closed_at) VALUES(?,?,?,?, 'FECHADO',?,?,?,?,?,?,CURRENT_TIMESTAMP)`)
+        .run(runId, companyId, period, dueDate, employees.length, gross, add, ded, net, operator);
+      financial = financeService.createRecord({
+        type: 'PAGAR', title: `Folha salarial ${period}`, entityName: 'Funcionários — lote de folha', costCenter: 'Administrativo & Recursos Humanos',
+        category: 'Folha de Pagamento', amount: net, dueDate, paymentMethod: 'PIX', originType: 'FOLHA', originId: runId, companyId,
+        userName: operator, userRole: role
+      }, authReq.user, req.ip || '127.0.0.1');
+      db.prepare(`UPDATE payroll_runs SET financial_record_id=?, status='ENVIADO_FINANCEIRO' WHERE id=?`).run(financial.id, runId);
+    });
+    closeTx();
+    logAudit(operator, role, 'CLOSE', 'RH & Folha', `Folha ${period}`, `Folha fechada com ${employees.length} colaboradores e obrigação financeira ${financial.code} no valor de R$ ${net.toFixed(2)}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    createCorporateNotification({ title: 'Folha enviada ao Financeiro', message: `Folha ${period}: ${employees.length} colaboradores, total líquido R$ ${net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`, type: 'HR', linkRoute: 'finance-payables' });
+    return res.status(201).json({ success: true, runId, employeeCount: employees.length, grossAmount: gross, adjustmentsAmount: add, deductionsAmount: ded, netAmount: net, financialRecord: financial });
+  } catch (error: any) { return res.status(error.statusCode || 500).json({ error: error.message }); }
+});
+
+hrRouter.get('/payroll/:id', (req: Request, res: Response) => {
+  try {
+    const run = db.prepare(`SELECT * FROM payroll_runs WHERE id=?`).get(req.params.id) as any;
+    if (!run) return res.status(404).json({ error: 'Folha não encontrada.' });
+    const items = db.prepare(`SELECT * FROM payroll_items WHERE payroll_run_id=? ORDER BY employee_name`).all(req.params.id) as any[];
+    return res.json({ run, items });
+  } catch (error: any) { return res.status(500).json({ error: error.message }); }
+});
+
+// Após a aprovação das férias, RH informa o valor efetivamente apurado e gera a obrigação financeira.
+hrRouter.post('/vacations/:id/generate-financial', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const vacation = db.prepare(`SELECT v.*, e.department, e.company_id FROM vacation_requests v JOIN employees e ON e.id=v.employee_id WHERE v.id=?`).get(req.params.id) as any;
+    if (!vacation) return res.status(404).json({ error: 'Solicitação de férias não encontrada.' });
+    if (vacation.status !== 'APROVADO') return res.status(409).json({ error: 'A obrigação financeira só pode ser gerada após aprovação das férias.' });
+    if (vacation.financial_record_id) return res.status(409).json({ error: 'Esta solicitação já possui obrigação financeira.', financialRecordId: vacation.financial_record_id });
+    const amount = Number(req.body.amount);
+    const dueDate = req.body.dueDate;
+    if (!(amount > 0) || !dueDate) return res.status(400).json({ error: 'Informe o valor apurado pelo RH e a data limite de pagamento.' });
+    const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
+    const financial = financeService.createRecord({
+      type: 'PAGAR', title: `Férias — ${vacation.employee_name}`, entityName: vacation.employee_name,
+      costCenter: vacation.department || 'Administrativo & Recursos Humanos', category: 'Férias', amount, dueDate, paymentMethod: 'PIX',
+      originType: 'FERIAS', originId: vacation.id, companyId: vacation.company_id || 'comp-1', userName: operator, userRole: role
+    }, authReq.user, req.ip || '127.0.0.1');
+    db.prepare(`UPDATE vacation_requests SET status='ENVIADO_FINANCEIRO', gross_amount=?, payment_due_date=?, financial_record_id=? WHERE id=?`).run(amount, dueDate, financial.id, vacation.id);
+    logAudit(operator, role, 'CREATE', 'RH & Férias', `Férias ${vacation.employee_name}`, `Obrigação ${financial.code} gerada a partir das férias aprovadas.`, req.ip || '127.0.0.1', authReq.correlationId);
+    createCorporateNotification({ title: 'Férias enviadas ao Financeiro', message: `${vacation.employee_name}: obrigação de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, vencimento ${dueDate}.`, type: 'HR', linkRoute: 'finance-payables' });
+    return res.status(201).json({ success: true, financialRecord: financial });
+  } catch (error: any) { return res.status(error.statusCode || 500).json({ error: error.message }); }
 });
 
 // ========================================================

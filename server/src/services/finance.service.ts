@@ -102,7 +102,7 @@ export class FinanceService {
     const operatorRole = user?.roleTitle || data.userRole || 'Financeiro';
     const createTx = db.transaction(() => {
       financeRepository.createRecord(entity);
-      accountingService.postFinancialRecognition({ recordId:id, recordCode:code, type, amount:parsedAmount, date:new Date().toISOString().substring(0,10), costCenter:entity.cost_center, createdBy:operator });
+      accountingService.postFinancialRecognition({ recordId:id, recordCode:code, type, amount:parsedAmount, date:new Date().toISOString().substring(0,10), costCenter:entity.cost_center, createdBy:operator, originType:entity.origin_type, originId:entity.origin_id });
     });
     createTx();
 
@@ -177,11 +177,15 @@ export class FinanceService {
           category: record.category, amount: record.amount, transaction_date: paymentDate,
           description: `Liquidação ${record.code} — ${record.title} (${record.entity_name})`, reference_type: 'TITULO', reference_id: record.id, reconciled: 0 });
       }
-      const accountingEntry = accountingService.postFinancialSettlement({ recordId: record.id, recordCode: record.code, type: record.type, amount: record.amount, date: paymentDate, costCenter: record.cost_center, createdBy: operator });
+      const accountingEntry = accountingService.postFinancialSettlement({ recordId: record.id, recordCode: record.code, type: record.type, amount: record.amount, date: paymentDate, costCenter: record.cost_center, createdBy: operator, originType: record.origin_type, originId: record.origin_id });
       if (record.origin_type === 'TAXA' && record.origin_id) db.prepare(`UPDATE freelance_shifts SET status='PAGO', paid_at=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
-      if (record.origin_type === 'PO' && record.origin_id) db.prepare(`UPDATE purchase_orders SET status='PAGO' WHERE id=? OR code=?`).run(record.origin_id, record.origin_id);
+      if (record.origin_type === 'PO' && record.origin_id) {
+        db.prepare(`UPDATE purchase_orders SET status='PAGO' WHERE id=? OR code=?`).run(record.origin_id, record.origin_id);
+        db.prepare(`UPDATE purchase_receipts SET status='PAGO' WHERE order_id=? OR financial_record_id=?`).run(record.origin_id, record.id);
+      }
       if (record.origin_type === 'FISCAL' && record.origin_id) db.prepare(`UPDATE tax_obligations SET status='PAGO', payment_date=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
-      if (record.origin_type === 'FOLHA_PAGAMENTO' && record.origin_id) db.prepare(`UPDATE payroll_runs SET status='PAGO' WHERE id=?`).run(record.origin_id);
+      if ((record.origin_type === 'FOLHA' || record.origin_type === 'FOLHA_PAGAMENTO') && record.origin_id) db.prepare(`UPDATE payroll_runs SET status='PAGO' WHERE id=?`).run(record.origin_id);
+      if (record.origin_type === 'FERIAS' && record.origin_id) db.prepare(`UPDATE vacation_requests SET status='PAGO' WHERE id=?`).run(record.origin_id);
       if (record.origin_type === 'BENEFICIOS' && record.origin_id) db.prepare(`UPDATE benefit_purchase_orders SET status='PAGO' WHERE id=?`).run(record.origin_id);
       workflowRepository.logAudit({ userName: operator, userRole: operatorRole, action: 'LIQUIDATE', module: 'Financeiro', entity: `Lançamento ${record.code}`, description: `Liquidação atômica de R$ ${record.amount.toFixed(2)}${bank ? ` via ${bank.bank_name}` : ''}; lançamento contábil gerado automaticamente.`, ipAddress });
       return { bankTransactionId, accountingEntry };

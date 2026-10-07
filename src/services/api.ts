@@ -684,17 +684,49 @@ export const api = {
     }
   },
 
-  async receivePurchasingOrder(id: string, invoiceNumber?: string, userName?: string, userRole?: string): Promise<any> {
+  async receivePurchasingOrder(
+    id: string,
+    payloadOrInvoice?: string | { invoiceNumber: string; invoiceDate?: string; dueDate?: string; userName?: string; userRole?: string },
+    userName?: string,
+    userRole?: string
+  ): Promise<any> {
     try {
+      const body = typeof payloadOrInvoice === 'object' && payloadOrInvoice !== null
+        ? payloadOrInvoice
+        : { invoiceNumber: payloadOrInvoice, userName, userRole };
       const res = await authFetch(`${API_BASE_URL}/purchasing/orders/${id}/receive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoiceNumber, userName, userRole })
+        body: JSON.stringify(body)
       });
+      if (res.ok) return await res.json();
+      const err = await res.json().catch(() => null);
+      return { success: false, error: err?.error || 'Erro ao receber pedido' };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Falha de comunicação com o servidor' };
+    }
+  },
+
+  async getPurchasingTraceability(orderId: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/orders/${orderId}/traceability`);
       if (res.ok) return await res.json();
       return null;
     } catch {
       return null;
+    }
+  },
+
+  async getPurchasingReceipts(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/purchasing/receipts`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.receipts || [];
+      }
+      return [];
+    } catch {
+      return [];
     }
   },
 
@@ -902,14 +934,61 @@ export const api = {
   // RH HCM: Folha de Pagamento & Holerites
   async getPayrollRuns(): Promise<any[]> {
     try {
-      const res = await authFetch(`${API_BASE_URL}/hr/payroll/runs`);
+      const res = await authFetch(`${API_BASE_URL}/hr/payroll`);
       if (res.ok) {
         const data = await res.json();
         return data.runs || [];
       }
+      const fallback = await authFetch(`${API_BASE_URL}/hr/payroll/runs`);
+      if (fallback.ok) {
+        const fbData = await fallback.json();
+        return fbData.runs || [];
+      }
       return [];
     } catch {
       return [];
+    }
+  },
+
+  async previewPayroll(data: any = {}): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/payroll/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) return await res.json();
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async closePayroll(data: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/payroll/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const body = await res.json().catch(() => null);
+      return res.ok ? body : { success: false, error: body?.error || 'Falha ao fechar folha.' };
+    } catch {
+      return { success: false, error: 'Falha de comunicação com o servidor.' };
+    }
+  },
+
+  async generateVacationFinancial(id: string, data: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/vacations/${id}/generate-financial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const body = await res.json().catch(() => null);
+      return res.ok ? body : { success: false, error: body?.error || 'Falha ao gerar obrigação.' };
+    } catch {
+      return { success: false, error: 'Falha de comunicação com o servidor.' };
     }
   },
 
@@ -1513,6 +1592,19 @@ export const api = {
       return null;
     } catch {
       return null;
+    }
+  },
+
+  async sendTaxObligationToFinance(obligationId: string, userName?: string, userRole?: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/fiscal/taxes/${obligationId}/send-finance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName, userRole })
+      });
+      return await res.json();
+    } catch {
+      return { success: false, message: 'Não foi possível enviar a obrigação fiscal ao Financeiro.' };
     }
   },
 

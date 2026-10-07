@@ -4,6 +4,8 @@ import { financeRepository } from '../repositories/finance.repository.js';
 import { workflowRepository } from '../repositories/workflow.repository.js';
 import { checkSeparationOfDuties } from '../utils/security.js';
 import { TokenPayload } from '../middleware/auth.js';
+import { db, createCorporateNotification } from '../db.js';
+import { accountingService } from './accounting.service.js';
 
 export class PurchasingService {
   /**
@@ -208,31 +210,11 @@ export class PurchasingService {
     }
 
     purchasingRepository.updateOrderStatus(orderId, 'APROVADO');
-
-    // Integração automática com Contas a Pagar no Financeiro
-    const finId = `fin-po-${Date.now()}`;
-    const finCode = `CP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    const dueDate = order.required_date || new Date(Date.now() + 30 * 86400000).toISOString().substring(0, 10);
-
-    financeRepository.createRecord({
-      id: finId,
-      company_id: user?.companyId || 'comp-1',
-      code: finCode,
-      type: 'PAGAR',
-      title: `Pedido de Compra ${order.code} — ${order.title}`,
-      entity_name: order.supplier_name,
-      cost_center: 'Compras & Suprimentos',
-      category: 'Fornecedores & Materiais',
-      amount: order.total_amount,
-      due_date: dueDate,
-      status: 'CONFIRMADO',
-      payment_method: 'Boleto Bancário',
-      origin_type: 'PO',
-      origin_id: order.code
-    });
-
     const deciderName = user?.fullName || 'Gestor de Compras';
     const deciderRole = user?.roleTitle || 'Diretoria';
+
+    db.prepare(`UPDATE purchase_orders SET approved_at = ?, approved_by = ? WHERE id = ?`)
+      .run(new Date().toISOString(), deciderName, orderId);
 
     workflowRepository.logAudit({
       userName: deciderName,
@@ -240,14 +222,158 @@ export class PurchasingService {
       action: 'APPROVE',
       module: 'Compras & Suprimentos',
       entity: `Pedido ${order.code}`,
-      description: `Ordem de compra aprovada no valor de R$ ${order.total_amount.toFixed(2)}. Gerado título a pagar ${finCode}.`,
+      description: `Ordem de compra aprovada no valor de R$ ${order.total_amount.toFixed(2)}. A obrigação financeira será gerada somente após o recebimento físico/fiscal e conferência do documento do fornecedor.`,
       ipAddress,
       correlationId
     });
 
+    createCorporateNotification({
+      title: 'Ordem de compra aprovada',
+      message: `${order.code} — ${order.title} foi aprovada e aguarda recebimento físico/fiscal para faturamento.`,
+      type: 'PURCHASE',
+      linkRoute: 'purchasing-orders'
+    });
+
     return {
       success: true,
-      order: { ...order, status: 'APROVADO' }
+      order: { ...order, status: 'APROVADO', approvedBy: deciderName }
+    };
+  }
+
+  /**
+   * Recebimento físico/fiscal atômico: documento do fornecedor → título → reconhecimento contábil.
+   * Impede faturamento duplicado da mesma ordem.
+   */
+  receiveOrder(orderId: string, data: {
+    invoiceNumber: string;
+    invoiceDate?: string;
+    dueDate?: string;
+    userName?: string;
+    userRole?: string;
+  }, user?: TokenPayload, ipAddress: string = '127.0.0.1', correlationId?: string) {
+    const order: any = purchasingRepository.findOrderById(orderId);
+    if (!order) {
+      const e: any = new Error('Ordem de compra não encontrada.'); e.statusCode = 404; throw e;
+    }
+    if (order.status !== 'APROVADO') {
+      const e: any = new Error('Somente ordens aprovadas podem ser recebidas e faturadas.'); e.statusCode = 409; throw e;
+    }
+    if (!data.invoiceNumber?.trim()) {
+      const e: any = new Error('O número da Nota Fiscal/NFS-e é obrigatório para gerar a obrigação financeira.'); e.statusCode = 400; throw e;
+    }
+
+    const existing = db.prepare('SELECT * FROM purchase_receipts WHERE order_id = ?').get(orderId) as any;
+    if (existing) {
+      const e: any = new Error(`Esta ordem já foi recebida e faturada no título ${existing.financial_record_code}.`); e.statusCode = 409; throw e;
+    }
+
+    const now = new Date();
+    const invoiceDate = data.invoiceDate || now.toISOString().substring(0, 10);
+    const dueDate = data.dueDate || new Date(now.getTime() + 30 * 86400000).toISOString().substring(0, 10);
+    const companyId = user?.companyId || 'comp-1';
+    const operator = user?.fullName || data.userName || 'Almoxarifado & Recebimento';
+    const operatorRole = user?.roleTitle || data.userRole || 'Compras';
+    const costCenter = order.cost_center || order.department || 'Operações & Serviços Corporativos';
+    const legacyFinancial = db.prepare(`
+      SELECT * FROM financial_records
+      WHERE origin_type='PO' AND (origin_id=? OR origin_id=?)
+      ORDER BY created_at ASC LIMIT 1
+    `).get(order.id, order.code) as any;
+    const finId = legacyFinancial?.id || `fin-po-${Date.now()}`;
+    const finCode = legacyFinancial?.code || `CP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const receiptId = `rec-po-${Date.now()}`;
+
+    const tx = db.transaction(() => {
+      if (legacyFinancial) {
+        db.prepare(`
+          UPDATE financial_records
+          SET title=?, entity_name=?, cost_center=?, category=?, amount=?, due_date=?, status='CONFIRMADO', origin_id=?
+          WHERE id=?
+        `).run(
+          `Compra ${order.code} — ${order.title} (NF ${data.invoiceNumber.trim()})`,
+          order.supplier_name, costCenter, 'Compras / Fornecedores', order.total_amount,
+          dueDate, order.id, finId
+        );
+      } else {
+        financeRepository.createRecord({
+          id: finId,
+          company_id: companyId,
+          code: finCode,
+          type: 'PAGAR',
+          title: `Compra ${order.code} — ${order.title} (NF ${data.invoiceNumber.trim()})`,
+          entity_name: order.supplier_name,
+          cost_center: costCenter,
+          category: 'Compras / Fornecedores',
+          amount: order.total_amount,
+          due_date: dueDate,
+          status: 'CONFIRMADO',
+          payment_method: 'Boleto Bancário',
+          origin_type: 'PO',
+          origin_id: order.id
+        });
+      }
+
+      accountingService.postFinancialRecognition({
+        recordId: finId,
+        recordCode: finCode,
+        type: 'PAGAR',
+        amount: order.total_amount,
+        date: invoiceDate,
+        costCenter,
+        createdBy: operator
+      });
+
+      db.prepare(`
+        INSERT INTO purchase_receipts
+          (id, order_id, company_id, requisition_id, supplier_name, invoice_number, invoice_date, due_date, amount, cost_center, received_by, received_at, financial_record_id, financial_record_code, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'FATURADO')
+      `).run(
+        receiptId, order.id, companyId, order.requisition_id || null, order.supplier_name,
+        data.invoiceNumber.trim(), invoiceDate, dueDate, order.total_amount, costCenter,
+        operator, now.toISOString(), finId, finCode
+      );
+
+      db.prepare(`
+        UPDATE purchase_orders
+        SET status='RECEBIDO', received_at=?, invoice_number=?, financial_record_id=?
+        WHERE id=?
+      `).run(now.toISOString(), data.invoiceNumber.trim(), finId, order.id);
+
+      try {
+        db.prepare(`
+          UPDATE cost_center_budgets
+          SET committed_amount = MAX(0, committed_amount - ?),
+              realized_amount = realized_amount + ?
+          WHERE cost_center = ?
+        `).run(order.total_amount, order.total_amount, costCenter);
+      } catch {}
+
+      workflowRepository.logAudit({
+        userName: operator,
+        userRole: operatorRole,
+        action: 'RECEIVE_AND_BILL',
+        module: 'Compras & Suprimentos',
+        entity: `Ordem ${order.code}`,
+        description: `Recebimento físico/fiscal confirmado com documento ${data.invoiceNumber.trim()}. Gerado título ${finCode} no valor de R$ ${Number(order.total_amount).toFixed(2)} e reconhecimento contábil automático.`,
+        ipAddress,
+        correlationId
+      });
+    });
+
+    tx();
+
+    createCorporateNotification({
+      title: 'Compra recebida — pagamento pendente',
+      message: `${order.code} / NF ${data.invoiceNumber.trim()} gerou o título ${finCode}, vencimento ${dueDate}.`,
+      type: 'FINANCE',
+      linkRoute: 'finance-payables'
+    });
+
+    return {
+      success: true,
+      order: { ...order, status: 'RECEBIDO', invoiceNumber: data.invoiceNumber.trim(), receivedAt: now.toISOString() },
+      receipt: { id: receiptId, invoiceNumber: data.invoiceNumber.trim(), invoiceDate, dueDate, amount: order.total_amount },
+      financialRecord: { id: finId, code: finCode, dueDate, originType: 'PO', originId: order.id }
     };
   }
 }

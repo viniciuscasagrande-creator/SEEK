@@ -1115,6 +1115,91 @@ export function initializeDatabase() {
   try { db.exec(`ALTER TABLE users ADD COLUMN mfa_secret TEXT`); } catch {}
   try { db.exec(`ALTER TABLE audit_logs ADD COLUMN correlation_id TEXT`); } catch {}
 
+  // Migrações seguras das integrações transacionais (RH, Compras, Fiscal)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS payroll_items (
+      id TEXT PRIMARY KEY,
+      payroll_run_id TEXT NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      employee_name TEXT NOT NULL,
+      department TEXT,
+      base_salary REAL NOT NULL DEFAULT 0,
+      adjustments REAL NOT NULL DEFAULT 0,
+      deductions REAL NOT NULL DEFAULT 0,
+      net_amount REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN due_date TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN employee_count INTEGER DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN gross_amount REAL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN adjustments_amount REAL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN deductions_amount REAL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN net_amount REAL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN closed_by TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE payroll_runs ADD COLUMN closed_at TEXT`); } catch {}
+
+  try { db.exec(`ALTER TABLE vacation_requests ADD COLUMN gross_amount REAL`); } catch {}
+  try { db.exec(`ALTER TABLE vacation_requests ADD COLUMN payment_due_date TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE vacation_requests ADD COLUMN financial_record_id TEXT`); } catch {}
+
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN requisition_id TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN cost_center TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN approved_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN approved_by TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN received_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN invoice_number TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE purchase_orders ADD COLUMN financial_record_id TEXT`); } catch {}
+
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS purchase_receipts (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL UNIQUE REFERENCES purchase_orders(id) ON DELETE CASCADE,
+      company_id TEXT,
+      requisition_id TEXT,
+      supplier_name TEXT NOT NULL,
+      invoice_number TEXT NOT NULL,
+      invoice_date TEXT NOT NULL,
+      due_date TEXT NOT NULL,
+      amount REAL NOT NULL,
+      cost_center TEXT NOT NULL,
+      received_by TEXT NOT NULL,
+      received_at TEXT NOT NULL,
+      financial_record_id TEXT NOT NULL,
+      financial_record_code TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'FATURADO',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_purchase_receipts_order ON purchase_receipts(order_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_purchase_receipts_finance ON purchase_receipts(financial_record_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_purchase_orders_financial_record ON purchase_orders(financial_record_id)`); } catch {}
+
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN company_id TEXT DEFAULT 'comp-1'`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN entity_name TEXT DEFAULT 'Órgão Arrecadador'`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN cost_center TEXT DEFAULT 'Administrativo & Fiscal'`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN guide_number TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN barcode TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN financial_record_id TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN sent_to_finance_at TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE tax_obligations ADD COLUMN sent_to_finance_by TEXT`); } catch {}
+  try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_tax_obligation_financial_record ON tax_obligations(financial_record_id) WHERE financial_record_id IS NOT NULL`); } catch {}
+  try { db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_financial_fiscal_origin ON financial_records(origin_type, origin_id) WHERE origin_type = 'FISCAL' AND origin_id IS NOT NULL`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS ix_tax_obligations_company_period_status_due ON tax_obligations(company_id, period, status, due_date)`); } catch {}
+
+  try {
+    db.prepare(`
+      INSERT INTO chart_of_accounts (id, company_id, code, name, type, nature, level, parent_code, balance)
+      SELECT 'coa-43', 'comp-1', '4.03', 'DESPESAS TRIBUTÁRIAS', 'SINTETICA', 'DEVEDORA', 2, '4', 0.0
+      WHERE NOT EXISTS (SELECT 1 FROM chart_of_accounts WHERE code='4.03')
+    `).run();
+    db.prepare(`
+      INSERT INTO chart_of_accounts (id, company_id, code, name, type, nature, level, parent_code, balance)
+      SELECT 'coa-431', 'comp-1', '4.03.01.001', 'IRPJ, CSLL e Tributos sobre Resultado', 'ANALITICA', 'DEVEDORA', 3, '4.03', 0.0
+      WHERE NOT EXISTS (SELECT 1 FROM chart_of_accounts WHERE code='4.03.01.001')
+    `).run();
+  } catch {}
+
   // Parâmetros oficiais de acesso e ambiente
   try {
     db.prepare(`

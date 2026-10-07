@@ -47,6 +47,13 @@ export interface PurchaseOrderEntity {
   status: string; // 'PENDENTE_APROVACAO' | 'APROVADO' | 'RECEBIDO' | 'PAGO' | 'REJEITADO'
   required_date?: string;
   items_json?: string;
+  requisition_id?: string;
+  cost_center?: string;
+  approved_at?: string;
+  approved_by?: string;
+  received_at?: string;
+  invoice_number?: string;
+  financial_record_id?: string;
   created_at?: string;
 }
 
@@ -146,8 +153,8 @@ export class PurchasingRepository {
 
   createOrder(data: PurchaseOrderEntity): void {
     db.prepare(`
-      INSERT INTO purchase_orders (id, code, title, department, requester_name, supplier_name, total_amount, status, required_date, items_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO purchase_orders (id, code, title, department, requester_name, supplier_name, total_amount, status, required_date, items_json, requisition_id, cost_center)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       data.id,
       data.code,
@@ -158,7 +165,9 @@ export class PurchasingRepository {
       data.total_amount,
       data.status || 'PENDENTE_APROVACAO',
       data.required_date || null,
-      data.items_json || null
+      data.items_json || null,
+      data.requisition_id || null,
+      data.cost_center || data.department
     );
   }
 
