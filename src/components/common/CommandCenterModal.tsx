@@ -78,31 +78,31 @@ export const CommandCenterModal: React.FC<CommandCenterModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-100">
-      <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="w-full max-w-xl rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {/* Search Input Bar */}
-        <div className="flex items-center border-b border-slate-200 px-4 py-3 bg-slate-50/50">
-          <Search className="h-5 w-5 text-slate-400 mr-3 shrink-0" />
+        <div className="flex items-center border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-slate-50/50 dark:bg-slate-800/50">
+          <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 mr-3 shrink-0" />
           <input
             type="text"
             autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Digite para navegar no SEEK, buscar módulos ou disparar ações..."
-            className="w-full bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden"
+            className="w-full bg-transparent text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden"
           />
-          <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-400 shadow-2xs">
+          <kbd className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-400 dark:text-slate-400 shadow-2xs">
             ESC
           </kbd>
         </div>
 
         {/* Action Shortcuts */}
-        <div className="p-2 border-b border-slate-100 bg-blue-50/40 flex items-center justify-between text-xs px-4">
+        <div className="p-2 border-b border-slate-100 dark:border-slate-800 bg-blue-50/40 dark:bg-blue-950/30 flex items-center justify-between text-xs px-4">
           <button
             onClick={() => {
               onClose();
               onOpenQuickAction();
             }}
-            className="flex items-center text-blue-700 font-bold hover:underline"
+            className="flex items-center text-blue-700 dark:text-blue-400 font-bold hover:underline cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
             + Nova Solicitação / Despesa / Lead
@@ -113,7 +113,7 @@ export const CommandCenterModal: React.FC<CommandCenterModalProps> = ({
               onClose();
               onOpenSeekAI();
             }}
-            className="flex items-center text-indigo-700 font-bold hover:underline"
+            className="flex items-center text-indigo-700 dark:text-indigo-400 font-bold hover:underline cursor-pointer"
           >
             <Sparkles className="h-3.5 w-3.5 mr-1" />
             Consultar SEEK IA
@@ -123,7 +123,7 @@ export const CommandCenterModal: React.FC<CommandCenterModalProps> = ({
         {/* Commands List */}
         <div className="max-h-80 overflow-y-auto p-2 space-y-1">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
+            <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
               Nenhum módulo ou comando encontrado para "{search}".
             </div>
           ) : (
@@ -136,18 +136,18 @@ export const CommandCenterModal: React.FC<CommandCenterModalProps> = ({
                     onNavigate(item.view);
                     onClose();
                   }}
-                  className="flex w-full items-center justify-between px-3 py-2 text-left rounded-lg text-xs hover:bg-slate-100 transition-colors group cursor-pointer"
+                  className="flex w-full items-center justify-between px-3 py-2 text-left rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group cursor-pointer"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-slate-600 group-hover:bg-blue-700 group-hover:text-white transition-colors">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:bg-blue-700 group-hover:text-white transition-colors">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <span className="font-bold text-slate-800 block">{item.label}</span>
-                      <span className="text-[10px] text-slate-400">{item.category}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 block">{item.label}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{item.category}</span>
                     </div>
                   </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-700 transition-colors" />
+                  <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors" />
                 </button>
               );
             })

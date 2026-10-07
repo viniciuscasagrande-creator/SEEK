@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WorkflowProvider } from './context/WorkflowContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Header } from './components/layout/Header';
 import { Sidebar, ActiveView } from './components/layout/Sidebar';
 import { QuickActionModal } from './components/common/QuickActionModal';
@@ -351,7 +352,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 font-sans">
+    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
       {/* Top Header Corporativo */}
       <Header
         onOpenQuickAction={() => setIsQuickActionOpen(true)}
@@ -374,22 +375,22 @@ const MainLayout: React.FC = () => {
         />
 
         {/* Área Principal de Trabalho com ScrollSpy Container */}
-        <main id="seek-main-scroll-container" className="flex-1 overflow-y-auto scroll-smooth p-4 sm:p-6 lg:p-8 bg-slate-50/70">
+        <main id="seek-main-scroll-container" className="flex-1 overflow-y-auto scroll-smooth p-4 sm:p-6 lg:p-8 bg-slate-50/70 dark:bg-slate-950/70">
           <div className="mx-auto max-w-7xl space-y-4">
             {/* Breadcrumb Navegável com botão de Favorito */}
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <div className="flex items-center space-x-1.5">
                 <button
                   onClick={() => setActiveView('my-workstation')}
-                  className="flex items-center hover:text-blue-700 transition-colors cursor-pointer"
+                  className="flex items-center hover:text-blue-700 dark:hover:text-blue-400 transition-colors cursor-pointer"
                 >
                   <Home className="h-3.5 w-3.5 mr-1" />
                   <span>SEEK</span>
                 </button>
-                <ChevronRight className="h-3 w-3 text-slate-300" />
-                <span className="font-medium text-slate-500">{currentBreadcrumb.group}</span>
-                <ChevronRight className="h-3 w-3 text-slate-300" />
-                <span className="font-bold text-slate-900">{currentBreadcrumb.label}</span>
+                <ChevronRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />
+                <span className="font-medium text-slate-500 dark:text-slate-400">{currentBreadcrumb.group}</span>
+                <ChevronRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />
+                <span className="font-bold text-slate-900 dark:text-slate-100">{currentBreadcrumb.label}</span>
               </div>
 
               {/* Botão de Favoritar Tela */}
@@ -398,7 +399,7 @@ const MainLayout: React.FC = () => {
                   toggleFavorite(activeView, currentBreadcrumb.label, activeView)
                 }
                 title={isFavorite(activeView) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                className="flex items-center space-x-1 rounded-md px-2 py-1 hover:bg-slate-200 text-slate-400 hover:text-amber-500 transition-colors cursor-pointer"
+                className="flex items-center space-x-1 rounded-md px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-amber-500 transition-colors cursor-pointer"
               >
                 <Star
                   className={`h-3.5 w-3.5 ${
@@ -443,10 +444,12 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <WorkflowProvider>
-        <MainLayout />
-      </WorkflowProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <WorkflowProvider>
+          <MainLayout />
+        </WorkflowProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
