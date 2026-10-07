@@ -1517,6 +1517,15 @@ export function initializeDatabase() {
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_conferences_period ON benefit_conferences(period, status, issue_level)`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_operator_files_batch ON benefit_operator_files(batch_id, file_type)`); } catch {}
 
+  // Migração 016: RH Benefícios Fase 5 (Histórico e relatórios gerenciais)
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_orders_period_status ON benefit_orders(period, status)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_order_items_employee_history ON benefit_order_items(employee_id, order_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_order_items_department_history ON benefit_order_items(department, order_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_order_items_type_history ON benefit_order_items(benefit_type, order_id)`);
+    db.exec(`UPDATE benefit_order_items SET final_company_cost = company_cost WHERE COALESCE(final_company_cost,0)=0 AND COALESCE(company_cost,0)>0 AND calculation_detail IS NULL`);
+  } catch {}
+
   // Parâmetros oficiais de acesso e ambiente
   try {
     db.prepare(`

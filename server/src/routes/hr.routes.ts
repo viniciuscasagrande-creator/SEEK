@@ -1299,6 +1299,119 @@ hrRouter.post('/benefits/orders/:id/send-finance', (req: Request, res: Response)
   }
 });
 
+hrRouter.get('/benefits/analytics', (req: Request, res: Response) => {
+  try {
+    const period = String(req.query.period || '');
+    if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: 'Competência inválida.' });
+    const [year, month] = period.split('-').map(Number);
+    const previousDate = new Date(year, month - 2, 1, 12);
+    const previousPeriod = String(req.query.comparePeriod || `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, '0')}`);
+    if (!/^\d{4}-\d{2}$/.test(previousPeriod)) return res.status(400).json({ error: 'Competência de comparação inválida.' });
+
+    const orderFor = (p: string) => db.prepare(`SELECT * FROM benefit_orders WHERE period=? ORDER BY created_at DESC LIMIT 1`).get(p) as any;
+    const currentOrder = orderFor(period);
+    const previousOrder = orderFor(previousPeriod);
+
+    const benefitTotals = db.prepare(`SELECT i.benefit_type,
+      COUNT(DISTINCT i.employee_id) employee_count,
+      ROUND(SUM(COALESCE(i.final_company_cost,i.company_cost,0)),2) company_cost,
+      ROUND(SUM(COALESCE(i.employee_discount,0)),2) employee_discount,
+      ROUND(SUM(COALESCE(i.total_value,0)),2) gross_value
+      FROM benefit_order_items i JOIN benefit_orders o ON o.id=i.order_id
+      WHERE o.period=? GROUP BY i.benefit_type ORDER BY i.benefit_type`).all(period) as any[];
+
+    const departments = db.prepare(`SELECT COALESCE(NULLIF(TRIM(i.department),''),'Sem departamento') department,
+      COUNT(DISTINCT i.employee_id) employee_count,
+      ROUND(SUM(CASE WHEN i.benefit_type='VT' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) vt_total,
+      ROUND(SUM(CASE WHEN i.benefit_type='VA' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) va_total,
+      ROUND(SUM(CASE WHEN i.benefit_type='VR' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) vr_total,
+      ROUND(SUM(CASE WHEN i.benefit_type='COMBUSTIVEL' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) fuel_total,
+      ROUND(SUM(COALESCE(i.final_company_cost,i.company_cost,0)),2) total_amount
+      FROM benefit_order_items i JOIN benefit_orders o ON o.id=i.order_id
+      WHERE o.period=? GROUP BY COALESCE(NULLIF(TRIM(i.department),''),'Sem departamento') ORDER BY total_amount DESC`).all(period) as any[];
+
+    const monthlyTrend = db.prepare(`SELECT o.period,o.status,o.employee_count,o.vt_total,o.va_total,o.vr_total,o.fuel_total,o.total_amount,
+      ROUND(COALESCE((SELECT SUM(i.employee_discount) FROM benefit_order_items i WHERE i.order_id=o.id),0),2) employee_discount
+      FROM benefit_orders o ORDER BY o.period DESC LIMIT 12`).all() as any[];
+
+    const historyItems = db.prepare(`SELECT o.period,o.status order_status,i.employee_id,i.employee_name,i.department,i.benefit_type,i.provider_name,
+      i.business_days,i.eligible_days,i.admission_days_deducted,i.vacation_days_deducted,i.leave_days_deducted,
+      i.adjustment_amount,i.employee_discount,COALESCE(i.final_company_cost,i.company_cost,0) company_cost,
+      i.operator_processed_amount,i.divergence_amount,i.credit_status
+      FROM benefit_order_items i JOIN benefit_orders o ON o.id=i.order_id
+      ORDER BY o.period DESC,i.employee_name,i.benefit_type LIMIT 5000`).all() as any[];
+
+    const employeeMonthly = db.prepare(`SELECT o.period,i.employee_id,i.employee_name,COALESCE(NULLIF(TRIM(i.department),''),'Sem departamento') department,
+      ROUND(SUM(CASE WHEN i.benefit_type='VT' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) vt_total,
+      ROUND(SUM(CASE WHEN i.benefit_type='VA' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) va_total,
+      ROUND(SUM(CASE WHEN i.benefit_type='VR' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) vr_total,
+      ROUND(SUM(CASE WHEN i.benefit_type='COMBUSTIVEL' THEN COALESCE(i.final_company_cost,i.company_cost,0) ELSE 0 END),2) fuel_total,
+      ROUND(SUM(COALESCE(i.final_company_cost,i.company_cost,0)),2) total_amount,
+      ROUND(SUM(COALESCE(i.employee_discount,0)),2) employee_discount
+      FROM benefit_order_items i JOIN benefit_orders o ON o.id=i.order_id
+      GROUP BY o.period,i.employee_id,i.employee_name,COALESCE(NULLIF(TRIM(i.department),''),'Sem departamento')
+      ORDER BY o.period DESC,i.employee_name`).all() as any[];
+
+    const summary = (o: any) => ({
+      period: o?.period || null,
+      employeeCount: Number(o?.employee_count || 0),
+      VT: Number(o?.vt_total || 0), VA: Number(o?.va_total || 0), VR: Number(o?.vr_total || 0),
+      COMBUSTIVEL: Number(o?.fuel_total || 0), total: Number(o?.total_amount || 0), status: o?.status || 'SEM_FECHAMENTO'
+    });
+    const current = summary(currentOrder), previous = summary(previousOrder);
+    const pct = (a: number, b: number) => b === 0 ? (a === 0 ? 0 : null) : Number((((a - b) / b) * 100).toFixed(2));
+    const comparison: any = { current, previous, deltas: {} };
+    for (const key of ['VT', 'VA', 'VR', 'COMBUSTIVEL', 'total']) {
+      const a = Number((current as any)[key] || 0), b = Number((previous as any)[key] || 0);
+      comparison.deltas[key] = { amount: Number((a - b).toFixed(2)), percent: pct(a, b) };
+    }
+
+    const employeeDirectory = db.prepare(`SELECT DISTINCT i.employee_id id,i.employee_name name,COALESCE(NULLIF(TRIM(i.department),''),'Sem departamento') department
+      FROM benefit_order_items i ORDER BY i.employee_name`).all();
+
+    return res.json({ period, previousPeriod, currentOrder: currentOrder || null, benefitTotals, departments, monthlyTrend: monthlyTrend.reverse(), historyItems, employeeMonthly, employeeDirectory, comparison });
+  } catch (error: any) { return res.status(500).json({ error: error.message }); }
+});
+
+hrRouter.get('/benefits/absences', (_req: Request, res: Response) => {
+  try {
+    return res.json({
+      absences: db.prepare(`
+        SELECT a.*, e.full_name employee_name
+        FROM benefit_absences a
+        JOIN employees e ON e.id = a.employee_id
+        ORDER BY a.start_date DESC
+      `).all()
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/absences', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { employeeId, startDate, endDate, reason, notes, userName, userRole } = req.body;
+    if (!employeeId || !startDate || !endDate || !reason) {
+      return res.status(400).json({ error: 'Colaborador, início, fim e motivo são obrigatórios.' });
+    }
+    if (startDate > endDate) {
+      return res.status(400).json({ error: 'Data inicial não pode ser posterior à data final.' });
+    }
+    const emp = db.prepare(`SELECT full_name FROM employees WHERE id = ?`).get(employeeId) as any;
+    if (!emp) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+    const id = `babs-${Date.now()}`;
+    db.prepare(`
+      INSERT INTO benefit_absences (id, employee_id, start_date, end_date, reason, notes, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, employeeId, startDate, endDate, reason, notes || null, userName || 'RH');
+    logAudit(userName || 'Recursos Humanos', userRole || 'RH', 'CREATE', 'RH & Benefícios', `Afastamento ${emp.full_name}`, `${reason}: ${startDate} a ${endDate}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    return res.status(201).json({ success: true, id });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 hrRouter.get('/benefits/plans', (req: Request, res: Response) => {
   try {
     const authReq = req as AuthenticatedRequest;

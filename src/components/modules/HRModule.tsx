@@ -62,9 +62,11 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const [payrollPreview, setPayrollPreview] = useState<any>(null);
   const [closingPayroll, setClosingPayroll] = useState(false);
 
-  // Estados dos Benefícios (VT, VA, VR, Combustível) — Fases 3 & 4
-  const [benefitSection, setBenefitSection] = useState<'COLABORADORES' | 'CONFERENCIA' | 'FECHAMENTO' | 'PEDIDOS' | 'OPERADORAS' | 'AFASTAMENTOS'>('COLABORADORES');
+  // Estados dos Benefícios (VT, VA, VR, Combustível) — Fases 3, 4 & 5
+  const [benefitSection, setBenefitSection] = useState<'COLABORADORES' | 'CONFERENCIA' | 'FECHAMENTO' | 'PEDIDOS' | 'OPERADORAS' | 'AFASTAMENTOS' | 'HISTORICO' | 'CUSTOS' | 'DEPARTAMENTOS' | 'COMPARATIVO'>('COLABORADORES');
   const [benefitConference, setBenefitConference] = useState<any>(null);
+  const [benefitAnalytics, setBenefitAnalytics] = useState<any>(null);
+  const [benefitHistoryEmployeeId, setBenefitHistoryEmployeeId] = useState('');
   const [benefitEmployees, setBenefitEmployees] = useState<any[]>([]);
   const [benefitOrders, setBenefitOrders] = useState<any[]>([]);
   const [benefitPeriod, setBenefitPeriod] = useState('2026-10');
@@ -199,6 +201,17 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
       const serverBenefitPurchases = await api.getBenefitPurchases();
       if (serverBenefitPurchases) setBenefitPurchases(serverBenefitPurchases);
+
+      const conference = await api.getBenefitConference(benefitPeriod);
+      if (conference) setBenefitConference(conference);
+
+      const analytics = await api.getBenefitAnalytics(benefitPeriod);
+      if (analytics) {
+        setBenefitAnalytics(analytics);
+        if (!benefitHistoryEmployeeId && analytics.employeeDirectory?.length) {
+          setBenefitHistoryEmployeeId(analytics.employeeDirectory[0].id);
+        }
+      }
     } catch {
       // fallback
     }
@@ -207,6 +220,17 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'benefits') return;
+    api.getBenefitAnalytics(benefitPeriod).then((analytics: any) => {
+      if (!analytics) return;
+      setBenefitAnalytics(analytics);
+      if (!benefitHistoryEmployeeId && analytics.employeeDirectory?.length) {
+        setBenefitHistoryEmployeeId(analytics.employeeDirectory[0].id);
+      }
+    });
+  }, [benefitPeriod, activeTab]);
 
   const handleAdmitEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -661,6 +685,14 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       setNotification(`⚠️ ${res?.error || 'Falha na confirmação de crédito.'}`);
     }
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const currencyBRL = (value: any) =>
+    Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const benefitLabel = (type: string) => (type === 'COMBUSTIVEL' ? 'Auxílio Combustível' : type);
+  const refreshBenefitAnalytics = async () => {
+    const r = await api.getBenefitAnalytics(benefitPeriod);
+    if (r) setBenefitAnalytics(r);
   };
 
   const filteredEmployees = employees.filter(
@@ -1162,7 +1194,11 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                   ['FECHAMENTO', 'Fechamento'],
                   ['PEDIDOS', 'Pedidos de compra'],
                   ['OPERADORAS', 'Operadoras'],
-                  ['AFASTAMENTOS', 'Afastamentos']
+                  ['AFASTAMENTOS', 'Afastamentos'],
+                  ['HISTORICO', 'Histórico'],
+                  ['CUSTOS', 'Custos'],
+                  ['DEPARTAMENTOS', 'Departamentos'],
+                  ['COMPARATIVO', 'Comparativo']
                 ] as const).map(([key, label]) => (
                   <button
                     key={key}
@@ -1896,6 +1932,341 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                           <td className="py-3 px-3 text-slate-500 text-[11px]">{a.created_by || 'Sistema'}</td>
                         </tr>
                       ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 6: HISTÓRICO MENSAL POR COLABORADOR */}
+          {benefitSection === 'HISTORICO' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Histórico mensal por colaborador</h3>
+                    <p className="text-xs text-slate-500">
+                      Consulte a fotografia de cada competência fechada, sem alterar o histórico anterior.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase text-slate-500">Colaborador</label>
+                    <select
+                      value={benefitHistoryEmployeeId}
+                      onChange={e => setBenefitHistoryEmployeeId(e.target.value)}
+                      className="min-w-72 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800"
+                    >
+                      <option value="">Todos os colaboradores</option>
+                      {benefitAnalytics?.employeeDirectory?.map((e: any) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name} · {e.department}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Competência</th>
+                      <th className="py-3 px-2">Colaborador</th>
+                      <th className="py-3 px-2">Departamento</th>
+                      <th className="py-3 px-2">Benefício</th>
+                      <th className="py-3 px-2">Operadora</th>
+                      <th className="py-3 px-2 text-center">Dias (Eleg./Úteis)</th>
+                      <th className="py-3 px-2 text-right">Desconto Colab.</th>
+                      <th className="py-3 px-2 text-right">Custo Empresa</th>
+                      <th className="py-3 px-3 text-center">Situação Crédito</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(benefitAnalytics?.historyItems || [])
+                      .filter((i: any) => !benefitHistoryEmployeeId || i.employee_id === benefitHistoryEmployeeId)
+                      .length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-6 text-center text-slate-400">
+                          Nenhum histórico disponível para a seleção.
+                        </td>
+                      </tr>
+                    ) : (
+                      (benefitAnalytics?.historyItems || [])
+                        .filter((i: any) => !benefitHistoryEmployeeId || i.employee_id === benefitHistoryEmployeeId)
+                        .map((i: any, idx: number) => (
+                          <tr key={`${i.period}-${i.employee_id}-${i.benefit_type}-${idx}`} className="hover:bg-slate-50">
+                            <td className="p-3 font-black text-slate-900">{i.period}</td>
+                            <td className="py-3 px-2 font-semibold text-slate-900">{i.employee_name}</td>
+                            <td className="py-3 px-2 text-slate-600">{i.department || '—'}</td>
+                            <td className="py-3 px-2 font-medium text-slate-800">{benefitLabel(i.benefit_type)}</td>
+                            <td className="py-3 px-2 text-slate-700">{i.provider_name || '—'}</td>
+                            <td className="py-3 px-2 text-center font-bold text-slate-700">
+                              {i.eligible_days || 0}/{i.business_days || 0}
+                            </td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(i.employee_discount)}</td>
+                            <td className="py-3 px-2 text-right font-black text-slate-900">{currencyBRL(i.company_cost)}</td>
+                            <td className="py-3 px-3 text-center">
+                              <StatusBadge status={i.credit_status || i.order_status || 'PENDENTE'} />
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 7: RELATÓRIO DE CUSTOS */}
+          {benefitSection === 'CUSTOS' && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {['VT', 'VA', 'VR', 'COMBUSTIVEL'].map(t => {
+                  const r = (benefitAnalytics?.benefitTotals || []).find((x: any) => x.benefit_type === t);
+                  return (
+                    <div key={t} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                      <div className="text-[10px] font-black uppercase text-slate-500">{benefitLabel(t)}</div>
+                      <div className="mt-1 text-xl font-black text-slate-900">{currencyBRL(r?.company_cost)}</div>
+                      <div className="mt-1 text-[10px] text-slate-500">{r?.employee_count || 0} colaborador(es)</div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-xs">
+                  <div className="text-[10px] font-black uppercase text-blue-700">Total {benefitPeriod}</div>
+                  <div className="mt-1 text-xl font-black text-blue-900">
+                    {currencyBRL(benefitAnalytics?.currentOrder?.total_amount)}
+                  </div>
+                  <div className="mt-1 text-[10px] text-blue-700">Custo empresa da competência</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Evolução mensal de custos</h3>
+                    <p className="text-xs text-slate-500">Últimas competências fechadas, com custo por tipo de benefício.</p>
+                  </div>
+                  <button
+                    onClick={refreshBenefitAnalytics}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Atualizar
+                  </button>
+                </div>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Competência</th>
+                        <th className="py-3 px-2 text-right">VT</th>
+                        <th className="py-3 px-2 text-right">VA</th>
+                        <th className="py-3 px-2 text-right">VR</th>
+                        <th className="py-3 px-2 text-right">Combustível</th>
+                        <th className="py-3 px-2 text-right">Total Empresa</th>
+                        <th className="py-3 px-2 text-right">Desconto Colaboradores</th>
+                        <th className="py-3 px-3 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(benefitAnalytics?.monthlyTrend || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-400">
+                            Nenhum histórico de competências encontrado.
+                          </td>
+                        </tr>
+                      ) : (
+                        (benefitAnalytics?.monthlyTrend || []).map((m: any) => (
+                          <tr key={m.period} className="hover:bg-slate-50">
+                            <td className="p-3 font-black text-slate-900">{m.period}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(m.vt_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(m.va_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(m.vr_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(m.fuel_total)}</td>
+                            <td className="py-3 px-2 text-right font-black text-slate-900">{currencyBRL(m.total_amount)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(m.employee_discount)}</td>
+                            <td className="py-3 px-3 text-center">
+                              <StatusBadge status={m.status} />
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 8: VISÃO POR DEPARTAMENTO */}
+          {benefitSection === 'DEPARTAMENTOS' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Custos por departamento · {benefitPeriod}</h3>
+                    <p className="text-xs text-slate-500">
+                      Distribuição dos benefícios por área, usando o departamento registrado no fechamento da competência.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                      <tr>
+                        <th className="p-3">Departamento</th>
+                        <th className="py-3 px-2 text-center">Colaboradores</th>
+                        <th className="py-3 px-2 text-right">VT</th>
+                        <th className="py-3 px-2 text-right">VA</th>
+                        <th className="py-3 px-2 text-right">VR</th>
+                        <th className="py-3 px-2 text-right">Combustível</th>
+                        <th className="py-3 px-2 text-right">Total</th>
+                        <th className="py-3 px-3 text-right">% do Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(benefitAnalytics?.departments || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-400">
+                            Nenhum departamento com fechamento registrado para a competência {benefitPeriod}.
+                          </td>
+                        </tr>
+                      ) : (
+                        (benefitAnalytics?.departments || []).map((d: any) => (
+                          <tr key={d.department} className="hover:bg-slate-50">
+                            <td className="p-3 font-black text-slate-900">{d.department}</td>
+                            <td className="py-3 px-2 text-center font-bold text-slate-700">{d.employee_count}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(d.vt_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(d.va_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(d.vr_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(d.fuel_total)}</td>
+                            <td className="py-3 px-2 text-right font-black text-slate-900">{currencyBRL(d.total_amount)}</td>
+                            <td className="py-3 px-3 text-right font-bold text-blue-700">
+                              {Number(benefitAnalytics?.currentOrder?.total_amount || 0) > 0
+                                ? `${(
+                                    (Number(d.total_amount || 0) /
+                                      Number(benefitAnalytics.currentOrder.total_amount)) *
+                                    100
+                                  ).toFixed(1)}%`
+                                : '0,0%'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA 9: COMPARAÇÃO ENTRE COMPETÊNCIAS */}
+          {benefitSection === 'COMPARATIVO' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Comparação entre competências</h3>
+                    <p className="text-xs text-slate-500">
+                      Compara {benefitAnalytics?.comparison?.current?.period || benefitPeriod} com{' '}
+                      {benefitAnalytics?.comparison?.previous?.period ||
+                        benefitAnalytics?.previousPeriod ||
+                        'competência anterior'}.
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600">
+                    Variação positiva = aumento de custo
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  {['VT', 'VA', 'VR', 'COMBUSTIVEL', 'total'].map(k => {
+                    const label = k === 'total' ? 'Total Geral' : benefitLabel(k);
+                    const cur = benefitAnalytics?.comparison?.current?.[k] || 0;
+                    const prev = benefitAnalytics?.comparison?.previous?.[k] || 0;
+                    const delta = benefitAnalytics?.comparison?.deltas?.[k];
+                    return (
+                      <div key={k} className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                        <div className="text-[10px] font-black uppercase text-slate-500">{label}</div>
+                        <div className="mt-2 text-lg font-black text-slate-900">{currencyBRL(cur)}</div>
+                        <div className="text-[10px] text-slate-500">Anterior: {currencyBRL(prev)}</div>
+                        <div
+                          className={`mt-2 text-xs font-black ${
+                            Number(delta?.amount || 0) > 0
+                              ? 'text-rose-600'
+                              : Number(delta?.amount || 0) < 0
+                              ? 'text-emerald-700'
+                              : 'text-slate-500'
+                          }`}
+                        >
+                          {Number(delta?.amount || 0) >= 0 ? '+' : ''}
+                          {currencyBRL(delta?.amount)} ·{' '}
+                          {delta?.percent === null
+                            ? 'sem base'
+                            : `${Number(delta?.percent || 0) >= 0 ? '+' : ''}${Number(
+                                delta?.percent || 0
+                              ).toFixed(2)}%`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white shadow-xs overflow-x-auto">
+                <div className="p-4 border-b border-slate-100">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                    Detalhamento Nominal por Competência
+                  </h4>
+                </div>
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Colaborador</th>
+                      <th className="py-3 px-2">Departamento</th>
+                      <th className="py-3 px-2 text-center">Competência</th>
+                      <th className="py-3 px-2 text-right">VT</th>
+                      <th className="py-3 px-2 text-right">VA</th>
+                      <th className="py-3 px-2 text-right">VR</th>
+                      <th className="py-3 px-2 text-right">Combustível</th>
+                      <th className="py-3 px-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(benefitAnalytics?.employeeMonthly || []).filter((r: any) =>
+                      [
+                        benefitAnalytics?.comparison?.current?.period,
+                        benefitAnalytics?.comparison?.previous?.period
+                      ].includes(r.period)
+                    ).length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-slate-400">
+                          Nenhum dado comparativo disponível para os períodos selecionados.
+                        </td>
+                      </tr>
+                    ) : (
+                      (benefitAnalytics?.employeeMonthly || [])
+                        .filter((r: any) =>
+                          [
+                            benefitAnalytics?.comparison?.current?.period,
+                            benefitAnalytics?.comparison?.previous?.period
+                          ].includes(r.period)
+                        )
+                        .map((r: any) => (
+                          <tr key={`${r.period}-${r.employee_id}`} className="hover:bg-slate-50">
+                            <td className="p-3 font-bold text-slate-900">{r.employee_name}</td>
+                            <td className="py-3 px-2 text-slate-600">{r.department}</td>
+                            <td className="py-3 px-2 text-center font-bold text-slate-800">{r.period}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(r.vt_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(r.va_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(r.vr_total)}</td>
+                            <td className="py-3 px-2 text-right text-slate-700">{currencyBRL(r.fuel_total)}</td>
+                            <td className="py-3 px-3 text-right font-black text-slate-900">
+                              {currencyBRL(r.total_amount)}
+                            </td>
+                          </tr>
+                        ))
                     )}
                   </tbody>
                 </table>

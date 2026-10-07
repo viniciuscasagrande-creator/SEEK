@@ -1422,6 +1422,17 @@ export const api = {
     }
   },
 
+  async getBenefitAnalytics(period: string, comparePeriod?: string): Promise<any> {
+    try {
+      const params = new URLSearchParams({ period });
+      if (comparePeriod) params.set('comparePeriod', comparePeriod);
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/analytics?${params.toString()}`);
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  },
+
   async getJobPostings(): Promise<any[]> {
     try {
       const res = await authFetch(`${API_BASE_URL}/hr/jobs`);

@@ -25,7 +25,8 @@
     "server:test:benefits-e2e": "npm --prefix server run test:benefits-e2e",
     "server:test:benefits-fase2": "npm --prefix server run test:benefits-fase2",
     "server:test:benefits-fase3": "npm --prefix server run test:benefits-fase3",
-    "server:test:benefits-fase4": "npm --prefix server run test:benefits-fase4"
+    "server:test:benefits-fase4": "npm --prefix server run test:benefits-fase4",
+    "server:test:benefits-fase5": "npm --prefix server run test:benefits-fase5"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

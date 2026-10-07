@@ -26,7 +26,8 @@
     "test:benefits-e2e": "tsx src/test_hr_benefits_e2e.ts",
     "test:benefits-fase2": "tsx src/test_hr_benefits_fase2.ts",
     "test:benefits-fase3": "tsx src/test_hr_benefits_fase3.ts",
-    "test:benefits-fase4": "tsx src/test_hr_benefits_fase4.ts"
+    "test:benefits-fase4": "tsx src/test_hr_benefits_fase4.ts",
+    "test:benefits-fase5": "tsx src/test_hr_benefits_fase5.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",
