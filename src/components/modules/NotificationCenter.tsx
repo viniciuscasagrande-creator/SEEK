@@ -84,9 +84,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ onNaviga
               {types.map(t => <option key={t} value={t}>{typeLabel(t)}</option>)}
             </select>
           </div>
-          <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-            <button onClick={() => setFilter('ALL')} className={`rounded-md px-3 py-1.5 text-xs font-bold cursor-pointer ${filter === 'ALL' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500'}`}>Todas</button>
-            <button onClick={() => setFilter('UNREAD')} className={`rounded-md px-3 py-1.5 text-xs font-bold cursor-pointer ${filter === 'UNREAD' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-500'}`}>Não lidas</button>
+          <div className="flex rounded-lg border border-slate-200 dark:border-cyan-500/30 bg-slate-50 dark:bg-[#070e1c] p-1">
+            <button onClick={() => setFilter('ALL')} className={`rounded-md px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${filter === 'ALL' ? 'bg-white dark:bg-cyan-950/90 text-blue-700 dark:text-[#00f5ff] dark:border dark:border-[#00f5ff] shadow-xs dark:shadow-[0_0_12px_rgba(0,245,255,0.35)] dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]' : 'text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff]'}`}>Todas</button>
+            <button onClick={() => setFilter('UNREAD')} className={`rounded-md px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${filter === 'UNREAD' ? 'bg-white dark:bg-cyan-950/90 text-blue-700 dark:text-[#00f5ff] dark:border dark:border-[#00f5ff] shadow-xs dark:shadow-[0_0_12px_rgba(0,245,255,0.35)] dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]' : 'text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff]'}`}>Não lidas</button>
           </div>
         </div>
       </div>

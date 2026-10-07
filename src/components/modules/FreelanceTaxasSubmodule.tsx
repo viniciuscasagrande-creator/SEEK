@@ -437,13 +437,13 @@ export const FreelanceTaxasSubmodule: React.FC = () => {
       )}
 
       {/* Sub-Tabs de Navegação */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 dark:border-slate-800">
         <button
           onClick={() => setActiveSubTab('taxas')}
           className={`px-5 py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all ${
             activeSubTab === 'taxas'
-              ? 'border-blue-700 text-blue-700 bg-blue-50/40 rounded-t-lg'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] bg-blue-50/40 dark:bg-cyan-950/40 rounded-t-lg font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Calendar className="h-4 w-4" />
@@ -453,8 +453,8 @@ export const FreelanceTaxasSubmodule: React.FC = () => {
           onClick={() => setActiveSubTab('freelancers')}
           className={`px-5 py-3 text-xs font-bold border-b-2 flex items-center gap-2 cursor-pointer transition-all ${
             activeSubTab === 'freelancers'
-              ? 'border-blue-700 text-blue-700 bg-blue-50/40 rounded-t-lg'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] bg-blue-50/40 dark:bg-cyan-950/40 rounded-t-lg font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Users className="h-4 w-4" />

@@ -346,14 +346,14 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ initialTab = '
       </div>
 
       {/* Tabs & Barra de Busca */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="flex space-x-1 bg-slate-100 dark:bg-[#070e1c] border border-transparent dark:border-cyan-500/30 p-1 rounded-xl">
           <button
             onClick={() => setActiveTab('assets')}
             className={`flex items-center space-x-2 rounded-lg px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'assets'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-cyan-950/90 text-blue-700 dark:text-[#00f5ff] dark:border dark:border-[#00f5ff] shadow-xs dark:shadow-[0_0_12px_rgba(0,245,255,0.35)] dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+                : 'text-slate-600 dark:text-cyan-400/80 hover:text-slate-900 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
             }`}
           >
             <Tag className="h-4 w-4" />
@@ -363,8 +363,8 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ initialTab = '
             onClick={() => setActiveTab('stock')}
             className={`flex items-center space-x-2 rounded-lg px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'stock'
-                ? 'bg-white text-amber-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-amber-950/90 text-amber-700 dark:text-[#fbbf24] dark:border dark:border-[#fbbf24] shadow-xs dark:shadow-[0_0_12px_rgba(251,191,36,0.35)] dark:drop-shadow-[0_0_8px_rgba(251,191,36,0.85)]'
+                : 'text-slate-600 dark:text-amber-400/80 hover:text-slate-900 dark:hover:text-[#fbbf24] dark:hover:drop-shadow-[0_0_6px_rgba(251,191,36,0.6)]'
             }`}
           >
             <Boxes className="h-4 w-4" />
@@ -373,13 +373,13 @@ export const InventoryModule: React.FC<InventoryModuleProps> = ({ initialTab = '
         </div>
 
         <div className="relative">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-cyan-400/60" />
           <input
             type="text"
             placeholder={activeTab === 'assets' ? 'Buscar por plaqueta, ativo ou responsável...' : 'Buscar insumo por SKU ou nome...'}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full sm:w-72 rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-hidden"
+            className="w-full sm:w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-600 dark:focus:border-cyan-400 focus:outline-hidden"
           />
         </div>
       </div>

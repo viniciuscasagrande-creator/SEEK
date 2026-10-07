@@ -242,13 +242,13 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
       </div>
 
       {/* Abas Superiores */}
-      <div className="flex space-x-2 border-b border-slate-200">
+      <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
         <button
           onClick={() => setActiveTab('taxes')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'taxes'
-              ? 'border-indigo-700 text-indigo-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-indigo-700 dark:border-[#818cf8] text-indigo-700 dark:text-[#a5b4fc] font-bold dark:drop-shadow-[0_0_8px_rgba(165,180,252,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-indigo-300/80 hover:text-slate-800 dark:hover:text-[#a5b4fc] dark:hover:drop-shadow-[0_0_6px_rgba(165,180,252,0.6)]'
           }`}
         >
           <Receipt className="h-4 w-4" />
@@ -257,10 +257,10 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
 
         <button
           onClick={() => setActiveTab('calculator')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'calculator'
-              ? 'border-indigo-700 text-indigo-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-indigo-700 dark:border-[#818cf8] text-indigo-700 dark:text-[#a5b4fc] font-bold dark:drop-shadow-[0_0_8px_rgba(165,180,252,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-indigo-300/80 hover:text-slate-800 dark:hover:text-[#a5b4fc] dark:hover:drop-shadow-[0_0_6px_rgba(165,180,252,0.6)]'
           }`}
         >
           <Calculator className="h-4 w-4" />
@@ -269,10 +269,10 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
 
         <button
           onClick={() => setActiveTab('calendar')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'calendar'
-              ? 'border-indigo-700 text-indigo-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-indigo-700 dark:border-[#818cf8] text-indigo-700 dark:text-[#a5b4fc] font-bold dark:drop-shadow-[0_0_8px_rgba(165,180,252,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-indigo-300/80 hover:text-slate-800 dark:hover:text-[#a5b4fc] dark:hover:drop-shadow-[0_0_6px_rgba(165,180,252,0.6)]'
           }`}
         >
           <Calendar className="h-4 w-4" />
@@ -281,10 +281,10 @@ export const FiscalModule: React.FC<FiscalModuleProps> = ({ initialTab = 'taxes'
 
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'invoices'
-              ? 'border-indigo-700 text-indigo-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-indigo-700 dark:border-[#818cf8] text-indigo-700 dark:text-[#a5b4fc] font-bold dark:drop-shadow-[0_0_8px_rgba(165,180,252,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-indigo-300/80 hover:text-slate-800 dark:hover:text-[#a5b4fc] dark:hover:drop-shadow-[0_0_6px_rgba(165,180,252,0.6)]'
           }`}
         >
           <FileCheck className="h-4 w-4" />

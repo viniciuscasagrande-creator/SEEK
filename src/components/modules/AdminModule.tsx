@@ -302,13 +302,13 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
       </div>
 
       {/* Abas Administrativas */}
-      <div className="flex border-b border-slate-200 space-x-4 overflow-x-auto">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-4 overflow-x-auto">
         <button
           onClick={() => setActiveTab('rbac')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'rbac'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           Usuários & Perfis RBAC ({userList.length})
@@ -318,8 +318,8 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
           onClick={() => setActiveTab('alcadas')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'alcadas'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           Regras de Alçadas & Workflows
@@ -329,8 +329,8 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
           onClick={() => setActiveTab('empresas')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'empresas'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           Multiempresa & Filiais
@@ -340,8 +340,8 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
           onClick={() => setActiveTab('auditoria')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'auditoria'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           Trilha de Auditoria ({auditLogs.length})
@@ -351,8 +351,8 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'rbac' })
           onClick={() => setActiveTab('seguranca')}
           className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'seguranca'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           Sessões & Segurança Corporativa

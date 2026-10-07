@@ -285,23 +285,23 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
       )}
 
       {/* Abas Superiores */}
-      <div id="acc-tabs" className="flex space-x-2 border-b border-slate-200">
+      <div id="acc-tabs" className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'dashboard'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <span>Visão Geral & Pendências</span>
         </button>
         <button
           onClick={() => setActiveTab('coa')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'coa'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <FolderTree className="h-4 w-4" />
@@ -310,10 +310,10 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('journal')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'journal'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <ListOrdered className="h-4 w-4" />
@@ -322,10 +322,10 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('trial-balance')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'trial-balance'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Scale className="h-4 w-4" />
@@ -334,10 +334,10 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('statements')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'statements'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <TrendingUp className="h-4 w-4" />
@@ -346,10 +346,10 @@ export const AccountingModule: React.FC<AccountingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('closing')}
-          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center space-x-2 border-b-2 px-4 py-3 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'closing'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Lock className="h-4 w-4" />

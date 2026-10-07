@@ -367,11 +367,13 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
       </div>
 
       {/* Tabs de Navegação Interna */}
-      <div id="purchasing-tabs" className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
+      <div id="purchasing-tabs" className="flex border-b border-slate-200 dark:border-slate-800 space-x-2 text-xs font-bold overflow-x-auto">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'dashboard' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+            activeTab === 'dashboard'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <span>Visão Geral & Pendências</span>
@@ -379,8 +381,10 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('requisitions')}
-          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'requisitions' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+            activeTab === 'requisitions'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <FileText className="h-4 w-4" />
@@ -389,21 +393,25 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('comparison')}
-          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'comparison' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+            activeTab === 'comparison'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Percent className="h-4 w-4" />
           <span>Mapa de Cotações (3 Fornecedores)</span>
-          <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
+          <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 dark:border dark:border-emerald-500/40 px-1.5 py-0.2 text-[10px] font-bold">
             Inteligência
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('orders')}
-          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'orders' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+            activeTab === 'orders'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <ShoppingCart className="h-4 w-4" />
@@ -412,8 +420,10 @@ export const PurchasingModule: React.FC<PurchasingModuleProps> = ({ initialTab =
 
         <button
           onClick={() => setActiveTab('suppliers')}
-          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'suppliers' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
+            activeTab === 'suppliers'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Truck className="h-4 w-4" />

@@ -325,27 +325,27 @@ export const ContractsModule: React.FC = () => {
       </div>
 
       {/* Navegação por Abas */}
-      <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-4 text-xs font-bold overflow-x-auto">
         <button
           onClick={() => setActiveTab('contracts')}
-          className={`pb-2 border-b-2 transition-colors ${
+          className={`pb-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'contracts'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-600 dark:border-[#00f5ff] text-blue-600 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           Contratos Cadastrados ({contracts.length})
         </button>
         <button
           onClick={() => setActiveTab('obligations')}
-          className={`pb-2 border-b-2 transition-colors flex items-center space-x-1.5 ${
+          className={`pb-2 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 whitespace-nowrap ${
             activeTab === 'obligations'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-blue-600 dark:border-[#00f5ff] text-blue-600 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-800 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <span>Obrigações Financeiras Geradas</span>
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] text-blue-800">
+          <span className="rounded-full bg-blue-100 dark:bg-cyan-950/80 text-blue-800 dark:text-cyan-300 dark:border dark:border-cyan-500/40 px-2 py-0.5 text-[10px] font-bold">
             {obligations.length}
           </span>
         </button>

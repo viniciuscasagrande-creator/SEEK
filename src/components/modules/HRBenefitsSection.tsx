@@ -260,13 +260,13 @@ export const HRBenefitsSection: React.FC = () => {
       </div>
 
       {/* Navegação entre Visualizações Internas de Benefícios */}
-      <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 space-x-4 text-xs font-bold">
         <button
           onClick={() => setSubTab('lote')}
-          className={`pb-2.5 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center space-x-1.5 cursor-pointer ${
             subTab === 'lote'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-700 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <CreditCard className="h-4 w-4" />
@@ -275,10 +275,10 @@ export const HRBenefitsSection: React.FC = () => {
 
         <button
           onClick={() => setSubTab('beneficiarios')}
-          className={`pb-2.5 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center space-x-1.5 cursor-pointer ${
             subTab === 'beneficiarios'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-700 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Users className="h-4 w-4" />
@@ -287,10 +287,10 @@ export const HRBenefitsSection: React.FC = () => {
 
         <button
           onClick={() => setSubTab('provedores')}
-          className={`pb-2.5 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center space-x-1.5 cursor-pointer ${
             subTab === 'provedores'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
+              ? 'border-blue-700 dark:border-[#00f5ff] text-blue-700 dark:text-[#00f5ff] font-bold dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
+              : 'border-transparent text-slate-500 dark:text-cyan-400/80 hover:text-slate-700 dark:hover:text-[#00f5ff] dark:hover:drop-shadow-[0_0_6px_rgba(0,245,255,0.6)]'
           }`}
         >
           <Layers className="h-4 w-4" />
