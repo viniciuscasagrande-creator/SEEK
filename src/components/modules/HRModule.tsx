@@ -796,118 +796,45 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
-      {/* Abas Superiores de RH & Departamento Pessoal (Navegação Linear Dominante) */}
-      <div id="hr-tabs" className="flex border-b border-slate-200 space-x-3 text-xs font-bold overflow-x-auto pb-px">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'dashboard'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          <span>Visão Geral do RH</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'employees'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          <span>Colaboradores</span>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600 font-bold">
-            {employees.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('ponto')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'ponto'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Timer className="h-4 w-4" />
-          <span>Ponto & Jornada</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('payroll')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'payroll'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <WalletCards className="h-4 w-4 text-emerald-600" />
-          <span>Folha de Pagamento</span>
-          <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
-            Financeiro
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('benefits')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'benefits'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <WalletCards className="h-4 w-4 text-cyan-700" />
-          <span>Benefícios</span>
-          <span className="rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
-            VT • VA • VR • Comb.
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('vacations')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'vacations'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Palmtree className="h-4 w-4 text-amber-600" />
-          <span>Férias & Afastamentos</span>
-          <span className="rounded-full bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
-            Alçadas
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('freelancers')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'freelancers'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Zap className="h-4 w-4 text-amber-500" />
-          <span>Freelance / Taxas</span>
-          <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-800">
-            Central
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('organogram')}
-          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'organogram'
-              ? 'border-blue-700 text-blue-700 font-bold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <GitFork className="h-4 w-4" />
-          <span>Relatórios de RH</span>
-        </button>
+      {/* Menu Superior de RH Fixo em Tela e Logicamente Proporcional (Sem Scroll) */}
+      <div id="hr-tabs-container" className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md pt-1 pb-2">
+        <div id="hr-tabs" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 rounded-xl border border-slate-200 bg-slate-100/90 p-1.5 shadow-2xs">
+          {[
+            { id: 'dashboard', label: 'Visão Geral', icon: Layers, badge: null, badgeColor: '' },
+            { id: 'employees', label: 'Colaboradores', icon: Users, badge: `${employees.length}`, badgeColor: 'bg-slate-200 text-slate-700' },
+            { id: 'ponto', label: 'Ponto & Jornada', icon: Timer, badge: null, badgeColor: '' },
+            { id: 'payroll', label: 'Folha Pagamento', icon: WalletCards, badge: 'CLT', badgeColor: 'bg-emerald-100 text-emerald-800' },
+            { id: 'benefits', label: 'Benefícios', icon: CreditCard, badge: 'VT•VR', badgeColor: 'bg-cyan-100 text-cyan-800' },
+            { id: 'vacations', label: 'Férias & Afast.', icon: Palmtree, badge: 'Alçadas', badgeColor: 'bg-amber-100 text-amber-800' },
+            { id: 'freelancers', label: 'Freelance / Taxas', icon: Zap, badge: 'Central', badgeColor: 'bg-blue-100 text-blue-800' },
+            { id: 'organogram', label: 'Relatórios RH', icon: GitFork, badge: null, badgeColor: '' },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2 px-1 rounded-lg text-xs transition-all cursor-pointer text-center select-none ${
+                  isActive
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200/90 font-black'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 font-semibold'
+                }`}
+                title={tab.label}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-blue-700' : 'text-slate-500'}`} />
+                <span className="truncate leading-tight text-[11px] xl:text-xs">{tab.label}</span>
+                {tab.badge && (
+                  <span className={`hidden xl:inline-block rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
+                    isActive ? 'bg-blue-100 text-blue-800' : tab.badgeColor
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Conteúdo das Abas do Módulo */}
