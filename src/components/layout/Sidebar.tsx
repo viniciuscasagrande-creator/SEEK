@@ -410,14 +410,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title={collapsed ? moduleDef.title : undefined}
           className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-semibold transition-all cursor-pointer ${
             isParentActive
-              ? 'bg-blue-50/80 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 border border-blue-200/80 dark:border-blue-900/60 shadow-2xs'
-              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+              ? 'bg-blue-50/80 dark:bg-cyan-950/60 text-blue-900 dark:text-[#00f5ff] border border-blue-200/80 dark:border-cyan-500/50 shadow-2xs dark:shadow-[0_0_12px_rgba(0,245,255,0.25)]'
+              : 'text-slate-700 dark:text-cyan-300/80 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-[#00f5ff]'
           }`}
         >
           <div className="flex items-center space-x-2.5 min-w-0">
             <IconComponent
               className={`h-4 w-4 shrink-0 transition-colors ${
-                isParentActive ? 'text-blue-700 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'
+                isParentActive ? 'text-blue-700 dark:text-[#00f5ff] dark:drop-shadow-[0_0_6px_rgba(0,245,255,0.8)]' : 'text-slate-500 dark:text-cyan-400/80'
               }`}
             />
             {!collapsed && (
@@ -428,8 +428,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!collapsed && (
             <div className="flex items-center ml-1">
               <ChevronDown
-                className={`h-3.5 w-3.5 text-slate-400 dark:text-slate-500 transition-transform duration-200 ${
-                  isExpanded ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''
+                className={`h-3.5 w-3.5 text-slate-400 dark:text-cyan-500/70 transition-transform duration-200 ${
+                  isExpanded ? 'rotate-180 text-blue-600 dark:text-[#00f5ff]' : ''
                 }`}
               />
             </div>
@@ -438,7 +438,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Submenu Retrátil (Expansão no Accordion) */}
         {!collapsed && isExpanded && (
-          <div className="ml-4 mt-1 border-l-2 border-slate-200 dark:border-slate-800 pl-2 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="ml-4 mt-1 border-l-2 border-slate-200 dark:border-cyan-500/30 pl-2 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
             {moduleDef.items.map(subItem => {
               const isSubActive = activeView === subItem.view;
               return (
@@ -447,8 +447,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => handleSubItemClick(subItem.view)}
                   className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] transition-colors cursor-pointer text-left ${
                     isSubActive
-                      ? 'bg-blue-600 text-white font-bold shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white font-medium'
+                      ? 'bg-blue-600 text-white dark:bg-cyan-950/90 dark:border dark:border-[#00f5ff] dark:text-[#00f5ff] font-bold shadow-xs dark:shadow-[0_0_10px_rgba(0,245,255,0.35)] dark:drop-shadow-[0_0_6px_rgba(0,245,255,0.7)]'
+                      : 'text-slate-600 dark:text-cyan-300/70 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-[#00f5ff] font-medium'
                   }`}
                 >
                   <span className="truncate">{subItem.label}</span>
@@ -456,7 +456,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span
                       className={`ml-1.5 rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
                         isSubActive
-                          ? 'bg-white/20 text-white'
+                          ? 'bg-white/20 text-white dark:bg-cyan-500/30 dark:text-[#00f5ff]'
                           : subItem.badgeColor || 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                       }`}
                     >
@@ -474,10 +474,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div
             onMouseEnter={() => setHoveredModule(moduleDef.key)}
             onMouseLeave={() => setHoveredModule(null)}
-            className="absolute left-18 z-50 w-56 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+            className="absolute left-18 z-50 w-56 rounded-xl border border-slate-200 dark:border-cyan-500/40 bg-white dark:bg-slate-900 p-2 shadow-xl ring-1 ring-black/5 dark:ring-white/10 dark:shadow-[0_0_20px_rgba(0,245,255,0.15)]"
           >
             <div className="px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 mb-1">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{moduleDef.title}</span>
+              <span className="text-xs font-bold text-slate-800 dark:text-[#00f5ff]">{moduleDef.title}</span>
             </div>
             <div className="space-y-0.5">
               {moduleDef.items.map(subItem => (
@@ -489,13 +489,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs text-left cursor-pointer ${
                     activeView === subItem.view
-                      ? 'bg-blue-600 text-white font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-blue-600 text-white dark:bg-cyan-950/90 dark:border dark:border-[#00f5ff] dark:text-[#00f5ff] font-bold'
+                      : 'text-slate-600 dark:text-cyan-300/80 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-[#00f5ff]'
                   }`}
                 >
                   <span className="truncate">{subItem.label}</span>
                   {subItem.badge && (
-                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 dark:text-slate-300">
+                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 dark:text-cyan-300">
                       {subItem.badge}
                     </span>
                   )}
@@ -511,8 +511,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItemClass = (viewId: ActiveView) =>
     `flex items-center w-full px-2.5 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
       activeView === viewId
-        ? 'bg-blue-600 text-white font-bold shadow-xs'
-        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+        ? 'bg-blue-600 text-white dark:bg-cyan-950/90 dark:border dark:border-[#00f5ff] dark:text-[#00f5ff] font-bold shadow-xs dark:shadow-[0_0_12px_rgba(0,245,255,0.35)] dark:drop-shadow-[0_0_6px_rgba(0,245,255,0.8)]'
+        : 'text-slate-600 dark:text-cyan-300/80 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-[#00f5ff]'
     }`;
 
   const sidebarContent = (

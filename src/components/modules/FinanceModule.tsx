@@ -663,11 +663,13 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       )}
 
       {/* Abas do Módulo Financeiro Enterprise */}
-      <div id="finance-tabs-nav" className="flex border-b border-slate-200 space-x-2 text-xs font-bold overflow-x-auto">
+      <div id="finance-tabs-nav" className="flex border-b border-slate-200 dark:border-slate-800 space-x-2 text-xs font-bold overflow-x-auto">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer ${
-            activeTab === 'dashboard' ? 'border-emerald-700 text-emerald-700 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'
+            activeTab === 'dashboard'
+              ? 'border-emerald-700 dark:border-[#10b981] text-emerald-700 dark:text-[#10b981] font-bold dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+              : 'border-transparent text-slate-500 dark:text-emerald-300/70 hover:text-slate-800 dark:hover:text-[#10b981]'
           }`}
         >
           Visão Geral & Pendências
@@ -675,7 +677,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         <button
           onClick={() => setActiveTab('lancamentos')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'lancamentos' ? 'border-emerald-700 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            activeTab === 'lancamentos'
+              ? 'border-emerald-700 dark:border-[#10b981] text-emerald-700 dark:text-[#10b981] font-bold dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+              : 'border-transparent text-slate-500 dark:text-emerald-300/70 hover:text-slate-800 dark:hover:text-[#10b981]'
           }`}
         >
           <DollarSign className="h-4 w-4" />
@@ -685,7 +689,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         <button
           onClick={() => setActiveTab('bancos')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'bancos' ? 'border-emerald-700 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            activeTab === 'bancos'
+              ? 'border-emerald-700 dark:border-[#10b981] text-emerald-700 dark:text-[#10b981] font-bold dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+              : 'border-transparent text-slate-500 dark:text-emerald-300/70 hover:text-slate-800 dark:hover:text-[#10b981]'
           }`}
         >
           <Landmark className="h-4 w-4" />
@@ -695,7 +701,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         <button
           onClick={() => setActiveTab('orcamento')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'orcamento' ? 'border-emerald-700 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            activeTab === 'orcamento'
+              ? 'border-emerald-700 dark:border-[#10b981] text-emerald-700 dark:text-[#10b981] font-bold dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+              : 'border-transparent text-slate-500 dark:text-emerald-300/70 hover:text-slate-800 dark:hover:text-[#10b981]'
           }`}
         >
           <PieChart className="h-4 w-4" />
@@ -705,7 +713,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         <button
           onClick={() => setActiveTab('dre')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'dre' ? 'border-emerald-700 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            activeTab === 'dre'
+              ? 'border-emerald-700 dark:border-[#10b981] text-emerald-700 dark:text-[#10b981] font-bold dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+              : 'border-transparent text-slate-500 dark:text-emerald-300/70 hover:text-slate-800 dark:hover:text-[#10b981]'
           }`}
         >
           <TrendingUp className="h-4 w-4" />
@@ -715,11 +725,13 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         <button
           onClick={() => setActiveTab('fechamento')}
           className={`pb-2.5 px-3 border-b-2 transition-all cursor-pointer flex items-center space-x-1.5 ${
-            activeTab === 'fechamento' ? 'border-emerald-700 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            activeTab === 'fechamento'
+              ? 'border-emerald-700 dark:border-[#10b981] text-emerald-700 dark:text-[#10b981] font-bold dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+              : 'border-transparent text-slate-500 dark:text-emerald-300/70 hover:text-slate-800 dark:hover:text-[#10b981]'
           }`}
         >
           <Lock className="h-4 w-4" />
-          <span>Fechamento Mensal / Period Lock</span>
+          <span>Fechamento Mensal & Period Lock</span>
         </button>
       </div>
 

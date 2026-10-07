@@ -797,16 +797,16 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       )}
 
       {/* Menu Superior de RH Fixo em Tela e Logicamente Proporcional (Sem Scroll) */}
-      <div id="hr-tabs-container" className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md pt-1 pb-2">
-        <div id="hr-tabs" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-900/90 p-1.5 shadow-2xs">
+      <div id="hr-tabs-container" className="sticky top-0 z-20 bg-slate-50/95 dark:bg-[#090d16]/95 backdrop-blur-md pt-1 pb-2">
+        <div id="hr-tabs" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 rounded-xl border border-slate-200 dark:border-cyan-500/40 bg-slate-100/90 dark:bg-[#060c18] p-1.5 shadow-2xs dark:shadow-[0_0_25px_rgba(0,245,255,0.12)]">
           {[
             { id: 'dashboard', label: 'Visão Geral', icon: Layers, badge: null, badgeColor: '' },
-            { id: 'employees', label: 'Colaboradores', icon: Users, badge: `${employees.length}`, badgeColor: 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300' },
+            { id: 'employees', label: 'Colaboradores', icon: Users, badge: `${employees.length}`, badgeColor: 'bg-slate-200 dark:bg-cyan-950/80 text-slate-700 dark:text-cyan-300 dark:border dark:border-cyan-500/50' },
             { id: 'ponto', label: 'Ponto & Jornada', icon: Timer, badge: null, badgeColor: '' },
-            { id: 'payroll', label: 'Folha Pagamento', icon: WalletCards, badge: 'CLT', badgeColor: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300' },
-            { id: 'benefits', label: 'Benefícios', icon: CreditCard, badge: 'VT•VR', badgeColor: 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300' },
-            { id: 'vacations', label: 'Férias & Afast.', icon: Palmtree, badge: 'Alçadas', badgeColor: 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300' },
-            { id: 'freelancers', label: 'Freelance / Taxas', icon: Zap, badge: 'Central', badgeColor: 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300' },
+            { id: 'payroll', label: 'Folha Pagamento', icon: WalletCards, badge: 'CLT', badgeColor: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 dark:border dark:border-emerald-500/50' },
+            { id: 'benefits', label: 'Benefícios', icon: CreditCard, badge: 'VT•VR', badgeColor: 'bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 dark:border dark:border-cyan-500/50' },
+            { id: 'vacations', label: 'Férias & Afast.', icon: Palmtree, badge: 'Alçadas', badgeColor: 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 dark:border dark:border-amber-500/50' },
+            { id: 'freelancers', label: 'Freelance / Taxas', icon: Zap, badge: 'Central', badgeColor: 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 dark:border dark:border-blue-500/50' },
             { id: 'organogram', label: 'Relatórios RH', icon: GitFork, badge: null, badgeColor: '' },
           ].map(tab => {
             const Icon = tab.icon;
@@ -817,16 +817,28 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2 px-1 rounded-lg text-xs transition-all cursor-pointer text-center select-none ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/70 dark:hover:bg-slate-800 font-semibold'
+                    ? 'bg-blue-600 text-white dark:bg-cyan-950/90 dark:border-2 dark:border-[#00f5ff] dark:text-[#00f5ff] shadow-xs dark:shadow-[0_0_18px_rgba(0,245,255,0.45)] font-black dark:drop-shadow-[0_0_10px_rgba(0,245,255,0.95)]'
+                    : 'text-slate-700 dark:text-cyan-400 hover:text-slate-900 dark:hover:text-[#00f5ff] hover:bg-white/70 dark:hover:bg-cyan-950/50 dark:hover:border dark:hover:border-cyan-500/40 font-bold dark:hover:drop-shadow-[0_0_8px_rgba(0,245,255,0.85)]'
                 }`}
                 title={tab.label}
               >
-                <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
-                <span className="truncate leading-tight text-[11px] xl:text-xs">{tab.label}</span>
+                <Icon className={`h-4 w-4 shrink-0 transition-transform ${
+                  isActive
+                    ? 'text-white dark:text-[#00f5ff] dark:drop-shadow-[0_0_10px_rgba(0,245,255,1)] scale-110'
+                    : 'text-slate-500 dark:text-cyan-400'
+                }`} />
+                <span className={`truncate leading-tight text-[11px] xl:text-xs font-bold tracking-wide ${
+                  isActive
+                    ? 'dark:text-[#00f5ff] dark:drop-shadow-[0_0_8px_rgba(0,245,255,0.9)]'
+                    : 'dark:text-cyan-300 dark:hover:text-[#00f5ff]'
+                }`}>
+                  {tab.label}
+                </span>
                 {tab.badge && (
                   <span className={`hidden xl:inline-block rounded-full px-1.5 py-0.2 text-[9px] font-bold ${
-                    isActive ? 'bg-white/20 text-white' : tab.badgeColor
+                    isActive
+                      ? 'bg-white/20 text-white dark:bg-cyan-500/30 dark:text-[#00f5ff] dark:border dark:border-cyan-400/60 dark:shadow-[0_0_8px_rgba(0,245,255,0.5)]'
+                      : tab.badgeColor
                   }`}>
                     {tab.badge}
                   </span>
