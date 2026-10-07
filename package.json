@@ -22,7 +22,8 @@
     "server:test:hr": "npm --prefix server run test:hr",
     "server:test:benefits": "npm --prefix server run test:benefits",
     "server:test:benefits-core": "npm --prefix server run test:benefits-core",
-    "server:test:benefits-e2e": "npm --prefix server run test:benefits-e2e"
+    "server:test:benefits-e2e": "npm --prefix server run test:benefits-e2e",
+    "server:test:benefits-fase2": "npm --prefix server run test:benefits-fase2"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

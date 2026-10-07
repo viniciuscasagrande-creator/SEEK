@@ -463,9 +463,126 @@ hrRouter.get('/performance', (req: Request, res: Response) => {
 });
 
 // ========================================================
-// GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS (VT, VA, VR, COMBUSTÍVEL)
+// GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS (VT, VA, VR, COMBUSTÍVEL — FASE 2)
 // ========================================================
 const BENEFIT_TYPES = ['VT', 'VA', 'VR', 'COMBUSTIVEL'];
+
+const toDate = (value: string) => new Date(`${value}T12:00:00`);
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const periodBounds = (period: string) => {
+  const [y, m] = period.split('-').map(Number);
+  return { start: new Date(y, m - 1, 1, 12), end: new Date(y, m, 0, 12) };
+};
+const businessDatesBetween = (start: Date, end: Date) => {
+  const out: string[] = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) out.push(ymd(d));
+  }
+  return out;
+};
+
+function calculateBenefitRows(period: string) {
+  const { start, end } = periodBounds(period);
+  const allBusinessDates = businessDatesBetween(start, end);
+  const totalBusinessDays = allBusinessDates.length;
+  const benefits = db.prepare(`
+    SELECT e.id as employee_id, e.full_name, e.department, e.admission_date, b.*
+    FROM employees e
+    JOIN employee_benefits b ON b.employee_id = e.id
+    WHERE e.active = 1 AND b.enabled = 1
+    ORDER BY e.full_name, b.benefit_type
+  `).all() as any[];
+  const vacations = db.prepare(`
+    SELECT employee_id, start_date, end_date
+    FROM vacation_requests
+    WHERE status IN ('APROVADO', 'ENVIADO_FINANCEIRO', 'PAGO')
+      AND end_date >= ? AND start_date <= ?
+  `).all(ymd(start), ymd(end)) as any[];
+  const absences = db.prepare(`
+    SELECT employee_id, start_date, end_date, reason
+    FROM benefit_absences
+    WHERE end_date >= ? AND start_date <= ?
+  `).all(ymd(start), ymd(end)) as any[];
+
+  return benefits.map((r: any) => {
+    const admission = toDate(r.admission_date);
+    const prorateAdmission = Number(r.prorate_admission ?? 1) === 1;
+    const deductVacation = Number(r.deduct_vacation ?? 1) === 1;
+    const deductLeave = Number(r.deduct_leave ?? 1) === 1;
+
+    const admissionBlocked = new Set<string>();
+    if (prorateAdmission && admission > end) {
+      allBusinessDates.forEach(d => admissionBlocked.add(d));
+    } else if (prorateAdmission && admission > start && admission <= end) {
+      allBusinessDates.filter(d => toDate(d) < admission).forEach(d => admissionBlocked.add(d));
+    }
+
+    const vacationBlocked = new Set<string>();
+    if (deductVacation) {
+      vacations
+        .filter(v => v.employee_id === r.employee_id)
+        .forEach(v =>
+          businessDatesBetween(
+            toDate(v.start_date) > start ? toDate(v.start_date) : start,
+            toDate(v.end_date) < end ? toDate(v.end_date) : end
+          ).forEach(d => vacationBlocked.add(d))
+        );
+    }
+
+    const leaveBlocked = new Set<string>();
+    if (deductLeave) {
+      absences
+        .filter(a => a.employee_id === r.employee_id)
+        .forEach(a =>
+          businessDatesBetween(
+            toDate(a.start_date) > start ? toDate(a.start_date) : start,
+            toDate(a.end_date) < end ? toDate(a.end_date) : end
+          ).forEach(d => leaveBlocked.add(d))
+        );
+    }
+
+    // Sobreposição de férias, afastamento e admissão não desconta duas vezes o mesmo dia:
+    const eligibleDates = allBusinessDates.filter(
+      d => !admissionBlocked.has(d) && !vacationBlocked.has(d) && !leaveBlocked.has(d)
+    );
+    const eligibleDays = eligibleDates.length;
+    const admissionDeduct = admissionBlocked.size;
+    const vacationDeduct = vacationBlocked.size;
+    const leaveDeduct = leaveBlocked.size;
+
+    const mode = String(r.calculation_mode || 'MENSAL').toUpperCase();
+    const configuredDaily = Number(r.daily_value || r.unit_value || 0);
+    const ratio = totalBusinessDays ? eligibleDays / totalBusinessDays : 0;
+    let gross = Number(r.monthly_value || 0);
+    let discount = Number(r.employee_discount || 0);
+    let company = Number(r.company_cost || 0);
+
+    if (mode === 'DIAS_UTEIS') {
+      const daily = configuredDaily > 0 ? configuredDaily : (totalBusinessDays ? Number(r.monthly_value || 0) / totalBusinessDays : 0);
+      gross = daily * eligibleDays;
+      discount = Number(r.employee_discount || 0) * ratio;
+      company = Math.max(0, gross - discount);
+    } else if (eligibleDays !== totalBusinessDays) {
+      gross = Number(r.monthly_value || 0) * ratio;
+      discount = Number(r.employee_discount || 0) * ratio;
+      company = Math.max(0, gross - discount);
+    }
+
+    return {
+      ...r,
+      business_days: totalBusinessDays,
+      eligible_days: eligibleDays,
+      admission_days_deducted: admissionDeduct,
+      vacation_days_deducted: vacationDeduct,
+      leave_days_deducted: leaveDeduct,
+      calculated_monthly_value: Number(gross.toFixed(2)),
+      calculated_employee_discount: Number(discount.toFixed(2)),
+      calculated_company_cost: Number(company.toFixed(2)),
+      calculation_detail: `${eligibleDays}/${totalBusinessDays} dias úteis elegíveis; admissão -${admissionDeduct}; férias -${vacationDeduct}; afastamentos -${leaveDeduct}`
+    };
+  });
+}
 
 hrRouter.get('/benefits', (_req: Request, res: Response) => {
   try {
@@ -491,13 +608,17 @@ hrRouter.get('/benefits', (_req: Request, res: Response) => {
           providerName: b.provider_name,
           calculationMode: b.calculation_mode,
           unitValue: b.unit_value,
+          dailyValue: Number(b.daily_value || b.unit_value || 0),
           quantity: b.quantity,
           monthlyValue: b.monthly_value,
           employeeDiscount: b.employee_discount,
           companyCost: b.company_cost,
           validFrom: b.valid_from,
           validTo: b.valid_to,
-          notes: b.notes
+          notes: b.notes,
+          prorateAdmission: Boolean(b.prorate_admission ?? 1),
+          deductVacation: Boolean(b.deduct_vacation ?? 1),
+          deductLeave: Boolean(b.deduct_leave ?? 1)
         }))
       }))
     });
@@ -520,9 +641,15 @@ hrRouter.put('/benefits/employees/:employeeId', (req: Request, res: Response) =>
         const monthly = Number(b.monthlyValue ?? (Number(b.unitValue || 0) * Number(b.quantity || 1)));
         const discount = Number(b.employeeDiscount || 0);
         const company = Math.max(0, Number(b.companyCost ?? (monthly - discount)));
+        const daily = Number(b.dailyValue || b.unitValue || 0);
+
         db.prepare(`
-          INSERT INTO employee_benefits (id, employee_id, benefit_type, enabled, provider_name, calculation_mode, unit_value, quantity, monthly_value, employee_discount, company_cost, valid_from, valid_to, notes, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          INSERT INTO employee_benefits (
+            id, employee_id, benefit_type, enabled, provider_name, calculation_mode,
+            unit_value, quantity, monthly_value, employee_discount, company_cost,
+            valid_from, valid_to, notes, prorate_admission, deduct_vacation, deduct_leave, daily_value, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(employee_id, benefit_type) DO UPDATE SET
             enabled = excluded.enabled,
             provider_name = excluded.provider_name,
@@ -535,6 +662,10 @@ hrRouter.put('/benefits/employees/:employeeId', (req: Request, res: Response) =>
             valid_from = excluded.valid_from,
             valid_to = excluded.valid_to,
             notes = excluded.notes,
+            prorate_admission = excluded.prorate_admission,
+            deduct_vacation = excluded.deduct_vacation,
+            deduct_leave = excluded.deduct_leave,
+            daily_value = excluded.daily_value,
             updated_at = CURRENT_TIMESTAMP
         `).run(
           `ben-${employeeId}-${b.type}`,
@@ -543,14 +674,18 @@ hrRouter.put('/benefits/employees/:employeeId', (req: Request, res: Response) =>
           b.enabled === false ? 0 : 1,
           b.providerName || null,
           b.calculationMode || 'MENSAL',
-          Number(b.unitValue || 0),
+          daily,
           Number(b.quantity || 1),
           monthly,
           discount,
           company,
           b.validFrom || null,
           b.validTo || null,
-          b.notes || null
+          b.notes || null,
+          b.prorateAdmission === false ? 0 : 1,
+          b.deductVacation === false ? 0 : 1,
+          b.deductLeave === false ? 0 : 1,
+          daily
         );
       }
     });
@@ -558,7 +693,7 @@ hrRouter.put('/benefits/employees/:employeeId', (req: Request, res: Response) =>
 
     const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
     const role = authReq.user?.roleTitle || userRole || 'RH';
-    logAudit(operator, role, 'UPDATE', 'RH & Benefícios', `Benefícios ${emp.full_name}`, 'Configuração de VT, VA, VR e/ou Auxílio Combustível atualizada.', req.ip || '127.0.0.1', authReq.correlationId);
+    logAudit(operator, role, 'UPDATE', 'RH & Benefícios', `Benefícios ${emp.full_name}`, 'Configuração de VT, VA, VR e/ou Auxílio Combustível atualizada com regras de proporcionalidade.', req.ip || '127.0.0.1', authReq.correlationId);
     return res.json({ success: true });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -578,21 +713,16 @@ hrRouter.post('/benefits/orders/preview', (req: Request, res: Response) => {
   try {
     const period = String(req.body.period || '');
     if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: 'Competência inválida.' });
-    const rows = db.prepare(`
-      SELECT e.id employee_id, e.full_name, e.department, b.benefit_type, b.provider_name, b.company_cost, b.employee_discount, b.monthly_value
-      FROM employees e
-      JOIN employee_benefits b ON b.employee_id = e.id
-      WHERE e.active = 1 AND b.enabled = 1
-      ORDER BY e.full_name, b.benefit_type
-    `).all() as any[];
 
+    const rows = calculateBenefitRows(period);
     const sums: any = { VT: 0, VA: 0, VR: 0, COMBUSTIVEL: 0 };
     rows.forEach(r => {
-      sums[r.benefit_type] = (sums[r.benefit_type] || 0) + Number(r.company_cost || 0);
+      sums[r.benefit_type] = (sums[r.benefit_type] || 0) + Number(r.calculated_company_cost || 0);
     });
 
     return res.json({
       period,
+      businessDays: rows[0]?.business_days || 0,
       employeeCount: new Set(rows.map(r => r.employee_id)).size,
       items: rows,
       totals: sums,
@@ -613,19 +743,12 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
     const exists = db.prepare(`SELECT id FROM benefit_orders WHERE company_id = ? AND period = ?`).get(companyId, period) as any;
     if (exists) return res.status(409).json({ error: 'Já existe fechamento de benefícios para esta competência.' });
 
-    const rows = db.prepare(`
-      SELECT e.id employee_id, e.full_name, e.department, b.benefit_type, b.provider_name, b.company_cost, b.employee_discount, b.monthly_value
-      FROM employees e
-      JOIN employee_benefits b ON b.employee_id = e.id
-      WHERE e.active = 1 AND b.enabled = 1
-      ORDER BY e.full_name, b.benefit_type
-    `).all() as any[];
-
+    const rows = calculateBenefitRows(period);
     if (!rows.length) return res.status(422).json({ error: 'Nenhum benefício ativo configurado.' });
 
     const sums: any = { VT: 0, VA: 0, VR: 0, COMBUSTIVEL: 0 };
     rows.forEach(r => {
-      sums[r.benefit_type] = (sums[r.benefit_type] || 0) + Number(r.company_cost || 0);
+      sums[r.benefit_type] = (sums[r.benefit_type] || 0) + Number(r.calculated_company_cost || 0);
     });
     const total = Object.values(sums).reduce((a: any, b: any) => a + Number(b), 0);
     const id = `bord-${Date.now()}`;
@@ -639,17 +762,83 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
       `).run(id, companyId, period, dueDate, new Set(rows.map(r => r.employee_id)).size, sums.VT, sums.VA, sums.VR, sums.COMBUSTIVEL, total, operator);
 
       const ins = db.prepare(`
-        INSERT INTO benefit_order_items (id, order_id, employee_id, employee_name, department, benefit_type, provider_name, company_cost, employee_discount, total_value)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO benefit_order_items (
+          id, order_id, employee_id, employee_name, department, benefit_type, provider_name,
+          company_cost, employee_discount, total_value, business_days, eligible_days,
+          admission_days_deducted, vacation_days_deducted, leave_days_deducted,
+          calculation_mode, calculation_detail
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       rows.forEach((r, i) => {
-        ins.run(`boi-${Date.now()}-${i}`, id, r.employee_id, r.full_name, r.department, r.benefit_type, r.provider_name, Number(r.company_cost || 0), Number(r.employee_discount || 0), Number(r.monthly_value || 0));
+        ins.run(
+          `boi-${Date.now()}-${i}`,
+          id,
+          r.employee_id,
+          r.full_name,
+          r.department,
+          r.benefit_type,
+          r.provider_name,
+          Number(r.calculated_company_cost || 0),
+          Number(r.calculated_employee_discount || 0),
+          Number(r.calculated_monthly_value || 0),
+          r.business_days,
+          r.eligible_days,
+          r.admission_days_deducted,
+          r.vacation_days_deducted,
+          r.leave_days_deducted,
+          r.calculation_mode,
+          r.calculation_detail
+        );
       });
     });
     tx();
 
-    logAudit(operator, role, 'CLOSE', 'RH & Benefícios', `Benefícios ${period}`, `Fechamento de ${rows.length} vínculos, total empresa R$ ${Number(total).toFixed(2)}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    logAudit(operator, role, 'CLOSE', 'RH & Benefícios', `Benefícios ${period}`, `Fechamento de ${rows.length} vínculos com proporcionalidade, total empresa R$ ${Number(total).toFixed(2)}.`, req.ip || '127.0.0.1', authReq.correlationId);
     return res.status(201).json({ success: true, id, totalAmount: total });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.get('/benefits/absences', (_req: Request, res: Response) => {
+  try {
+    const absences = db.prepare(`
+      SELECT a.*, e.full_name as employee_name
+      FROM benefit_absences a
+      JOIN employees e ON e.id = a.employee_id
+      ORDER BY a.start_date DESC
+    `).all();
+    return res.json({ absences });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/absences', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { employeeId, startDate, endDate, reason, notes, userName, userRole } = req.body;
+    if (!employeeId || !startDate || !endDate || !reason) {
+      return res.status(400).json({ error: 'Colaborador, início, fim e motivo são obrigatórios.' });
+    }
+    if (startDate > endDate) {
+      return res.status(400).json({ error: 'Data inicial não pode ser posterior à data final.' });
+    }
+    const emp = db.prepare(`SELECT full_name FROM employees WHERE id = ?`).get(employeeId) as any;
+    if (!emp) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+
+    const id = `babs-${Date.now()}`;
+    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || userRole || 'RH';
+
+    db.prepare(`
+      INSERT INTO benefit_absences (id, employee_id, start_date, end_date, reason, notes, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, employeeId, startDate, endDate, reason, notes || null, operator);
+
+    logAudit(operator, role, 'CREATE', 'RH & Benefícios', `Afastamento ${emp.full_name}`, `${reason}: ${startDate} a ${endDate}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    return res.status(201).json({ success: true, id });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

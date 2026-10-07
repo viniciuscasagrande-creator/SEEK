@@ -140,8 +140,9 @@ export interface EmployeeBenefit {
   type: 'VT' | 'VA' | 'VR' | 'COMBUSTIVEL';
   enabled: boolean;
   providerName?: string;
-  calculationMode?: string;
+  calculationMode?: 'MENSAL' | 'DIAS_UTEIS' | string;
   unitValue?: number;
+  dailyValue?: number;
   quantity?: number;
   monthlyValue?: number;
   employeeDiscount?: number;
@@ -149,6 +150,21 @@ export interface EmployeeBenefit {
   validFrom?: string;
   validTo?: string;
   notes?: string;
+  prorateAdmission?: boolean;
+  deductVacation?: boolean;
+  deductLeave?: boolean;
+}
+
+export interface BenefitAbsence {
+  id: string;
+  employee_id: string;
+  employee_name?: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  notes?: string;
+  created_by?: string;
+  created_at?: string;
 }
 
 export interface BenefitEmployee {

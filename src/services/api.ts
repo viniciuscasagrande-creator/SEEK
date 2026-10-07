@@ -1215,6 +1215,33 @@ export const api = {
     }
   },
 
+  async getBenefitAbsences(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/absences`);
+      if (res.ok) {
+        const d = await res.json();
+        return d.absences || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createBenefitAbsence(data: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/absences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const d = await res.json().catch(() => null);
+      return res.ok ? d : { success: false, error: d?.error || 'Falha ao registrar afastamento.' };
+    } catch {
+      return { success: false, error: 'Falha de comunicação.' };
+    }
+  },
+
   async getJobPostings(): Promise<any[]> {
     try {
       const res = await authFetch(`${API_BASE_URL}/hr/jobs`);

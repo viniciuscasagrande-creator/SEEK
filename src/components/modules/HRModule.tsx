@@ -69,15 +69,35 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const [benefitDueDate, setBenefitDueDate] = useState('2026-10-25');
   const [benefitPreview, setBenefitPreview] = useState<any>(null);
   const [benefitFilter, setBenefitFilter] = useState<'TODOS'|'VT'|'VA'|'VR'|'COMBUSTIVEL'>('TODOS');
+  const [benefitAbsences, setBenefitAbsences] = useState<any[]>([]);
+  const [isRegisterAbsenceOpen, setIsRegisterAbsenceOpen] = useState(false);
+  const [absenceForm, setAbsenceForm] = useState({
+    employeeId: '',
+    startDate: '2026-10-01',
+    endDate: '2026-10-05',
+    reason: 'Atestado Médico / Licença',
+    notes: ''
+  });
 
   // Modal de Configuração de Benefícios por Colaborador
   const [isConfigureBenefitsOpen, setIsConfigureBenefitsOpen] = useState(false);
   const [selectedEmpForBenefits, setSelectedEmpForBenefits] = useState<any>(null);
-  const [benefitsConfig, setBenefitsConfig] = useState<Record<string, { enabled: boolean; providerName: string; monthlyValue: number; employeeDiscount: number; companyCost: number }>>({
-    VT: { enabled: false, providerName: 'Mobilidade Corporativa', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 },
-    VA: { enabled: false, providerName: 'Cartão Benefícios', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 },
-    VR: { enabled: false, providerName: 'Cartão Benefícios', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 },
-    COMBUSTIVEL: { enabled: false, providerName: 'Auxílio Combustível', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 }
+  const [benefitsConfig, setBenefitsConfig] = useState<Record<string, {
+    enabled: boolean;
+    providerName: string;
+    calculationMode: 'MENSAL' | 'DIAS_UTEIS';
+    dailyValue: number;
+    monthlyValue: number;
+    employeeDiscount: number;
+    companyCost: number;
+    prorateAdmission: boolean;
+    deductVacation: boolean;
+    deductLeave: boolean;
+  }>>({
+    VT: { enabled: false, providerName: 'Mobilidade Corporativa', calculationMode: 'DIAS_UTEIS', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true },
+    VA: { enabled: false, providerName: 'Cartão Benefícios', calculationMode: 'MENSAL', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true },
+    VR: { enabled: false, providerName: 'Cartão Benefícios', calculationMode: 'DIAS_UTEIS', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true },
+    COMBUSTIVEL: { enabled: false, providerName: 'Auxílio Combustível', calculationMode: 'MENSAL', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true }
   });
 
   // Modais
@@ -122,6 +142,9 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
       const serverBenefitOrders = await api.getBenefitOrders();
       if (serverBenefitOrders) setBenefitOrders(serverBenefitOrders);
+
+      const serverBenefitAbsences = await api.getBenefitAbsences();
+      if (serverBenefitAbsences) setBenefitAbsences(serverBenefitAbsences);
     } catch {
       // fallback
     }
@@ -260,19 +283,24 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const handleOpenConfigureBenefits = (emp: any) => {
     setSelectedEmpForBenefits(emp);
     const initialConfig: Record<string, any> = {
-      VT: { enabled: false, providerName: 'Mobilidade Corporativa', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 },
-      VA: { enabled: false, providerName: 'Cartão Benefícios', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 },
-      VR: { enabled: false, providerName: 'Cartão Benefícios', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 },
-      COMBUSTIVEL: { enabled: false, providerName: 'Auxílio Combustível', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 }
+      VT: { enabled: false, providerName: 'Mobilidade Corporativa', calculationMode: 'DIAS_UTEIS', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true },
+      VA: { enabled: false, providerName: 'Cartão Benefícios', calculationMode: 'MENSAL', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true },
+      VR: { enabled: false, providerName: 'Cartão Benefícios', calculationMode: 'DIAS_UTEIS', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true },
+      COMBUSTIVEL: { enabled: false, providerName: 'Auxílio Combustível', calculationMode: 'MENSAL', dailyValue: 0, monthlyValue: 0, employeeDiscount: 0, companyCost: 0, prorateAdmission: true, deductVacation: true, deductLeave: true }
     };
     (emp.benefits || []).forEach((b: any) => {
       if (initialConfig[b.type]) {
         initialConfig[b.type] = {
           enabled: Boolean(b.enabled),
           providerName: b.providerName || initialConfig[b.type].providerName,
+          calculationMode: b.calculationMode || initialConfig[b.type].calculationMode,
+          dailyValue: Number(b.dailyValue || b.unitValue || 0),
           monthlyValue: Number(b.monthlyValue || 0),
           employeeDiscount: Number(b.employeeDiscount || 0),
-          companyCost: Number(b.companyCost || 0)
+          companyCost: Number(b.companyCost || 0),
+          prorateAdmission: b.prorateAdmission !== undefined ? Boolean(b.prorateAdmission) : true,
+          deductVacation: b.deductVacation !== undefined ? Boolean(b.deductVacation) : true,
+          deductLeave: b.deductLeave !== undefined ? Boolean(b.deductLeave) : true,
         };
       }
     });
@@ -286,17 +314,26 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
     const payload = ['VT', 'VA', 'VR', 'COMBUSTIVEL'].map(type => {
       const cfg = benefitsConfig[type];
-      const monthly = Number(cfg.companyCost || 0) + Number(cfg.employeeDiscount || 0);
+      const isDaily = cfg.calculationMode === 'DIAS_UTEIS';
+      const dailyVal = Number(cfg.dailyValue || 0);
+      let monthly = Number(cfg.companyCost || 0) + Number(cfg.employeeDiscount || 0);
+      if (isDaily && dailyVal > 0 && monthly === 0) {
+        monthly = dailyVal * 22;
+      }
       return {
         type,
-        enabled: Boolean(cfg.enabled && Number(cfg.companyCost) > 0),
+        enabled: Boolean(cfg.enabled && (Number(cfg.companyCost) > 0 || dailyVal > 0)),
         providerName: cfg.providerName || '',
-        calculationMode: 'MENSAL',
-        unitValue: 0,
-        quantity: 1,
+        calculationMode: cfg.calculationMode || 'MENSAL',
+        dailyValue: dailyVal,
+        unitValue: dailyVal,
+        quantity: isDaily ? 22 : 1,
         monthlyValue: monthly,
         employeeDiscount: Number(cfg.employeeDiscount || 0),
-        companyCost: Number(cfg.companyCost || 0)
+        companyCost: Number(cfg.companyCost || 0),
+        prorateAdmission: Boolean(cfg.prorateAdmission),
+        deductVacation: Boolean(cfg.deductVacation),
+        deductLeave: Boolean(cfg.deductLeave)
       };
     });
 
@@ -307,11 +344,40 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
     });
 
     if (res?.success) {
-      setNotification(`✅ Benefícios de ${selectedEmpForBenefits.fullName} atualizados com sucesso.`);
+      setNotification(`✅ Benefícios e regras de proporcionalidade de ${selectedEmpForBenefits.fullName} atualizados.`);
       setIsConfigureBenefitsOpen(false);
       loadData();
     } else {
       setNotification(`⚠️ ${res?.error || 'Falha ao salvar benefícios do colaborador.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleSaveAbsence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!absenceForm.employeeId || !absenceForm.startDate || !absenceForm.endDate) return;
+    const res = await api.createBenefitAbsence({
+      employeeId: absenceForm.employeeId,
+      startDate: absenceForm.startDate,
+      endDate: absenceForm.endDate,
+      reason: absenceForm.reason,
+      notes: absenceForm.notes,
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification('✅ Afastamento registrado com sucesso e considerado nos benefícios.');
+      setIsRegisterAbsenceOpen(false);
+      setAbsenceForm({
+        employeeId: '',
+        startDate: '2026-10-01',
+        endDate: '2026-10-05',
+        reason: 'Atestado Médico / Licença',
+        notes: ''
+      });
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha ao registrar afastamento.'}`);
     }
     setTimeout(() => setNotification(null), 5000);
   };
@@ -843,7 +909,22 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                 <h3 className="text-sm font-black text-slate-900">Benefícios dos Colaboradores</h3>
                 <p className="text-xs text-slate-500">Relação nominal e gestão de VT, VA, VR e Auxílio Combustível.</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => {
+                    setAbsenceForm({
+                      employeeId: benefitEmployees[0]?.id || '',
+                      startDate: `${benefitPeriod}-01`,
+                      endDate: `${benefitPeriod}-05`,
+                      reason: 'Atestado Médico / Licença',
+                      notes: ''
+                    });
+                    setIsRegisterAbsenceOpen(true);
+                  }}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                >
+                  + Registrar afastamento
+                </button>
                 {(['TODOS', 'VT', 'VA', 'VR', 'COMBUSTIVEL'] as const).map(f => (
                   <button
                     key={f}
@@ -984,8 +1065,111 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                     </div>
                   ))}
                 </div>
+
+                {/* Memória de Cálculo da Prévia */}
+                <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden bg-white">
+                  <div className="border-b bg-slate-50 px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">
+                      Memória de cálculo detalhada · {benefitPreview.businessDays || 22} dias úteis na competência
+                    </span>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Proporcionalidade aplicada
+                    </span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                        <tr>
+                          <th className="p-3">Colaborador</th>
+                          <th className="py-3 px-2">Benefício</th>
+                          <th className="py-3 px-2 text-center">Modo</th>
+                          <th className="py-3 px-2 text-center">Dias Elegíveis</th>
+                          <th className="py-3 px-2 text-center">Admissão</th>
+                          <th className="py-3 px-2 text-center">Férias</th>
+                          <th className="py-3 px-2 text-center">Afastamento</th>
+                          <th className="py-3 px-3 text-right">Valor Final Empresa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {benefitPreview.items?.map((item: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-3 font-semibold text-slate-900">{item.full_name}</td>
+                            <td className="py-3 px-2 font-medium text-slate-700">{item.benefit_type === 'COMBUSTIVEL' ? 'Combustível' : item.benefit_type}</td>
+                            <td className="py-3 px-2 text-center">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                {item.calculation_mode || 'MENSAL'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-center font-bold text-slate-800">
+                              {item.eligible_days} / {item.business_days}
+                            </td>
+                            <td className="py-3 px-2 text-center font-semibold text-slate-600">
+                              {item.admission_days_deducted > 0 ? `-${item.admission_days_deducted}` : '0'}
+                            </td>
+                            <td className="py-3 px-2 text-center font-semibold text-amber-700">
+                              {item.vacation_days_deducted > 0 ? `-${item.vacation_days_deducted}` : '0'}
+                            </td>
+                            <td className="py-3 px-2 text-center font-semibold text-rose-700">
+                              {item.leave_days_deducted > 0 ? `-${item.leave_days_deducted}` : '0'}
+                            </td>
+                            <td className="py-3 px-3 text-right font-black text-slate-900">
+                              {Number(item.calculated_company_cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
+          </div>
+
+          {/* Afastamentos Registrados nos Benefícios */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">Afastamentos Registrados nos Benefícios</h4>
+                <p className="text-xs text-slate-500">Períodos que reduzem dias elegíveis conforme regras ativas de cada benefício (sem duplicar com férias).</p>
+              </div>
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
+                {benefitAbsences.length} afastamento(s) registrado(s)
+              </span>
+            </div>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">Colaborador</th>
+                    <th className="py-3 px-2">Data Início</th>
+                    <th className="py-3 px-2">Data Fim</th>
+                    <th className="py-3 px-2">Motivo</th>
+                    <th className="py-3 px-2">Observações</th>
+                    <th className="py-3 px-3">Registrado por</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {benefitAbsences.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center text-slate-400">
+                        Nenhum afastamento registrado.
+                      </td>
+                    </tr>
+                  ) : (
+                    benefitAbsences.map((a: any) => (
+                      <tr key={a.id} className="hover:bg-slate-50">
+                        <td className="p-3 font-bold text-slate-900">{a.employee_name || a.employeeId}</td>
+                        <td className="py-3 px-2 font-mono text-slate-700">{a.start_date}</td>
+                        <td className="py-3 px-2 font-mono text-slate-700">{a.end_date}</td>
+                        <td className="py-3 px-2 font-medium text-slate-800">{a.reason}</td>
+                        <td className="py-3 px-2 text-slate-500">{a.notes || '—'}</td>
+                        <td className="py-3 px-3 text-slate-500 text-[11px]">{a.created_by || 'Sistema'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Histórico de Fechamentos / Pedidos de Compra */}
@@ -1403,7 +1587,18 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                 { type: 'VR', title: 'Vale-Refeição (VR)', defaultProvider: 'Cartão Benefícios' },
                 { type: 'COMBUSTIVEL', title: 'Auxílio Combustível', defaultProvider: 'Auxílio Combustível' }
               ].map(item => {
-                const cfg = benefitsConfig[item.type] || { enabled: false, providerName: '', monthlyValue: 0, employeeDiscount: 0, companyCost: 0 };
+                const cfg = benefitsConfig[item.type] || {
+                  enabled: false,
+                  providerName: '',
+                  calculationMode: (item.type === 'VT' || item.type === 'VR') ? 'DIAS_UTEIS' : 'MENSAL',
+                  dailyValue: 0,
+                  monthlyValue: 0,
+                  employeeDiscount: 0,
+                  companyCost: 0,
+                  prorateAdmission: true,
+                  deductVacation: true,
+                  deductLeave: true
+                };
                 return (
                   <div key={item.type} className={`rounded-xl border p-3.5 transition-colors ${cfg.enabled ? 'border-blue-300 bg-blue-50/20' : 'border-slate-200 bg-slate-50/50'}`}>
                     <div className="flex items-center justify-between mb-2">
@@ -1430,56 +1625,168 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                     </div>
 
                     {cfg.enabled && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2.5 pt-2.5 border-t border-slate-200">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase">Operadora / Fornecedor</label>
-                          <input
-                            type="text"
-                            value={cfg.providerName}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setBenefitsConfig(prev => ({
-                                ...prev,
-                                [item.type]: { ...prev[item.type], providerName: val }
-                              }));
-                            }}
-                            placeholder={item.defaultProvider}
-                            className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white text-slate-800"
-                          />
+                      <div className="space-y-3 mt-2.5 pt-2.5 border-t border-slate-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase">Operadora / Fornecedor</label>
+                            <input
+                              type="text"
+                              value={cfg.providerName}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setBenefitsConfig(prev => ({
+                                  ...prev,
+                                  [item.type]: { ...prev[item.type], providerName: val }
+                                }));
+                              }}
+                              placeholder={item.defaultProvider}
+                              className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white text-slate-800"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase">Forma de Cálculo</label>
+                            <select
+                              value={cfg.calculationMode || 'MENSAL'}
+                              onChange={e => {
+                                const mode = e.target.value as 'MENSAL' | 'DIAS_UTEIS';
+                                setBenefitsConfig(prev => ({
+                                  ...prev,
+                                  [item.type]: {
+                                    ...prev[item.type],
+                                    calculationMode: mode,
+                                    companyCost: mode === 'DIAS_UTEIS' && prev[item.type].dailyValue ? prev[item.type].dailyValue * 22 : prev[item.type].companyCost
+                                  }
+                                }));
+                              }}
+                              className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white font-medium text-slate-800"
+                            >
+                              <option value="MENSAL">MENSAL — Valor Fixo Mensal</option>
+                              <option value="DIAS_UTEIS">DIAS_UTEIS — Proporcional a Dias Úteis</option>
+                            </select>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase">Custo Empresa (R$)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={cfg.companyCost || ''}
-                            onChange={e => {
-                              const val = parseFloat(e.target.value) || 0;
-                              setBenefitsConfig(prev => ({
-                                ...prev,
-                                [item.type]: { ...prev[item.type], companyCost: val }
-                              }));
-                            }}
-                            placeholder="0,00"
-                            className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white font-semibold text-slate-800"
-                          />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          {cfg.calculationMode === 'DIAS_UTEIS' ? (
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase">Valor Diário (R$)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={cfg.dailyValue || ''}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setBenefitsConfig(prev => ({
+                                    ...prev,
+                                    [item.type]: {
+                                      ...prev[item.type],
+                                      dailyValue: val,
+                                      companyCost: val * 22
+                                    }
+                                  }));
+                                }}
+                                placeholder="0,00"
+                                className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white font-semibold text-slate-800"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase">Custo Empresa (R$)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={cfg.companyCost || ''}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  setBenefitsConfig(prev => ({
+                                    ...prev,
+                                    [item.type]: { ...prev[item.type], companyCost: val }
+                                  }));
+                                }}
+                                placeholder="0,00"
+                                className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white font-semibold text-slate-800"
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase">Desconto Colaborador (R$)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={cfg.employeeDiscount || ''}
+                              onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setBenefitsConfig(prev => ({
+                                  ...prev,
+                                  [item.type]: { ...prev[item.type], employeeDiscount: val }
+                                }));
+                              }}
+                              placeholder="0,00"
+                              className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white text-slate-700"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase">
+                              {cfg.calculationMode === 'DIAS_UTEIS' ? 'Base 22 dias (R$)' : 'Custo Total (R$)'}
+                            </label>
+                            <div className="mt-1 w-full rounded-lg border border-slate-100 bg-slate-100/70 p-2 text-xs font-bold text-slate-800">
+                              {Number(cfg.companyCost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase">Desconto Colaborador (R$)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={cfg.employeeDiscount || ''}
-                            onChange={e => {
-                              const val = parseFloat(e.target.value) || 0;
-                              setBenefitsConfig(prev => ({
-                                ...prev,
-                                [item.type]: { ...prev[item.type], employeeDiscount: val }
-                              }));
-                            }}
-                            placeholder="0,00"
-                            className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white text-slate-700"
-                          />
+
+                        {/* Regras de Proporcionalidade */}
+                        <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-4 text-[11px]">
+                          <label className="flex items-center space-x-1.5 cursor-pointer text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={cfg.prorateAdmission ?? true}
+                              onChange={e => {
+                                const chk = e.target.checked;
+                                setBenefitsConfig(prev => ({
+                                  ...prev,
+                                  [item.type]: { ...prev[item.type], prorateAdmission: chk }
+                                }));
+                              }}
+                              className="rounded border-slate-300 text-blue-600 h-3.5 w-3.5"
+                            />
+                            <span>Proporcional à admissão</span>
+                          </label>
+
+                          <label className="flex items-center space-x-1.5 cursor-pointer text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={cfg.deductVacation ?? true}
+                              onChange={e => {
+                                const chk = e.target.checked;
+                                setBenefitsConfig(prev => ({
+                                  ...prev,
+                                  [item.type]: { ...prev[item.type], deductVacation: chk }
+                                }));
+                              }}
+                              className="rounded border-slate-300 text-blue-600 h-3.5 w-3.5"
+                            />
+                            <span>Descontar férias</span>
+                          </label>
+
+                          <label className="flex items-center space-x-1.5 cursor-pointer text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={cfg.deductLeave ?? true}
+                              onChange={e => {
+                                const chk = e.target.checked;
+                                setBenefitsConfig(prev => ({
+                                  ...prev,
+                                  [item.type]: { ...prev[item.type], deductLeave: chk }
+                                }));
+                              }}
+                              className="rounded border-slate-300 text-blue-600 h-3.5 w-3.5"
+                            />
+                            <span>Descontar afastamentos</span>
+                          </label>
                         </div>
                       </div>
                     )}
@@ -1501,6 +1808,103 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                 className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs cursor-pointer"
               >
                 Salvar Configurações
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Registrar Afastamento */}
+      {isRegisterAbsenceOpen && (
+        <Modal
+          isOpen={isRegisterAbsenceOpen}
+          onClose={() => setIsRegisterAbsenceOpen(false)}
+          title="Registrar Afastamento de Colaborador"
+          subtitle="Afastamentos reduzem os dias úteis elegíveis para os benefícios com desconto habilitado"
+        >
+          <form onSubmit={handleSaveAbsence} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Colaborador *</label>
+              <select
+                required
+                value={absenceForm.employeeId}
+                onChange={e => setAbsenceForm({ ...absenceForm, employeeId: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              >
+                <option value="">Selecione o colaborador...</option>
+                {benefitEmployees.map((emp: any) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.fullName} ({emp.registrationNumber || emp.id}) — {emp.jobTitle}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Data Início *</label>
+                <input
+                  type="date"
+                  required
+                  value={absenceForm.startDate}
+                  onChange={e => setAbsenceForm({ ...absenceForm, startDate: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Data Fim *</label>
+                <input
+                  type="date"
+                  required
+                  value={absenceForm.endDate}
+                  onChange={e => setAbsenceForm({ ...absenceForm, endDate: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Motivo do Afastamento *</label>
+              <select
+                required
+                value={absenceForm.reason}
+                onChange={e => setAbsenceForm({ ...absenceForm, reason: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              >
+                <option value="Atestado Médico / Licença Médica">Atestado Médico / Licença Médica</option>
+                <option value="Licença Maternidade / Paternidade">Licença Maternidade / Paternidade</option>
+                <option value="Afastamento Previdenciário (INSS)">Afastamento Previdenciário (INSS)</option>
+                <option value="Suspensão do Contrato de Trabalho">Suspensão do Contrato de Trabalho</option>
+                <option value="Licença Não Remunerada">Licença Não Remunerada</option>
+                <option value="Outro Motivo Legal">Outro Motivo Legal</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-slate-700 mb-1">Observações Adicionais (opcional)</label>
+              <textarea
+                rows={2}
+                value={absenceForm.notes}
+                onChange={e => setAbsenceForm({ ...absenceForm, notes: e.target.value })}
+                placeholder="Ex: CID, número do benefício ou protocolo de entrega do atestado..."
+                className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsRegisterAbsenceOpen(false)}
+                className="rounded-lg px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="rounded-lg bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700 shadow-xs"
+              >
+                Registrar Afastamento
               </button>
             </div>
           </form>

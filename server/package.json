@@ -23,7 +23,8 @@
     "test:fiscal-integration": "tsx src/test_fiscal_finance_integration.ts",
     "test:contract-integration": "tsx src/test_contract_finance_integration.ts",
     "test:benefits-core": "tsx src/test_hr_benefits_core.ts",
-    "test:benefits-e2e": "tsx src/test_hr_benefits_e2e.ts"
+    "test:benefits-e2e": "tsx src/test_hr_benefits_e2e.ts",
+    "test:benefits-fase2": "tsx src/test_hr_benefits_fase2.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",

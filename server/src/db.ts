@@ -492,6 +492,10 @@ export function initializeDatabase() {
       company_cost REAL NOT NULL DEFAULT 0,
       valid_from TEXT,
       valid_to TEXT,
+      prorate_admission INTEGER NOT NULL DEFAULT 1,
+      deduct_vacation INTEGER NOT NULL DEFAULT 1,
+      deduct_leave INTEGER NOT NULL DEFAULT 1,
+      daily_value REAL NOT NULL DEFAULT 0,
       notes TEXT,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(employee_id, benefit_type)
@@ -1272,6 +1276,52 @@ export function initializeDatabase() {
   } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_employee_benefits_employee ON employee_benefits(employee_id)`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_order_items_order ON benefit_order_items(order_id)`); } catch {}
+
+  // Migração 013: RH Benefícios Fase 2 (Proporcionalidade, dias úteis, admissão, férias e afastamentos)
+  try {
+    const ebCols = new Set((db.prepare(`PRAGMA table_info(employee_benefits)`).all() as any[]).map(c => c.name));
+    if (!ebCols.has('prorate_admission')) db.exec(`ALTER TABLE employee_benefits ADD COLUMN prorate_admission INTEGER NOT NULL DEFAULT 1`);
+    if (!ebCols.has('deduct_vacation')) db.exec(`ALTER TABLE employee_benefits ADD COLUMN deduct_vacation INTEGER NOT NULL DEFAULT 1`);
+    if (!ebCols.has('deduct_leave')) db.exec(`ALTER TABLE employee_benefits ADD COLUMN deduct_leave INTEGER NOT NULL DEFAULT 1`);
+    if (!ebCols.has('daily_value')) db.exec(`ALTER TABLE employee_benefits ADD COLUMN daily_value REAL NOT NULL DEFAULT 0`);
+  } catch {}
+
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_absences (
+      id TEXT PRIMARY KEY,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      notes TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+  } catch {}
+
+  try {
+    const boiCols = new Set((db.prepare(`PRAGMA table_info(benefit_order_items)`).all() as any[]).map(c => c.name));
+    if (!boiCols.has('business_days')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN business_days INTEGER NOT NULL DEFAULT 0`);
+    if (!boiCols.has('eligible_days')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN eligible_days INTEGER NOT NULL DEFAULT 0`);
+    if (!boiCols.has('admission_days_deducted')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN admission_days_deducted INTEGER NOT NULL DEFAULT 0`);
+    if (!boiCols.has('vacation_days_deducted')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN vacation_days_deducted INTEGER NOT NULL DEFAULT 0`);
+    if (!boiCols.has('leave_days_deducted')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN leave_days_deducted INTEGER NOT NULL DEFAULT 0`);
+    if (!boiCols.has('calculation_mode')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN calculation_mode TEXT NOT NULL DEFAULT 'MENSAL'`);
+    if (!boiCols.has('calculation_detail')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN calculation_detail TEXT`);
+  } catch {}
+
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_absences_employee_dates ON benefit_absences(employee_id, start_date, end_date)`); } catch {}
+
+  // Seed inicial de afastamento para demonstração do cálculo proporcional se vazio
+  try {
+    const absCheck = db.prepare('SELECT COUNT(*) as count FROM benefit_absences').get() as { count: number };
+    if (absCheck.count === 0) {
+      db.prepare(`
+        INSERT INTO benefit_absences (id, employee_id, start_date, end_date, reason, notes, created_by)
+        VALUES ('babs-01', 'emp-03', '2026-10-14', '2026-10-16', 'Licença Médica', 'Atestado de 3 dias úteis protocolado', 'Recursos Humanos')
+      `).run();
+    }
+  } catch {}
 
   // Parâmetros oficiais de acesso e ambiente
   try {
