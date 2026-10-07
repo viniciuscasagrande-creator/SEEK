@@ -1526,6 +1526,30 @@ export function initializeDatabase() {
     db.exec(`UPDATE benefit_order_items SET final_company_cost = company_cost WHERE COALESCE(final_company_cost,0)=0 AND COALESCE(company_cost,0)>0 AND calculation_detail IS NULL`);
   } catch {}
 
+  // Migração 017: Governança de Fechamento Mensal, Pré-Fechamento e Trava de Período Retroativo
+  try {
+    const fcCols = new Set((db.prepare(`PRAGMA table_info(financial_closings)`).all() as any[]).map(c => c.name));
+    if (!fcCols.has('company_id')) db.exec(`ALTER TABLE financial_closings ADD COLUMN company_id TEXT DEFAULT 'comp-1'`);
+    if (!fcCols.has('validation_results_json')) db.exec(`ALTER TABLE financial_closings ADD COLUMN validation_results_json TEXT`);
+    if (!fcCols.has('reopened_by')) db.exec(`ALTER TABLE financial_closings ADD COLUMN reopened_by TEXT`);
+    if (!fcCols.has('reopened_at')) db.exec(`ALTER TABLE financial_closings ADD COLUMN reopened_at DATETIME`);
+    if (!fcCols.has('reopen_reason')) db.exec(`ALTER TABLE financial_closings ADD COLUMN reopen_reason TEXT`);
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_financial_closings_period ON financial_closings(period)`);
+    db.exec(`CREATE TABLE IF NOT EXISTS financial_closing_audits (
+      id TEXT PRIMARY KEY,
+      closing_id TEXT,
+      period TEXT NOT NULL,
+      action TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      user_role TEXT,
+      checks_json TEXT,
+      notes TEXT,
+      ip_address TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_financial_closing_audits_period ON financial_closing_audits(period, created_at)`);
+  } catch {}
+
   // Parâmetros oficiais de acesso e ambiente
   try {
     db.prepare(`

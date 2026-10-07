@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth.js';
 import { financeService } from '../services/finance.service.js';
 import { financeRepository } from '../repositories/finance.repository.js';
 import { ofxReconciliationService } from '../services/ofx-reconciliation.service.js';
+import { financialClosingService } from '../services/financial-closing.service.js';
 
 export const financeRouter = Router();
 
@@ -492,7 +493,8 @@ financeRouter.get('/closings', (_req: Request, res: Response) => {
     const closings = db.prepare(`SELECT * FROM financial_closings ORDER BY period DESC`).all() as any[];
     const parsed = closings.map(c => ({
       ...c,
-      checklist: c.checklist_json ? JSON.parse(c.checklist_json) : {}
+      checklist: c.checklist_json ? JSON.parse(c.checklist_json) : [],
+      validationResults: c.validation_results_json ? JSON.parse(c.validation_results_json) : null
     }));
     return res.json({ total: parsed.length, closings: parsed });
   } catch (error: any) {
@@ -500,61 +502,95 @@ financeRouter.get('/closings', (_req: Request, res: Response) => {
   }
 });
 
+// Pré-Fechamento: Auditoria das 8 verificações obrigatórias
+financeRouter.get('/closings/pre-check', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const period = (req.query.period as string) || new Date().toISOString().substring(0, 7);
+    const companyId = (req.query.companyId as string) || authReq.companyId || 'comp-1';
+
+    const result = financialClosingService.preCheck(period, companyId);
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+// Fechamento e Trava de Competência com validação estrita
 financeRouter.post('/closings/lock', (req: Request, res: Response) => {
   try {
-    const { period, userName, userRole, notes, checklist } = req.body;
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
+    const { period, userName, userRole, notes, overrideCheck } = req.body;
 
     if (!period) {
       return res.status(400).json({ error: 'Período obrigatório (ex: 2026-10).' });
     }
 
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const user = userName || 'Controlador Geral';
-    const checklistJson = checklist ? JSON.stringify(checklist) : JSON.stringify({
-      extratos_conciliados: true,
-      contas_pagar_baixadas: true,
-      tributos_apurados: true,
-      folha_fechada: true,
-      balancete_verificado: true
+    const operator = userName || currentUser?.fullName || 'Controladoria Corporativa';
+    const role = userRole || currentUser?.roleTitle || 'Controladoria';
+    const companyId = authReq.companyId || currentUser?.companyId || 'comp-1';
+
+    const result = financialClosingService.lockPeriod({
+      period,
+      userName: operator,
+      userRole: role,
+      notes,
+      companyId,
+      overrideCheck: Boolean(overrideCheck),
+      ipAddress: req.ip || '127.0.0.1'
     });
 
-    const existing = db.prepare('SELECT * FROM financial_closings WHERE period = ?').get(period) as any;
-    if (existing) {
-      db.prepare(`
-        UPDATE financial_closings
-        SET status = 'BLOQUEADO', closed_by = ?, closed_at = ?, checklist_json = ?, notes = ?
-        WHERE period = ?
-      `).run(user, now, checklistJson, notes || 'Competência fechada e bloqueada com sucesso.', period);
-    } else {
-      const id = `close-${Date.now()}`;
-      db.prepare(`
-        INSERT INTO financial_closings (id, period, module, status, closed_by, closed_at, checklist_json, notes)
-        VALUES (?, ?, 'GERAL', 'BLOQUEADO', ?, ?, ?, ?)
-      `).run(id, period, user, now, checklistJson, notes || 'Competência fechada e bloqueada com sucesso.');
+    return res.json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      error: error.message,
+      preCheck: error.preCheck || null
+    });
+  }
+});
+
+// Reabertura formal de competência
+financeRouter.post('/closings/reopen', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const currentUser = authReq.user;
+    const { period, userName, userRole, reason } = req.body;
+
+    if (!period || !reason) {
+      return res.status(400).json({ error: 'Competência e justificativa obrigatórias.' });
     }
 
-    // Trava de período também no módulo contábil
-    try {
-      db.prepare(`UPDATE accounting_periods SET status = 'BLOQUEADO' WHERE period = ?`).run(period);
-    } catch {}
+    const operator = userName || currentUser?.fullName || 'Diretoria Financeira';
+    const role = userRole || currentUser?.roleTitle || 'Diretoria';
+    const companyId = authReq.companyId || currentUser?.companyId || 'comp-1';
 
-    logAudit(
-      user,
-      userRole || 'Controladoria',
-      'LOCK',
-      'Controladoria',
-      `Competência ${period}`,
-      `Fechamento mensal consolidado com trava de competência (Period Lock). Novas movimentações bloqueadas.`,
-      req.ip || '189.44.120.10'
-    );
-
-    return res.json({
-      success: true,
+    const result = financialClosingService.reopenPeriod({
       period,
-      status: 'BLOQUEADO',
-      closedBy: user,
-      closedAt: now
+      userName: operator,
+      userRole: role,
+      reason,
+      companyId,
+      ipAddress: req.ip || '127.0.0.1'
     });
+
+    return res.json(result);
+  } catch (error: any) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ error: error.message });
+  }
+});
+
+// Consulta de auditoria do fechamento
+financeRouter.get('/closings/audits', (req: Request, res: Response) => {
+  try {
+    const period = req.query.period as string;
+    if (!period) {
+      return res.status(400).json({ error: 'Período obrigatório.' });
+    }
+    const audits = financialClosingService.getClosingAudit(period);
+    return res.json({ total: audits.length, audits });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

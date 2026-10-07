@@ -466,6 +466,17 @@ export const api = {
     }
   },
 
+  async getFinancialClosingPreCheck(period: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/closings/pre-check?period=${encodeURIComponent(period)}`);
+      if (res.ok) return await res.json();
+      const err = await res.json();
+      return { error: err.error || 'Falha ao executar pré-fechamento', canClose: false, checks: [] };
+    } catch (e: any) {
+      return { error: e.message, canClose: false, checks: [] };
+    }
+  },
+
   async lockFinancialPeriod(closing: any): Promise<any> {
     try {
       const res = await authFetch(`${API_BASE_URL}/finance/closings/lock`, {
@@ -473,10 +484,39 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(closing)
       });
-      if (res.ok) return await res.json();
-      return null;
+      const data = await res.json();
+      if (res.ok) return data;
+      return { success: false, error: data.error || 'Falha ao bloquear competência', preCheck: data.preCheck };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  async reopenFinancialPeriod(payload: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/closings/reopen`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) return data;
+      return { success: false, error: data.error || 'Falha ao reabrir competência' };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  async getFinancialClosingAudits(period: string): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/finance/closings/audits?period=${encodeURIComponent(period)}`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.audits || [];
+      }
+      return [];
     } catch {
-      return null;
+      return [];
     }
   },
 

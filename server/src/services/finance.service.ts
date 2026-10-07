@@ -14,6 +14,7 @@ import {
 import { workflowRepository } from '../repositories/workflow.repository.js';
 import { TokenPayload } from '../middleware/auth.js';
 import { parseOfx } from '../utils/ofxParser.js';
+import { financialClosingService } from './financial-closing.service.js';
 
 export class FinanceService {
   /**
@@ -73,6 +74,9 @@ export class FinanceService {
     if (!data.title || !data.amount || !data.dueDate) {
       throw new Error('Campos obrigatórios: title, amount, dueDate.');
     }
+
+    // Trava de Período Retroativo (Period Lock)
+    financialClosingService.assertPeriodNotLocked(data.dueDate, 'lançamento de título a pagar/receber');
 
     const type = data.type || 'PAGAR';
     const codePrefix = type === 'RECEBER' ? 'CR' : 'CP';
@@ -162,6 +166,13 @@ export class FinanceService {
     }
 
     const paymentDate = options.paymentDate || new Date().toISOString().substring(0, 10);
+
+    // Trava de Período Retroativo (Period Lock)
+    financialClosingService.assertPeriodNotLocked(paymentDate, 'liquidação financeira');
+    if (record.due_date) {
+      financialClosingService.assertPeriodNotLocked(record.due_date, 'liquidação de título de competência fechada');
+    }
+
     const method = options.paymentMethod || record.payment_method || 'PIX';
     const bank = options.bankId ? financeRepository.findBankAccountById(options.bankId) : undefined;
     if (options.bankId && !bank) { const e:any = new Error('Conta bancária não encontrada.'); e.statusCode = 404; throw e; }

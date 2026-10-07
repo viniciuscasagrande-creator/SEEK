@@ -100,6 +100,19 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     balancete_verificado: true
   });
 
+  // Estados de Governança de Fechamento Mensal & Pré-Fechamento
+  const [selectedClosingPeriod, setSelectedClosingPeriod] = useState<string>('2026-10');
+  const [preClosingResult, setPreClosingResult] = useState<any>(null);
+  const [isPreChecking, setIsPreChecking] = useState<boolean>(false);
+  const [isExecutingLock, setIsExecutingLock] = useState<boolean>(false);
+  const [lockNotes, setLockNotes] = useState<string>('Fechamento formal da competência após auditoria das 8 verificações obrigatórias.');
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
+  const [auditModalPeriod, setAuditModalPeriod] = useState<string>('');
+  const [auditModalData, setAuditModalData] = useState<any[]>([]);
+  const [isReopenModalOpen, setIsReopenModalOpen] = useState<boolean>(false);
+  const [reopenTargetPeriod, setReopenTargetPeriod] = useState<string>('');
+  const [reopenReasonText, setReopenReasonText] = useState<string>('');
+
   const [notification, setNotification] = useState<string | null>(null);
 
   // Form states
@@ -309,6 +322,95 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       setNotification(`🔒 Competência ${lockPeriod} bloqueada com sucesso! Trava de período ativada.`);
       setIsLockPeriodOpen(false);
       loadData();
+    }
+    setTimeout(() => setNotification(null), 6000);
+  };
+
+  const handleRunPreCheck = async (periodToTest?: string) => {
+    const p = periodToTest || selectedClosingPeriod;
+    setIsPreChecking(true);
+    try {
+      const res = await api.getFinancialClosingPreCheck(p);
+      setPreClosingResult(res);
+      if (res.canClose) {
+        setNotification(`✅ Pré-fechamento ${p}: Todas as 8 verificações obrigatórias estão APROVADAS.`);
+      } else {
+        setNotification(`⚠️ Pré-fechamento ${p}: Detectados ${res.summary?.blockingCount || 0} bloqueio(s) e ${res.summary?.pendingCount || 0} pendência(s).`);
+      }
+    } catch (e: any) {
+      setNotification(`Erro ao executar pré-fechamento: ${e.message}`);
+    } finally {
+      setIsPreChecking(false);
+      setTimeout(() => setNotification(null), 6000);
+    }
+  };
+
+  const handleExecuteClosing = async () => {
+    if (!preClosingResult?.canClose) {
+      setNotification('⚠️ Não é possível fechar a competência. Existem pendências ou bloqueios obrigatórios.');
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
+
+    setIsExecutingLock(true);
+    try {
+      const res = await api.lockFinancialPeriod({
+        period: selectedClosingPeriod,
+        userName: currentUser.fullName,
+        userRole: currentUser.roleTitle,
+        notes: lockNotes
+      });
+
+      if (res && res.success) {
+        setNotification(`🔒 Competência ${selectedClosingPeriod} FECHADA e BLOQUEADA com sucesso! Trava de período ativada.`);
+        loadData();
+        await handleRunPreCheck(selectedClosingPeriod);
+      } else {
+        setNotification(`⚠️ Falha ao fechar competência: ${res?.error || 'Erro desconhecido'}`);
+      }
+    } catch (e: any) {
+      setNotification(`⚠️ Erro: ${e.message}`);
+    } finally {
+      setIsExecutingLock(false);
+      setTimeout(() => setNotification(null), 6000);
+    }
+  };
+
+  const handleOpenAuditModal = async (period: string) => {
+    setAuditModalPeriod(period);
+    const audits = await api.getFinancialClosingAudits(period);
+    setAuditModalData(audits);
+    setIsAuditModalOpen(true);
+  };
+
+  const handleOpenReopenModal = (period: string) => {
+    setReopenTargetPeriod(period);
+    setReopenReasonText('');
+    setIsReopenModalOpen(true);
+  };
+
+  const handleConfirmReopen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reopenReasonText || reopenReasonText.trim().length < 10) {
+      setNotification('⚠️ A reabertura exige justificativa formal com no mínimo 10 caracteres.');
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
+
+    const res = await api.reopenFinancialPeriod({
+      period: reopenTargetPeriod,
+      userName: currentUser.fullName,
+      userRole: currentUser.roleTitle,
+      reason: reopenReasonText
+    });
+
+    if (res && res.success) {
+      setNotification(`🔓 Competência ${reopenTargetPeriod} REABERTA formalmente. Movimentações liberadas.`);
+      setIsReopenModalOpen(false);
+      loadData();
+      await handleRunPreCheck(reopenTargetPeriod);
+    } else {
+      setNotification(`⚠️ Falha ao reabrir competência: ${res?.error || 'Erro'}`);
     }
     setTimeout(() => setNotification(null), 6000);
   };
@@ -1085,56 +1187,232 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
       {/* TAB 5: FECHAMENTO MENSAL / PERIOD LOCK */}
       {activeTab === 'fechamento' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Governança & Fechamento de Competências</h3>
-              <p className="text-xs text-slate-500">Trava operacional formal (Period Lock) para impedir lançamentos extemporâneos.</p>
-            </div>
-            <button
-              onClick={() => setIsLockPeriodOpen(true)}
-              className="flex items-center space-x-1.5 rounded-lg bg-purple-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-purple-800 transition-colors shadow-2xs cursor-pointer"
-            >
-              <Lock className="h-4 w-4" />
-              <span>Executar Fechamento de Mês</span>
-            </button>
-          </div>
+        <div className="space-y-6">
+          {/* Header e Seletor de Competência */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-base font-black text-slate-900">Governança & Fechamento de Competência</h3>
+                  <span className="rounded-md bg-purple-100 px-2.5 py-0.5 text-xs font-bold text-purple-800">
+                    Period Lock Ativo
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Validação canônica de 8 checagens transacionais. O fechamento bloqueia lançamentos retroativos e gera auditoria imutável.
+                </p>
+              </div>
 
-          <div className="space-y-3">
-            {closings.map(c => (
-              <div key={c.id} className="rounded-lg border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-bold text-slate-900">Competência {c.period}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      c.status === 'BLOQUEADO' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      {c.status === 'BLOQUEADO' ? 'Fechada & Bloqueada' : 'Em Aberto'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">{c.notes}</p>
-                  {c.closed_by && (
-                    <span className="text-[10px] text-slate-400">Responsável: {c.closed_by} • {c.closed_at}</span>
-                  )}
+              {/* Seletor e Ação de Pré-Fechamento */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                  <span className="text-xs font-bold text-slate-600">Competência:</span>
+                  <input
+                    type="month"
+                    value={selectedClosingPeriod}
+                    onChange={e => {
+                      setSelectedClosingPeriod(e.target.value);
+                      handleRunPreCheck(e.target.value);
+                    }}
+                    className="bg-transparent text-xs font-black text-slate-900 focus:outline-hidden cursor-pointer"
+                  />
                 </div>
 
-                {/* Checklist Badges */}
-                <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
-                  <span className={`px-2 py-0.5 rounded-md ${c.checklist?.extratos_conciliados ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
-                    ✓ Extratos Bancários
+                <button
+                  onClick={() => handleRunPreCheck(selectedClosingPeriod)}
+                  disabled={isPreChecking}
+                  className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isPreChecking ? 'animate-spin' : ''}`} />
+                  <span>{isPreChecking ? 'Auditando...' : 'Executar Pré-Fechamento'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Banner de Status do Pré-Fechamento */}
+          {preClosingResult && (
+            <div className={`rounded-xl border p-4 text-xs ${
+              preClosingResult.canClose
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-rose-200 bg-rose-50 text-rose-900'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start space-x-3">
+                  <div className={`mt-0.5 rounded-full p-1.5 text-white ${
+                    preClosingResult.canClose ? 'bg-emerald-600' : 'bg-rose-600'
+                  }`}>
+                    {preClosingResult.canClose ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                  </div>
+                  <div>
+                    <h4 className="font-black text-sm">
+                      {preClosingResult.canClose
+                        ? `Competência ${selectedClosingPeriod}: Pronta para Fechamento (100% dos checks verdes)`
+                        : `Competência ${selectedClosingPeriod}: Fechamento Bloqueado (${preClosingResult.summary?.blockingCount || 0} impedimento(s))`
+                      }
+                    </h4>
+                    <p className="mt-0.5 text-xs opacity-90">
+                      {preClosingResult.canClose
+                        ? 'Todas as 8 validações transacionais, bancárias, contábeis e de auditoria foram aprovadas com sucesso.'
+                        : 'Existem pendências obrigatórias que devem ser regularizadas antes de fechar a competência.'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleExecuteClosing}
+                    disabled={!preClosingResult.canClose || isExecutingLock}
+                    className={`flex items-center space-x-1.5 rounded-lg px-4 py-2 text-xs font-black shadow-xs transition-all ${
+                      preClosingResult.canClose
+                        ? 'bg-purple-700 text-white hover:bg-purple-800 cursor-pointer shadow-md'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Lock className="h-4 w-4" />
+                    <span>{isExecutingLock ? 'Gravando Trava...' : 'Fechar Competência & Bloquear'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Grade de 8 Verificações Obrigatórias (Cards 4 Desktop, 2 Tablet, 1 Mobile) */}
+          {preClosingResult && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                  Checklist Transacional das 8 Verificações Obrigatórias
+                </h4>
+                <div className="flex items-center space-x-2 text-xs font-bold">
+                  <span className="rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5">
+                    ✓ {preClosingResult.summary?.okCount || 0} OK
                   </span>
-                  <span className={`px-2 py-0.5 rounded-md ${c.checklist?.contas_pagar_baixadas ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
-                    ✓ Contas a Pagar
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-md ${c.checklist?.tributos_apurados ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
-                    ✓ Apuração Fiscal
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-md ${c.checklist?.balancete_verificado ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
-                    ✓ Balancete Contábil
+                  <span className="rounded-full bg-rose-100 text-rose-800 px-2.5 py-0.5">
+                    ✕ {preClosingResult.summary?.blockingCount || 0} Bloqueios
                   </span>
                 </div>
               </div>
-            ))}
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {(preClosingResult.checks || []).map((chk: any) => {
+                  const isOk = chk.status === 'OK';
+                  return (
+                    <div
+                      key={chk.id}
+                      className={`rounded-xl border p-4 transition-all flex flex-col justify-between ${
+                        isOk
+                          ? 'border-emerald-200 bg-white hover:border-emerald-300'
+                          : 'border-rose-300 bg-rose-50/50 shadow-2xs'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className={`rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
+                            isOk ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-600 text-white'
+                          }`}>
+                            {isOk ? '✓ Aprovado' : '✕ Bloqueio'}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {chk.count > 0 ? `${chk.count} pendência(s)` : '0 itens'}
+                          </span>
+                        </div>
+                        <h5 className="mt-2 text-xs font-bold text-slate-900 leading-tight">
+                          {chk.title}
+                        </h5>
+                        <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
+                          {chk.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 text-[11px]">
+                        <p className={isOk ? 'text-emerald-700 font-medium' : 'text-rose-700 font-bold'}>
+                          {chk.details}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Histórico de Competências Fechadas */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-3">
+              Histórico de Competências & Trava Operacional
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] font-bold uppercase text-slate-600 border-b border-slate-200">
+                  <tr>
+                    <th className="py-2.5 px-3">Competência</th>
+                    <th className="py-2.5 px-3">Situação</th>
+                    <th className="py-2.5 px-3">Responsável</th>
+                    <th className="py-2.5 px-3">Data / Hora Fechamento</th>
+                    <th className="py-2.5 px-3">Observações / Motivo</th>
+                    <th className="py-2.5 px-3 text-right">Ações de Governança</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {closings.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-400">
+                        Nenhuma competência fechada até o momento.
+                      </td>
+                    </tr>
+                  ) : (
+                    closings.map((c: any) => {
+                      const isLocked = c.status === 'BLOQUEADO';
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-3 font-mono font-black text-slate-900 text-sm">
+                            {c.period}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                              isLocked
+                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}>
+                              {isLocked ? '🔒 FECHADA & BLOQUEADA' : '🔓 EM ABERTO'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-700 font-medium">
+                            {c.closed_by || '—'}
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
+                            {c.closed_at || '—'}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 max-w-xs truncate" title={c.notes || ''}>
+                            {c.notes || '—'}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => handleOpenAuditModal(c.period)}
+                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                              >
+                                Ver Auditoria
+                              </button>
+                              {isLocked && (
+                                <button
+                                  onClick={() => handleOpenReopenModal(c.period)}
+                                  className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                                >
+                                  Reabrir
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -1394,83 +1672,90 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         </form>
       </Modal>
 
-      {/* MODAL: FECHAMENTO DE COMPETÊNCIA / PERIOD LOCK */}
-      <Modal isOpen={isLockPeriodOpen} onClose={() => setIsLockPeriodOpen(false)} title="Fechamento Mensal & Trava de Competência">
-        <form onSubmit={handleLockPeriod} className="space-y-4 text-xs">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Competência a Bloquear</label>
-            <input
-              type="text"
-              required
-              value={lockPeriod}
-              onChange={e => setLockPeriod(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 p-2 text-xs font-mono"
-              placeholder="2026-10"
-            />
+      {/* MODAL: AUDITORIA DO FECHAMENTO & TRAVA DE COMPETÊNCIA */}
+      <Modal isOpen={isAuditModalOpen} onClose={() => setIsAuditModalOpen(false)} title={`Trilha de Auditoria — Fechamento ${auditModalPeriod}`}>
+        <div className="space-y-4 text-xs">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+            <span className="text-slate-500 font-bold block mb-1">Competência Auditada</span>
+            <span className="font-mono text-sm font-black text-slate-900">{auditModalPeriod}</span>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-700">Checklist de Conformidade Contábil / Fiscal</label>
-            <div className="space-y-1.5 rounded-lg border border-slate-200 p-3 bg-slate-50">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={lockChecklist.extratos_conciliados}
-                  onChange={e => setLockChecklist({ ...lockChecklist, extratos_conciliados: e.target.checked })}
-                  className="rounded text-purple-600"
-                />
-                <span>Extratos bancários 100% conciliados sem divergências</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={lockChecklist.contas_pagar_baixadas}
-                  onChange={e => setLockChecklist({ ...lockChecklist, contas_pagar_baixadas: e.target.checked })}
-                  className="rounded text-purple-600"
-                />
-                <span>Contas a Pagar e Taxas Freelancers do mês liquidadas</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={lockChecklist.tributos_apurados}
-                  onChange={e => setLockChecklist({ ...lockChecklist, tributos_apurados: e.target.checked })}
-                  className="rounded text-purple-600"
-                />
-                <span>Apuração fiscal dos tributos (ISS, PIS, COFINS, IR) encerrada</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={lockChecklist.balancete_verificado}
-                  onChange={e => setLockChecklist({ ...lockChecklist, balancete_verificado: e.target.checked })}
-                  className="rounded text-purple-600"
-                />
-                <span>Balancete de verificação em equilíbrio (Débitos = Créditos)</span>
-              </label>
-            </div>
+            <h5 className="font-bold text-slate-700">Registros Imutáveis de Governança</h5>
+            {auditModalData.length === 0 ? (
+              <p className="text-slate-400 py-4 text-center">Nenhum evento registrado para esta competência.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto rounded-lg border border-slate-100">
+                {auditModalData.map((a: any) => (
+                  <div key={a.id} className="p-3 hover:bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-black ${
+                        a.action === 'LOCK' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {a.action === 'LOCK' ? '🔒 FECHAMENTO' : '🔓 REABERTURA'}
+                      </span>
+                      <span className="font-mono text-[10px] text-slate-400">{a.created_at}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-800 font-medium">{a.notes}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">
+                      Operador: <strong className="text-slate-700">{a.user_name}</strong> ({a.user_role || 'Controladoria'}) • IP: {a.ip_address || '127.0.0.1'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="rounded-lg bg-amber-50 p-3 border border-amber-200 flex items-start space-x-2 text-amber-900 text-[11px]">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-amber-700 mt-0.5" />
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setIsAuditModalOpen(false)}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL: REABERTURA FORMAL DE COMPETÊNCIA */}
+      <Modal isOpen={isReopenModalOpen} onClose={() => setIsReopenModalOpen(false)} title={`Reabertura Formal — Competência ${reopenTargetPeriod}`}>
+        <form onSubmit={handleConfirmReopen} className="space-y-4 text-xs">
+          <div className="rounded-lg bg-amber-50 p-3 border border-amber-200 text-amber-900 text-[11px] flex items-start space-x-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700 mt-0.5" />
             <span>
-              Ao bloquear a competência, novas inclusões de lançamentos ou alterações extemporâneas serão rejeitadas pelo SEEK Core.
+              <strong>Atenção de Governança:</strong> A reabertura cancela a trava operacional e permite novas inclusões na competência. É obrigatório fornecer a justificativa que ficará gravada para a auditoria independente.
             </span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Justificativa Formal da Reabertura (Mínimo 10 caracteres)
+            </label>
+            <textarea
+              required
+              rows={3}
+              value={reopenReasonText}
+              onChange={e => setReopenReasonText(e.target.value)}
+              placeholder="Descreva detalhadamente o motivo que justifica reabrir esta competência..."
+              className="w-full rounded-lg border border-slate-200 p-2.5 text-xs text-slate-800"
+            />
           </div>
 
           <div className="flex justify-end space-x-2 pt-2">
             <button
               type="button"
-              onClick={() => setIsLockPeriodOpen(false)}
+              onClick={() => setIsReopenModalOpen(false)}
               className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-purple-700 px-4 py-2 text-xs font-bold text-white hover:bg-purple-800 cursor-pointer"
+              disabled={reopenReasonText.trim().length < 10}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-50"
             >
-              Confirmar Period Lock
+              Confirmar Reabertura
             </button>
           </div>
         </form>
