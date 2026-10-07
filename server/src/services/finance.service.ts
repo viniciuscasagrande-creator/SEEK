@@ -77,7 +77,12 @@ export class FinanceService {
     const type = data.type || 'PAGAR';
     const codePrefix = type === 'RECEBER' ? 'CR' : 'CP';
     const id = `fin-${Date.now()}`;
-    const code = `${codePrefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    let code = `${codePrefix}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    let codeAttempts = 0;
+    while (financeRepository.findRecordByCode(code) && codeAttempts < 10) {
+      code = `${codePrefix}-2026-${Date.now().toString().slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
+      codeAttempts++;
+    }
     const parsedAmount = parseFloat(data.amount as string);
     const targetCompanyId = data.companyId || user?.companyId || 'comp-1';
 
@@ -186,7 +191,10 @@ export class FinanceService {
       if (record.origin_type === 'FISCAL' && record.origin_id) db.prepare(`UPDATE tax_obligations SET status='PAGO', payment_date=? WHERE id=? OR code=?`).run(paymentDate, record.origin_id, record.origin_id);
       if ((record.origin_type === 'FOLHA' || record.origin_type === 'FOLHA_PAGAMENTO') && record.origin_id) db.prepare(`UPDATE payroll_runs SET status='PAGO' WHERE id=?`).run(record.origin_id);
       if (record.origin_type === 'FERIAS' && record.origin_id) db.prepare(`UPDATE vacation_requests SET status='PAGO' WHERE id=?`).run(record.origin_id);
-      if (record.origin_type === 'BENEFICIOS' && record.origin_id) db.prepare(`UPDATE benefit_purchase_orders SET status='PAGO' WHERE id=?`).run(record.origin_id);
+      if (record.origin_type === 'BENEFICIOS' && record.origin_id) {
+        db.prepare(`UPDATE benefit_orders SET status='PAGO', paid_at=? WHERE id=? OR financial_record_id=?`).run(paymentDate, record.origin_id, record.id);
+        try { db.prepare(`UPDATE benefit_purchase_orders SET status='PAGO' WHERE id=?`).run(record.origin_id); } catch {}
+      }
       if (record.origin_type === 'CONTRATO' && record.origin_id) db.prepare(`UPDATE contract_obligations SET status='PAGO', paid_at=? WHERE id=? OR financial_record_id=?`).run(paymentDate, record.origin_id, record.id);
       workflowRepository.logAudit({ userName: operator, userRole: operatorRole, action: 'LIQUIDATE', module: 'Financeiro', entity: `Lançamento ${record.code}`, description: `Liquidação atômica de R$ ${record.amount.toFixed(2)}${bank ? ` via ${bank.bank_name}` : ''}; lançamento contábil gerado automaticamente.`, ipAddress });
       return { bankTransactionId, accountingEntry };

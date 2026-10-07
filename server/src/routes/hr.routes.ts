@@ -463,9 +463,236 @@ hrRouter.get('/performance', (req: Request, res: Response) => {
 });
 
 // ========================================================
-// GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS
+// GESTÃO & COMPRA DE BENEFÍCIOS CORPORATIVOS (VT, VA, VR, COMBUSTÍVEL)
 // ========================================================
+const BENEFIT_TYPES = ['VT', 'VA', 'VR', 'COMBUSTIVEL'];
 
+hrRouter.get('/benefits', (_req: Request, res: Response) => {
+  try {
+    const employees = db.prepare(`SELECT id, registration_number, full_name, department, job_title, active FROM employees WHERE active = 1 ORDER BY full_name`).all() as any[];
+    const benefits = db.prepare(`SELECT * FROM employee_benefits ORDER BY employee_id, benefit_type`).all() as any[];
+    const byEmployee = new Map<string, any[]>();
+    benefits.forEach(b => {
+      const list = byEmployee.get(b.employee_id) || [];
+      list.push(b);
+      byEmployee.set(b.employee_id, list);
+    });
+    return res.json({
+      employees: employees.map(e => ({
+        id: e.id,
+        registrationNumber: e.registration_number,
+        fullName: e.full_name,
+        department: e.department,
+        jobTitle: e.job_title,
+        benefits: (byEmployee.get(e.id) || []).map(b => ({
+          id: b.id,
+          type: b.benefit_type,
+          enabled: Boolean(b.enabled),
+          providerName: b.provider_name,
+          calculationMode: b.calculation_mode,
+          unitValue: b.unit_value,
+          quantity: b.quantity,
+          monthlyValue: b.monthly_value,
+          employeeDiscount: b.employee_discount,
+          companyCost: b.company_cost,
+          validFrom: b.valid_from,
+          validTo: b.valid_to,
+          notes: b.notes
+        }))
+      }))
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.put('/benefits/employees/:employeeId', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const employeeId = req.params.employeeId;
+    const { benefits = [], userName, userRole } = req.body;
+    const emp = db.prepare(`SELECT * FROM employees WHERE id = ?`).get(employeeId) as any;
+    if (!emp) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+
+    const tx = db.transaction(() => {
+      for (const b of benefits) {
+        if (!BENEFIT_TYPES.includes(b.type)) continue;
+        const monthly = Number(b.monthlyValue ?? (Number(b.unitValue || 0) * Number(b.quantity || 1)));
+        const discount = Number(b.employeeDiscount || 0);
+        const company = Math.max(0, Number(b.companyCost ?? (monthly - discount)));
+        db.prepare(`
+          INSERT INTO employee_benefits (id, employee_id, benefit_type, enabled, provider_name, calculation_mode, unit_value, quantity, monthly_value, employee_discount, company_cost, valid_from, valid_to, notes, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(employee_id, benefit_type) DO UPDATE SET
+            enabled = excluded.enabled,
+            provider_name = excluded.provider_name,
+            calculation_mode = excluded.calculation_mode,
+            unit_value = excluded.unit_value,
+            quantity = excluded.quantity,
+            monthly_value = excluded.monthly_value,
+            employee_discount = excluded.employee_discount,
+            company_cost = excluded.company_cost,
+            valid_from = excluded.valid_from,
+            valid_to = excluded.valid_to,
+            notes = excluded.notes,
+            updated_at = CURRENT_TIMESTAMP
+        `).run(
+          `ben-${employeeId}-${b.type}`,
+          employeeId,
+          b.type,
+          b.enabled === false ? 0 : 1,
+          b.providerName || null,
+          b.calculationMode || 'MENSAL',
+          Number(b.unitValue || 0),
+          Number(b.quantity || 1),
+          monthly,
+          discount,
+          company,
+          b.validFrom || null,
+          b.validTo || null,
+          b.notes || null
+        );
+      }
+    });
+    tx();
+
+    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || userRole || 'RH';
+    logAudit(operator, role, 'UPDATE', 'RH & Benefícios', `Benefícios ${emp.full_name}`, 'Configuração de VT, VA, VR e/ou Auxílio Combustível atualizada.', req.ip || '127.0.0.1', authReq.correlationId);
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.get('/benefits/orders', (_req: Request, res: Response) => {
+  try {
+    const orders = db.prepare(`SELECT * FROM benefit_orders ORDER BY period DESC, created_at DESC`).all();
+    return res.json({ orders });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/orders/preview', (req: Request, res: Response) => {
+  try {
+    const period = String(req.body.period || '');
+    if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: 'Competência inválida.' });
+    const rows = db.prepare(`
+      SELECT e.id employee_id, e.full_name, e.department, b.benefit_type, b.provider_name, b.company_cost, b.employee_discount, b.monthly_value
+      FROM employees e
+      JOIN employee_benefits b ON b.employee_id = e.id
+      WHERE e.active = 1 AND b.enabled = 1
+      ORDER BY e.full_name, b.benefit_type
+    `).all() as any[];
+
+    const sums: any = { VT: 0, VA: 0, VR: 0, COMBUSTIVEL: 0 };
+    rows.forEach(r => {
+      sums[r.benefit_type] = (sums[r.benefit_type] || 0) + Number(r.company_cost || 0);
+    });
+
+    return res.json({
+      period,
+      employeeCount: new Set(rows.map(r => r.employee_id)).size,
+      items: rows,
+      totals: sums,
+      totalAmount: Object.values(sums).reduce((a: any, b: any) => a + Number(b), 0)
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const { period, dueDate, userName, userRole } = req.body;
+    if (!period || !dueDate) return res.status(400).json({ error: 'Competência e vencimento são obrigatórios.' });
+
+    const companyId = authReq.user?.companyId || 'comp-1';
+    const exists = db.prepare(`SELECT id FROM benefit_orders WHERE company_id = ? AND period = ?`).get(companyId, period) as any;
+    if (exists) return res.status(409).json({ error: 'Já existe fechamento de benefícios para esta competência.' });
+
+    const rows = db.prepare(`
+      SELECT e.id employee_id, e.full_name, e.department, b.benefit_type, b.provider_name, b.company_cost, b.employee_discount, b.monthly_value
+      FROM employees e
+      JOIN employee_benefits b ON b.employee_id = e.id
+      WHERE e.active = 1 AND b.enabled = 1
+      ORDER BY e.full_name, b.benefit_type
+    `).all() as any[];
+
+    if (!rows.length) return res.status(422).json({ error: 'Nenhum benefício ativo configurado.' });
+
+    const sums: any = { VT: 0, VA: 0, VR: 0, COMBUSTIVEL: 0 };
+    rows.forEach(r => {
+      sums[r.benefit_type] = (sums[r.benefit_type] || 0) + Number(r.company_cost || 0);
+    });
+    const total = Object.values(sums).reduce((a: any, b: any) => a + Number(b), 0);
+    const id = `bord-${Date.now()}`;
+    const operator = authReq.user?.fullName || userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || userRole || 'RH';
+
+    const tx = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO benefit_orders (id, company_id, period, due_date, status, employee_count, vt_total, va_total, vr_total, fuel_total, total_amount, created_by)
+        VALUES (?, ?, ?, ?, 'FECHADO', ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, companyId, period, dueDate, new Set(rows.map(r => r.employee_id)).size, sums.VT, sums.VA, sums.VR, sums.COMBUSTIVEL, total, operator);
+
+      const ins = db.prepare(`
+        INSERT INTO benefit_order_items (id, order_id, employee_id, employee_name, department, benefit_type, provider_name, company_cost, employee_discount, total_value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      rows.forEach((r, i) => {
+        ins.run(`boi-${Date.now()}-${i}`, id, r.employee_id, r.full_name, r.department, r.benefit_type, r.provider_name, Number(r.company_cost || 0), Number(r.employee_discount || 0), Number(r.monthly_value || 0));
+      });
+    });
+    tx();
+
+    logAudit(operator, role, 'CLOSE', 'RH & Benefícios', `Benefícios ${period}`, `Fechamento de ${rows.length} vínculos, total empresa R$ ${Number(total).toFixed(2)}.`, req.ip || '127.0.0.1', authReq.correlationId);
+    return res.status(201).json({ success: true, id, totalAmount: total });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/orders/:id/send-finance', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const order = db.prepare(`SELECT * FROM benefit_orders WHERE id = ?`).get(req.params.id) as any;
+    if (!order) return res.status(404).json({ error: 'Fechamento não encontrado.' });
+    if (order.financial_record_id) return res.status(409).json({ error: 'Este fechamento já foi enviado ao Financeiro.' });
+
+    const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
+
+    const record = financeService.createRecord({
+      type: 'PAGAR',
+      title: `Benefícios colaboradores ${order.period}`,
+      entityName: 'Operadoras de Benefícios — lote mensal',
+      costCenter: 'Administrativo & Recursos Humanos',
+      category: 'Benefícios de Colaboradores',
+      amount: order.total_amount,
+      dueDate: order.due_date,
+      originType: 'BENEFICIOS',
+      originId: order.id,
+      userName: operator,
+      userRole: role
+    }, authReq.user, req.ip || '127.0.0.1');
+
+    db.prepare(`UPDATE benefit_orders SET status = 'ENVIADO_FINANCEIRO', financial_record_id = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?`).run(record.id, order.id);
+    createCorporateNotification({
+      title: 'Benefícios enviados ao Financeiro',
+      message: `Competência ${order.period}, total R$ ${Number(order.total_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+      type: 'HR',
+      linkRoute: 'finance-payables'
+    });
+    return res.json({ success: true, financialRecord: record });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoints complementares para compatibilidade retroativa
 hrRouter.get('/benefits/providers', (req: Request, res: Response) => {
   try {
     const authReq = req as AuthenticatedRequest;

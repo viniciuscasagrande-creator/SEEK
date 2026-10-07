@@ -20,7 +20,9 @@
     "server:test:finance": "npm --prefix server run test:finance",
     "server:test:ofx": "npm --prefix server run test:ofx",
     "server:test:hr": "npm --prefix server run test:hr",
-    "server:test:benefits": "npm --prefix server run test:benefits"
+    "server:test:benefits": "npm --prefix server run test:benefits",
+    "server:test:benefits-core": "npm --prefix server run test:benefits-core",
+    "server:test:benefits-e2e": "npm --prefix server run test:benefits-e2e"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

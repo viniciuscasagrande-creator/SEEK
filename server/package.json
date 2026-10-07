@@ -21,7 +21,9 @@
     "test:hr-integration": "tsx src/test_hr_finance_integration.ts",
     "test:purchasing-integration": "tsx src/test_purchasing_finance_integration.ts",
     "test:fiscal-integration": "tsx src/test_fiscal_finance_integration.ts",
-    "test:contract-integration": "tsx src/test_contract_finance_integration.ts"
+    "test:contract-integration": "tsx src/test_contract_finance_integration.ts",
+    "test:benefits-core": "tsx src/test_hr_benefits_core.ts",
+    "test:benefits-e2e": "tsx src/test_hr_benefits_e2e.ts"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",

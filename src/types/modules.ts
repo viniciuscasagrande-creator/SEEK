@@ -135,3 +135,47 @@ export interface ContractObligation {
   financial_status?: string;
 }
 
+export interface EmployeeBenefit {
+  id?: string;
+  type: 'VT' | 'VA' | 'VR' | 'COMBUSTIVEL';
+  enabled: boolean;
+  providerName?: string;
+  calculationMode?: string;
+  unitValue?: number;
+  quantity?: number;
+  monthlyValue?: number;
+  employeeDiscount?: number;
+  companyCost: number;
+  validFrom?: string;
+  validTo?: string;
+  notes?: string;
+}
+
+export interface BenefitEmployee {
+  id: string;
+  registrationNumber: string;
+  fullName: string;
+  department: string;
+  jobTitle: string;
+  benefits: EmployeeBenefit[];
+}
+
+export interface BenefitOrder {
+  id: string;
+  company_id: string;
+  period: string;
+  due_date: string;
+  status: string;
+  employee_count: number;
+  vt_total: number;
+  va_total: number;
+  vr_total: number;
+  fuel_total: number;
+  total_amount: number;
+  financial_record_id?: string;
+  created_by: string;
+  created_at: string;
+  sent_at?: string;
+  paid_at?: string;
+}
+

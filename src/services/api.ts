@@ -1134,6 +1134,87 @@ export const api = {
     return data;
   },
 
+  async getBenefits(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits`);
+      if (res.ok) {
+        const d = await res.json();
+        return d.employees || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async saveEmployeeBenefits(employeeId: string, data: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/employees/${employeeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const d = await res.json().catch(() => null);
+      return res.ok ? d : { success: false, error: d?.error || 'Falha ao salvar benefícios.' };
+    } catch {
+      return { success: false, error: 'Falha de comunicação.' };
+    }
+  },
+
+  async previewBenefitOrder(period: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/orders/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period })
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getBenefitOrders(): Promise<any[]> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/orders`);
+      if (res.ok) {
+        const d = await res.json();
+        return d.orders || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  async createBenefitOrder(data: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const d = await res.json().catch(() => null);
+      return res.ok ? d : { success: false, error: d?.error || 'Falha ao fechar benefícios.' };
+    } catch {
+      return { success: false, error: 'Falha de comunicação.' };
+    }
+  },
+
+  async sendBenefitOrderToFinance(id: string, data: any): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/hr/benefits/orders/${id}/send-finance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const d = await res.json().catch(() => null);
+      return res.ok ? d : { success: false, error: d?.error || 'Falha ao enviar ao Financeiro.' };
+    } catch {
+      return { success: false, error: 'Falha de comunicação.' };
+    }
+  },
+
   async getJobPostings(): Promise<any[]> {
     try {
       const res = await authFetch(`${API_BASE_URL}/hr/jobs`);

@@ -579,6 +579,34 @@ financeRouter.get('/summary', (_req: Request, res: Response) => {
     const disponibilidadeBancaria = bankSum.total;
     const ebitdaProjetadoPercent = totalReceitas > 0 ? Number(((saldoLiquido / totalReceitas) * 100).toFixed(1)) : 24.8;
 
+    // Consolidação por origem: mantém a rastreabilidade dos módulos que geraram cada obrigação.
+    const originRows = db.prepare(`
+      SELECT COALESCE(origin_type, 'AVULSO') as origin_type,
+        COUNT(*) as total_count,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COALESCE(SUM(CASE WHEN status != 'PAGO' THEN 1 ELSE 0 END), 0) as pending_count,
+        COALESCE(SUM(CASE WHEN status != 'PAGO' THEN amount ELSE 0 END), 0) as pending_amount,
+        COALESCE(SUM(CASE WHEN status = 'PAGO' THEN amount ELSE 0 END), 0) as paid_amount
+      FROM financial_records
+      WHERE type = 'PAGAR'
+      GROUP BY COALESCE(origin_type, 'AVULSO')
+      ORDER BY pending_amount DESC
+    `).all() as any[];
+
+    const originBreakdown = originRows.map(row => ({
+      originType: row.origin_type,
+      totalCount: row.total_count,
+      totalAmount: row.total_amount,
+      pendingCount: row.pending_count,
+      pendingAmount: row.pending_amount,
+      paidAmount: row.paid_amount
+    }));
+
+    const today = new Date().toISOString().substring(0, 10);
+    const inSevenDays = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
+    const overdue = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as amount FROM financial_records WHERE type = 'PAGAR' AND status != 'PAGO' AND due_date < ?`).get(today) as any;
+    const dueSoon = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as amount FROM financial_records WHERE type = 'PAGAR' AND status != 'PAGO' AND due_date >= ? AND due_date <= ?`).get(today, inSevenDays) as any;
+
     return res.json({
       totalReceitas,
       totalDespesas,
@@ -586,7 +614,14 @@ financeRouter.get('/summary', (_req: Request, res: Response) => {
       totalReceberPendente,
       saldoLiquido,
       disponibilidadeBancaria,
-      ebitdaProjetadoPercent
+      ebitdaProjetadoPercent,
+      originBreakdown,
+      urgency: {
+        overdueCount: overdue?.count || 0,
+        overdueAmount: overdue?.amount || 0,
+        dueNext7DaysCount: dueSoon?.count || 0,
+        dueNext7DaysAmount: dueSoon?.amount || 0
+      }
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });

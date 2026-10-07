@@ -477,16 +477,24 @@ export function initializeDatabase() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- SEEK V1.9: RH - BENEFÍCIOS OPERACIONAIS (VT, VA, VR, COMBUSTÍVEL)
     CREATE TABLE IF NOT EXISTS employee_benefits (
       id TEXT PRIMARY KEY,
-      company_id TEXT DEFAULT 'comp-1',
-      employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE,
-      benefit_plan_id TEXT REFERENCES benefit_plans(id) ON DELETE CASCADE,
-      daily_value REAL DEFAULT 0.0,
-      monthly_value REAL DEFAULT 0.0,
-      status TEXT DEFAULT 'ATIVO',
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(employee_id, benefit_plan_id)
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      benefit_type TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      provider_name TEXT,
+      calculation_mode TEXT NOT NULL DEFAULT 'MENSAL',
+      unit_value REAL NOT NULL DEFAULT 0,
+      quantity REAL NOT NULL DEFAULT 1,
+      monthly_value REAL NOT NULL DEFAULT 0,
+      employee_discount REAL NOT NULL DEFAULT 0,
+      company_cost REAL NOT NULL DEFAULT 0,
+      valid_from TEXT,
+      valid_to TEXT,
+      notes TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(employee_id, benefit_type)
     );
 
     CREATE TABLE IF NOT EXISTS benefit_purchase_orders (
@@ -1227,6 +1235,44 @@ export function initializeDatabase() {
   try { db.exec(`CREATE INDEX IF NOT EXISTS ix_contract_obligations_due_status ON contract_obligations(due_date, status)`); } catch {}
   try { db.exec(`CREATE INDEX IF NOT EXISTS ix_financial_contract_origin ON financial_records(origin_type, origin_id) WHERE origin_type='CONTRATO'`); } catch {}
 
+  // Migração 012: RH Benefícios (VT, VA, VR, Auxílio Combustível)
+  try {
+    const ebInfo = db.prepare(`PRAGMA table_info(employee_benefits)`).all() as any[];
+    if (ebInfo.length > 0 && !ebInfo.some(c => c.name === 'benefit_type')) {
+      db.exec(`DROP TABLE IF EXISTS employee_benefits`);
+    }
+  } catch {}
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS employee_benefits (
+      id TEXT PRIMARY KEY, employee_id TEXT NOT NULL REFERENCES employees(id), benefit_type TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1, provider_name TEXT, calculation_mode TEXT NOT NULL DEFAULT 'MENSAL',
+      unit_value REAL NOT NULL DEFAULT 0, quantity REAL NOT NULL DEFAULT 1, monthly_value REAL NOT NULL DEFAULT 0,
+      employee_discount REAL NOT NULL DEFAULT 0, company_cost REAL NOT NULL DEFAULT 0,
+      valid_from TEXT, valid_to TEXT, notes TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(employee_id, benefit_type)
+    )`);
+  } catch {}
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_orders (
+      id TEXT PRIMARY KEY, company_id TEXT NOT NULL, period TEXT NOT NULL, due_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'RASCUNHO', employee_count INTEGER NOT NULL DEFAULT 0,
+      vt_total REAL NOT NULL DEFAULT 0, va_total REAL NOT NULL DEFAULT 0, vr_total REAL NOT NULL DEFAULT 0,
+      fuel_total REAL NOT NULL DEFAULT 0, total_amount REAL NOT NULL DEFAULT 0, financial_record_id TEXT,
+      created_by TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, sent_at TEXT, paid_at TEXT,
+      UNIQUE(company_id, period)
+    )`);
+  } catch {}
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_order_items (
+      id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES benefit_orders(id) ON DELETE CASCADE,
+      employee_id TEXT NOT NULL REFERENCES employees(id), employee_name TEXT NOT NULL, department TEXT,
+      benefit_type TEXT NOT NULL, provider_name TEXT, company_cost REAL NOT NULL DEFAULT 0,
+      employee_discount REAL NOT NULL DEFAULT 0, total_value REAL NOT NULL DEFAULT 0
+    )`);
+  } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_employee_benefits_employee ON employee_benefits(employee_id)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_order_items_order ON benefit_order_items(order_id)`); } catch {}
+
   // Parâmetros oficiais de acesso e ambiente
   try {
     db.prepare(`
@@ -1672,6 +1718,28 @@ export function seedInitialData() {
         ('notif-02', 'user-admin', 'Contrato CT-2024-0089 (Grupo Votorantim) vencendo em 27 dias', 'Janela de negociação do índice IPCA aberta.', 'ALERTA', 'contracts', 0),
         ('notif-03', 'user-admin', 'Chamado CH-2026-0884 com SLA crítico (3 horas)', 'Revisão jurídica de minuta contratual.', 'PRAZO', 'service-desk', 0),
         ('notif-04', 'user-admin', 'SEEK V1 Hiper Pacote 4 implantado com sucesso', 'Todos os módulos empresariais ativos e integrados.', 'INFO', 'inicio', 0)
+    `).run();
+  }
+
+  // Seed RH: Benefícios (VT, VA, VR, Auxílio Combustível)
+  const benefitCheck = db.prepare('SELECT COUNT(*) as count FROM employee_benefits').get() as { count: number };
+  if (benefitCheck.count === 0) {
+    db.prepare(`
+      INSERT INTO employee_benefits (id,employee_id,benefit_type,enabled,provider_name,calculation_mode,unit_value,quantity,monthly_value,employee_discount,company_cost,valid_from) VALUES
+      ('ben-01-vt','emp-01','VT',1,'Mobilidade Corporativa','MENSAL',0,1,260,156,104,'2026-01-01'),
+      ('ben-01-va','emp-01','VA',1,'Cartão Benefícios','MENSAL',0,1,700,70,630,'2026-01-01'),
+      ('ben-01-vr','emp-01','VR',1,'Cartão Benefícios','MENSAL',0,1,880,88,792,'2026-01-01'),
+      ('ben-02-fuel','emp-02','COMBUSTIVEL',1,'Auxílio Combustível','MENSAL',0,1,900,0,900,'2026-01-01'),
+      ('ben-03-vt','emp-03','VT',1,'Mobilidade Corporativa','MENSAL',0,1,260,120,140,'2026-01-01'),
+      ('ben-03-va','emp-03','VA',1,'Cartão Benefícios','MENSAL',0,1,700,70,630,'2026-01-01'),
+      ('ben-03-vr','emp-03','VR',1,'Cartão Benefícios','MENSAL',0,1,880,88,792,'2026-01-01'),
+      ('ben-04-fuel','emp-04','COMBUSTIVEL',1,'Auxílio Combustível','MENSAL',0,1,650,0,650,'2026-01-01'),
+      ('ben-06-vt','emp-06','VT',1,'Mobilidade Corporativa','MENSAL',0,1,260,120,140,'2026-01-01'),
+      ('ben-06-va','emp-06','VA',1,'Cartão Benefícios','MENSAL',0,1,700,70,630,'2026-01-01'),
+      ('ben-06-vr','emp-06','VR',1,'Cartão Benefícios','MENSAL',0,1,880,88,792,'2026-01-01'),
+      ('ben-07-vt','emp-07','VT',1,'Mobilidade Corporativa','MENSAL',0,1,260,120,140,'2026-01-01'),
+      ('ben-07-va','emp-07','VA',1,'Cartão Benefícios','MENSAL',0,1,700,70,630,'2026-01-01'),
+      ('ben-07-vr','emp-07','VR',1,'Cartão Benefícios','MENSAL',0,1,880,88,792,'2026-01-01')
     `).run();
   }
 
