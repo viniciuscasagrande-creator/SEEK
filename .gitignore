@@ -32,3 +32,5 @@ server/data/*.sqlite*
 server/.env
 server/.env*.local
 
+
+.vercel

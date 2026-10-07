@@ -134,15 +134,21 @@ const MainLayout: React.FC = () => {
 
       // GESTÃO - RH
       case 'hr':
-        return { group: 'Gestão > Recursos Humanos', label: 'Visão Geral & Pendências' };
+        return { group: 'Gestão > Recursos Humanos', label: 'Visão Geral do RH' };
       case 'hr-employees':
-        return { group: 'Gestão > Recursos Humanos', label: 'Colaboradores CLT' };
+        return { group: 'Gestão > Recursos Humanos', label: 'Colaboradores' };
+      case 'hr-ponto':
+        return { group: 'Gestão > Recursos Humanos', label: 'Ponto & Jornada' };
       case 'payroll':
-        return { group: 'Gestão > Recursos Humanos', label: 'Folha & Ponto' };
+        return { group: 'Gestão > Recursos Humanos', label: 'Folha de Pagamento' };
       case 'benefits':
-        return { group: 'Gestão > Recursos Humanos', label: 'Gestão de Benefícios' };
+        return { group: 'Gestão > Recursos Humanos', label: 'Benefícios' };
+      case 'hr-vacations':
+        return { group: 'Gestão > Recursos Humanos', label: 'Férias & Afastamentos' };
       case 'freelancers':
-        return { group: 'Gestão > Recursos Humanos', label: 'Freelancers & Central de Taxas' };
+        return { group: 'Gestão > Recursos Humanos', label: 'Freelance / Taxas' };
+      case 'hr-reports':
+        return { group: 'Gestão > Recursos Humanos', label: 'Relatórios de RH' };
 
       // GESTÃO - Contratos
       case 'contracts':
@@ -286,12 +292,18 @@ const MainLayout: React.FC = () => {
         return <HRModule initialTab="dashboard" />;
       case 'hr-employees':
         return <HRModule initialTab="employees" />;
+      case 'hr-ponto':
+        return <HRModule initialTab="ponto" />;
       case 'payroll':
         return <HRModule initialTab="payroll" />;
       case 'benefits':
         return <HRModule initialTab="benefits" />;
+      case 'hr-vacations':
+        return <HRModule initialTab="vacations" />;
       case 'freelancers':
         return <HRModule initialTab="freelancers" />;
+      case 'hr-reports':
+        return <HRModule initialTab="organogram" />;
 
       // Projetos
       case 'projects':

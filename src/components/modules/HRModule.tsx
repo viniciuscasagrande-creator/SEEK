@@ -27,25 +27,28 @@ import {
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/mockData';
 import { EmployeeProfile } from '../../types/modules';
-import { StatCard } from '../common/StatCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { Modal } from '../common/Modal';
-import { ScrollSpyNav } from '../common/ScrollSpyNav';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkflow } from '../../context/WorkflowContext';
 import { api } from '../../services/api';
 import { FreelanceTaxasSubmodule } from './FreelanceTaxasSubmodule';
 import { HRPayrollSection } from './HRPayrollSection';
 
-export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' }> = ({ initialTab = 'dashboard' }) => {
+export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' | 'reports' }> = ({ initialTab = 'dashboard' }) => {
   const { currentUser } = useAuth();
   const { refreshApprovals } = useWorkflow();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(initialTab);
+  const normalizeTab = (tab?: string): 'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram' => {
+    if (tab === 'reports') return 'organogram';
+    return (tab as any) || 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'payroll' | 'benefits' | 'ponto' | 'vacations' | 'freelancers' | 'organogram'>(() => normalizeTab(initialTab));
 
   useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      setActiveTab(normalizeTab(initialTab));
     }
   }, [initialTab]);
 
@@ -736,177 +739,57 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
-      {/* ScrollSpy: Navegador Seccional de RH */}
-      <ScrollSpyNav
-        sections={[
-          { id: 'hr-kpis', label: 'Indicadores de Gente', icon: BarChart3 },
-          ...(activeTab === 'dashboard' ? [{ id: 'hr-workspace', label: 'Central de Trabalho', icon: UserCheck }] : []),
-          { id: 'hr-tabs', label: 'Abas do RH', icon: Layers },
-          { id: 'hr-content', label: 'Colaboradores & Folha', icon: Users }
-        ]}
-      />
-
-      {/* KPIs do RH */}
-      <div id="hr-kpis" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Headcount Total Ativo"
-          value={employees.length}
-          subtitle="Matriz Curitiba e Filiais SP/RJ"
-          icon={Users}
-          iconColor="text-teal-600"
-          iconBg="bg-teal-50"
-        />
-        <StatCard
-          title="Turnover Anual"
-          value="3.2%"
-          change="-0.8 p.p."
-          changeType="positive"
-          subtitle="Alta retenção de talentos"
-          icon={Award}
-          iconColor="text-emerald-600"
-          iconBg="bg-emerald-50"
-        />
-        <StatCard
-          title="Assiduidade de Ponto"
-          value="98.7%"
-          change="+0.5 p.p."
-          changeType="positive"
-          subtitle="Cumprimento de jornada diária"
-          icon={Timer}
-          iconColor="text-blue-600"
-          iconBg="bg-blue-50"
-        />
-        <StatCard
-          title="Saldo de Férias a Vencer"
-          value="25 dias"
-          subtitle="Janela de descanso programada"
-          icon={Palmtree}
-          iconColor="text-amber-600"
-          iconBg="bg-amber-50"
-        />
-      </div>
-
-      {activeTab === 'dashboard' && (
-        <div id="hr-workspace" className="space-y-5">
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-base font-black text-slate-900">Central de Trabalho de RH & Departamento Pessoal</h2>
-                <p className="mt-1 text-xs text-slate-600">
-                  Cadastros, folha CLT, benefícios corporativos, ponto e férias. Obrigações que geram reflexos financeiros nascem no RH e mantêm rastreabilidade até o pagamento.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsAdmitOpen(true)}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs"
-              >
-                + Admitir Colaborador
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: 'Colaboradores Ativos', value: employees.filter(e => e.active !== false).length, sub: 'Quadro funcional', tab: 'employees' as const, action: 'Ver cadastros' },
-              { label: 'Folha & Encargos (CLT)', value: 'Motor CLT v1.0', sub: 'Salários, INSS e FGTS', tab: 'payroll' as const, action: 'Calcular folha' },
-              { label: 'Gestão de Benefícios', value: `${benefitEmployees.reduce((n, e) => n + (e.benefits || []).filter((b: any) => b.enabled).length, 0)} ativos`, sub: 'VT, VA, VR e Combustível', tab: 'benefits' as const, action: 'Abrir benefícios' },
-              { label: 'Ponto & Férias', value: `${timeRecords.length} registros`, sub: `${vacationRequests.length} solicitações`, tab: 'ponto' as const, action: 'Revisar jornada' }
-            ].map(item => (
-              <button
-                key={item.label}
-                onClick={() => setActiveTab(item.tab)}
-                className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-xs hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer"
-              >
-                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{item.label}</div>
-                <div className="mt-2 text-xl font-black text-slate-900">{item.value}</div>
-                <div className="mt-1 text-[11px] text-slate-500">{item.sub}</div>
-                <div className="mt-3 text-xs font-bold text-blue-700">{item.action} →</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-black text-slate-900">Ações Frequentes do Departamento Pessoal</h3>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <button onClick={() => setIsAdmitOpen(true)} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors">
-                  + Admissão de Colaborador
-                </button>
-                <button onClick={() => setActiveTab('payroll')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors text-emerald-800">
-                  ⚙ Processar Folha Mensal (CLT)
-                </button>
-                <button onClick={() => setActiveTab('benefits')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors text-purple-800">
-                  💳 Comprar Benefícios (Lote)
-                </button>
-                <button onClick={() => setActiveTab('ponto')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors">
-                  ⏱ Espelho de Ponto & Ajustes
-                </button>
-                <button onClick={() => setActiveTab('vacations')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors">
-                  🏖 Férias e Ausências
-                </button>
-                <button onClick={() => setActiveTab('freelancers')} className="rounded-lg border border-slate-200 p-3 text-left text-xs font-bold hover:bg-slate-50 transition-colors text-amber-800">
-                  ⚡ Freelance & Central de Taxas
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-black text-slate-900">Integração RH → Financeiro & Contábil</h3>
-              <div className="mt-3 space-y-2.5 text-xs text-slate-700">
-                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
-                  <div className="font-bold text-slate-900">1. Fechamento de Folha → Títulos no Contas a Pagar</div>
-                  <p className="mt-0.5 text-slate-600">Geração automática de títulos para líquido da folha, GPS (INSS) e GRF (FGTS) na data de vencimento legal.</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
-                  <div className="font-bold text-slate-900">2. Compra de Benefícios → Fatura de Operadora</div>
-                  <p className="mt-0.5 text-slate-600">O lote de compra gera título a pagar para a operadora (Caju, Flash, Ticket) e grava os descontos no holerite.</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
-                  <div className="font-bold text-slate-900">3. Freelance & Taxas → Liquidação com Retenção</div>
-                  <p className="mt-0.5 text-slate-600">Aprovação na Central de Taxas envia título líquido com destaque de retenções fiscais/previdenciárias.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Abas Internas */}
-      <div id="hr-tabs" className="flex border-b border-slate-200 space-x-4 text-xs font-bold overflow-x-auto">
+      {/* Abas Superiores de RH & Departamento Pessoal (Navegação Linear Dominante) */}
+      <div id="hr-tabs" className="flex border-b border-slate-200 space-x-3 text-xs font-bold overflow-x-auto pb-px">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'dashboard'
-              ? 'border-blue-700 text-blue-700'
+              ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <span>Visão Geral & Pendências</span>
+          <Layers className="h-4 w-4" />
+          <span>Visão Geral do RH</span>
         </button>
 
         <button
           onClick={() => setActiveTab('employees')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'employees'
-              ? 'border-blue-700 text-blue-700'
+              ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <Users className="h-4 w-4" />
-          <span>Colaboradores & Admissões</span>
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{employees.length}</span>
+          <span>Colaboradores</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600 font-bold">
+            {employees.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ponto')}
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'ponto'
+              ? 'border-blue-700 text-blue-700 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Timer className="h-4 w-4" />
+          <span>Ponto & Jornada</span>
         </button>
 
         <button
           onClick={() => setActiveTab('payroll')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'payroll'
-              ? 'border-blue-700 text-blue-700'
+              ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <WalletCards className="h-4 w-4 text-emerald-600" />
-          <span>Folha & Obrigações</span>
+          <span>Folha de Pagamento</span>
           <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
             Financeiro
           </span>
@@ -914,7 +797,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
         <button
           onClick={() => setActiveTab('benefits')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'benefits'
               ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -923,32 +806,20 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
           <WalletCards className="h-4 w-4 text-cyan-700" />
           <span>Benefícios</span>
           <span className="rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
-            VT • VA • VR • Combustível
+            VT • VA • VR • Comb.
           </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('ponto')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'ponto'
-              ? 'border-blue-700 text-blue-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <Timer className="h-4 w-4" />
-          <span>Espelho de Ponto & Banco de Horas</span>
-        </button>
-
-        <button
           onClick={() => setActiveTab('vacations')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'vacations'
-              ? 'border-blue-700 text-blue-700'
+              ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
-          <Palmtree className="h-4 w-4" />
-          <span>Férias & Ausências</span>
+          <Palmtree className="h-4 w-4 text-amber-600" />
+          <span>Férias & Afastamentos</span>
           <span className="rounded-full bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">
             Alçadas
           </span>
@@ -956,14 +827,14 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
         <button
           onClick={() => setActiveTab('freelancers')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'freelancers'
               ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <Zap className="h-4 w-4 text-amber-500" />
-          <span>Freelancers & Taxas</span>
+          <span>Freelance / Taxas</span>
           <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[10px] font-bold text-blue-800">
             Central
           </span>
@@ -971,19 +842,310 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
 
         <button
           onClick={() => setActiveTab('organogram')}
-          className={`pb-3 px-1 border-b-2 transition-colors flex items-center space-x-1.5 ${
+          className={`pb-3 px-2 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'organogram'
-              ? 'border-blue-700 text-blue-700'
+              ? 'border-blue-700 text-blue-700 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <GitFork className="h-4 w-4" />
-          <span>Organograma Corporativo</span>
+          <span>Relatórios de RH</span>
         </button>
       </div>
 
-      {/* Conteúdo das Abas (ScrollSpy Section) */}
-      <div id="hr-content" className="space-y-4">
+      {/* Conteúdo das Abas do Módulo */}
+      <div id="hr-content" className="space-y-5">
+        {/* ABA: VISÃO GERAL DO RH (CENTRAL DE TRABALHO) */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* 1. Linha Superior: 6 Cards Pequenos e Alinhados */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Colaboradores</span>
+                  <Users className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="mt-2 text-xl font-black text-slate-900">{employees.filter(e => e.active !== false).length}</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 font-medium">Quadro ativo CLT</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Ponto Pendente</span>
+                  <Timer className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="mt-2 text-xl font-black text-amber-700">3</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 font-medium">Ajustes de espelho</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Férias Próximas</span>
+                  <Palmtree className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="mt-2 text-xl font-black text-slate-900">{vacationRequests.filter(v => v.status === 'PENDENTE' || v.status === 'EM_APROVACAO').length || 2}</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 font-medium">Programadas 60d</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Afastamentos</span>
+                  <AlertCircle className="h-4 w-4 text-purple-600" />
+                </div>
+                <div className="mt-2 text-xl font-black text-slate-900">1</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 font-medium">Licença médica ativa</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Benefícios</span>
+                  <WalletCards className="h-4 w-4 text-cyan-600" />
+                </div>
+                <div className="mt-2 text-xl font-black text-cyan-700">1 lote</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 font-medium">Conferência Outubro</div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Folha Atual</span>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div className="mt-2 text-xl font-black text-emerald-700">10/2026</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 font-medium">Aberta p/ cálculo</div>
+              </div>
+            </div>
+
+            {/* 2. Centro: Duas Áreas Fixas (Pendências que Exigem Ação & Movimentações Recentes) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Coluna 1: Pendências que exigem ação */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Pendências que exigem ação</h3>
+                    <p className="text-[11px] text-slate-500">Tarefas prioritárias aguardando decisão ou execução do RH</p>
+                  </div>
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                    5 itens
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-rose-800">Urgente</span>
+                        <span className="text-xs font-bold text-slate-900">Processamento da Folha 10/2026</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">Simular proventos, conferir encargos INSS/FGTS e gerar títulos no Contas a Pagar.</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('payroll')}
+                      className="shrink-0 rounded-lg bg-blue-700 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-blue-800 transition-colors cursor-pointer"
+                    >
+                      Calcular Folha →
+                    </button>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-800">Alçadas</span>
+                        <span className="text-xs font-bold text-slate-900">Aprovação de Férias & Ausências</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">2 solicitações de descanso programadas aguardando homologação formal do gestor.</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('vacations')}
+                      className="shrink-0 rounded-lg bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-300 transition-colors cursor-pointer"
+                    >
+                      Aprovar Férias →
+                    </button>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-blue-800">Ponto</span>
+                        <span className="text-xs font-bold text-slate-900">Ajustes de Espelho & Banco de Horas</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">3 ocorrências de batida ímpar e horas extras aguardando justificativa de colaborador.</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('ponto')}
+                      className="shrink-0 rounded-lg bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-300 transition-colors cursor-pointer"
+                    >
+                      Revisar Ponto →
+                    </button>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-cyan-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-cyan-800">Benefícios</span>
+                        <span className="text-xs font-bold text-slate-900">Lote Mensal VT • VA • VR • Combustível</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">Conferir proporcionalidade de dias úteis, faturas das operadoras e compras.</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('benefits')}
+                      className="shrink-0 rounded-lg bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-300 transition-colors cursor-pointer"
+                    >
+                      Abrir Benefícios →
+                    </button>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-purple-800">Taxas</span>
+                        <span className="text-xs font-bold text-slate-900">Fechamento de Diárias de Freelancers</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">Serviços temporários com presenças confirmadas aguardando envio ao Financeiro.</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('freelancers')}
+                      className="shrink-0 rounded-lg bg-slate-200 px-2.5 py-1.5 text-[11px] font-bold text-slate-800 hover:bg-slate-300 transition-colors cursor-pointer"
+                    >
+                      Central de Taxas →
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Coluna 2: Movimentações recentes */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Movimentações recentes</h3>
+                    <p className="text-[11px] text-slate-500">Histórico cronológico auditável de eventos operacionais</p>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">Últimas 24h</span>
+                </div>
+
+                <div className="mt-4 space-y-3.5">
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <FileCheck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Snapshot de Benefícios Consolidado</div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">Histórico nominal gravado com sucesso para a competência anterior sem alterar cadastro atual.</p>
+                      <span className="text-[10px] text-slate-400">Hoje às 14:16 • Módulo Benefícios</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Admissão de Colaborador Concluída</div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">Lucas Ferreira homologado como Engenheiro de Software Pleno na Tecnologia.</p>
+                      <span className="text-[10px] text-slate-400">Hoje às 11:20 • Departamento Pessoal</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <WalletCards className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Integração Folha → Contas a Pagar</div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">Títulos de provisão de folha e GPS/GRF emitidos no Financeiro com origin_type='FOLHA'.</p>
+                      <span className="text-[10px] text-slate-400">Hoje às 09:45 • Core Transacional</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                      <Palmtree className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Programação de Férias Homologada</div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">Janela de descanso de 15 dias confirmada para colaborador de Suporte Técnico.</p>
+                      <span className="text-[10px] text-slate-400">Ontem às 17:30 • Alçada Gerencial</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
+                      <Zap className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Convocação de Freelancers Corporativos</div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">2 diárias temporárias autorizadas para suporte operacional com retenções calculadas.</p>
+                      <span className="text-[10px] text-slate-400">Ontem às 15:10 • Central de Taxas</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Parte Inferior: Atalhos Operacionais */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+              <div className="mb-3">
+                <h3 className="text-sm font-black text-slate-900">Atalhos Operacionais de RH</h3>
+                <p className="text-[11px] text-slate-500">Acesso direto às funções dominantes do módulo</p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <button
+                  onClick={() => setActiveTab('employees')}
+                  className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-300 text-left transition-all cursor-pointer group"
+                >
+                  <Users className="h-5 w-5 text-blue-700 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900">Colaboradores</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Fichas e cadastros</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('ponto')}
+                  className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-300 text-left transition-all cursor-pointer group"
+                >
+                  <Timer className="h-5 w-5 text-blue-700 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900">Ponto & Jornada</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Espelho e horas</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('payroll')}
+                  className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-300 text-left transition-all cursor-pointer group"
+                >
+                  <WalletCards className="h-5 w-5 text-emerald-700 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900">Folha de Pagamento</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Cálculo e holerites</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('benefits')}
+                  className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-300 text-left transition-all cursor-pointer group"
+                >
+                  <WalletCards className="h-5 w-5 text-cyan-700 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900">Benefícios</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">VT, VA, VR, Comb.</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('vacations')}
+                  className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-300 text-left transition-all cursor-pointer group"
+                >
+                  <Palmtree className="h-5 w-5 text-amber-700 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900">Férias & Afastamentos</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Escalas e alçadas</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('freelancers')}
+                  className="flex flex-col items-start p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/50 hover:border-blue-300 text-left transition-all cursor-pointer group"
+                >
+                  <Zap className="h-5 w-5 text-amber-600 mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold text-slate-900">Freelance / Taxas</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Central de diárias</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* ABA 1: COLABORADORES */}
         {activeTab === 'employees' && (
         <div className="space-y-4">
@@ -2397,54 +2559,95 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
         </div>
       )}
 
-      {/* ABA 4: ORGANOGRAMA CORPORATIVO */}
+      {/* ABA: RELATÓRIOS DE RH & ESTRUTURA ORGANIZACIONAL */}
       {activeTab === 'organogram' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Estrutura Organizacional & Hierarquia Corporativa</h3>
-            <p className="text-xs text-slate-500">Mapeamento dinâmico de subordinação hierárquica e alçadas de decisão.</p>
-          </div>
+        <div className="space-y-5">
+          {/* Indicadores Consolidados de Gente */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Headcount Total Ativo</span>
+                <Users className="h-4 w-4 text-teal-600" />
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{employees.length} colaboradores</div>
+              <div className="mt-1 text-[11px] text-slate-500">Matriz Curitiba e Filiais SP/RJ</div>
+            </div>
 
-          {/* Nível 1: Conselho & Diretoria */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase text-blue-700 tracking-wider">Nível Estratégico — Conselho & C-Level</span>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
-                <span className="font-bold text-xs text-slate-900 block">Roberto Vianna Guimarães</span>
-                <span className="text-[11px] text-blue-800 font-semibold block">Diretor Presidente / C-Level</span>
-                <span className="text-[10px] text-slate-500 mt-1 block">Alçada Executiva: R$ 500.000,00</span>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Turnover Anual</span>
+                <Award className="h-4 w-4 text-emerald-600" />
               </div>
-              <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
-                <span className="font-bold text-xs text-slate-900 block">Administrador Geral</span>
-                <span className="text-[11px] text-blue-800 font-semibold block">Administrador Geral SEEK</span>
-                <span className="text-[10px] text-slate-500 mt-1 block">Alçada Global: R$ 1.000.000,00</span>
+              <div className="mt-2 text-2xl font-black text-emerald-700">3.2%</div>
+              <div className="mt-1 text-[11px] text-emerald-600 font-bold">-0.8 p.p. · Alta retenção</div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Assiduidade de Ponto</span>
+                <Timer className="h-4 w-4 text-blue-600" />
               </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">98.7%</div>
+              <div className="mt-1 text-[11px] text-blue-600 font-bold">+0.5 p.p. · Cumprimento diário</div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Saldo de Férias a Vencer</span>
+                <Palmtree className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="mt-2 text-2xl font-black text-amber-700">25 dias</div>
+              <div className="mt-1 text-[11px] text-slate-500">Janela de descanso programada</div>
             </div>
           </div>
 
-          {/* Nível 2: Gestores Departamentais */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">Nível Tático — Gerências & Lideranças</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <span className="font-bold text-xs text-slate-900 block">Helena Silveira</span>
-                <span className="text-[10px] text-slate-600 block">Gerente Financeira</span>
-                <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 75.000</span>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">Estrutura Organizacional & Hierarquia Corporativa</h3>
+              <p className="text-xs text-slate-500">Mapeamento dinâmico de subordinação hierárquica e alçadas de decisão corporativa.</p>
+            </div>
+
+            {/* Nível 1: Conselho & Diretoria */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase text-blue-700 tracking-wider">Nível Estratégico — Conselho & C-Level</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
+                  <span className="font-bold text-xs text-slate-900 block">Roberto Vianna Guimarães</span>
+                  <span className="text-[11px] text-blue-800 font-semibold block">Diretor Presidente / C-Level</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Alçada Executiva: R$ 500.000,00</span>
+                </div>
+                <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50">
+                  <span className="font-bold text-xs text-slate-900 block">Administrador Geral</span>
+                  <span className="text-[11px] text-blue-800 font-semibold block">Administrador Geral SEEK</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Alçada Global: R$ 1.000.000,00</span>
+                </div>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <span className="font-bold text-xs text-slate-900 block">Eduardo Martins</span>
-                <span className="text-[10px] text-slate-600 block">Gestor de Operações & TI</span>
-                <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 50.000</span>
-              </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <span className="font-bold text-xs text-slate-900 block">Lucas Bertolli</span>
-                <span className="text-[10px] text-slate-600 block">Líder Comercial & CRM</span>
-                <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 25.000</span>
-              </div>
-              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                <span className="font-bold text-xs text-slate-900 block">Camila Duarte</span>
-                <span className="text-[10px] text-slate-600 block">Gerente de RH & DP</span>
-                <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 30.000</span>
+            </div>
+
+            {/* Nível 2: Gestores Departamentais */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">Nível Tático — Gerências & Lideranças</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="font-bold text-xs text-slate-900 block">Helena Silveira</span>
+                  <span className="text-[10px] text-slate-600 block">Gerente Financeira</span>
+                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 75.000</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="font-bold text-xs text-slate-900 block">Eduardo Martins</span>
+                  <span className="text-[10px] text-slate-600 block">Gestor de Operações & TI</span>
+                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 50.000</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="font-bold text-xs text-slate-900 block">Lucas Bertolli</span>
+                  <span className="text-[10px] text-slate-600 block">Líder Comercial & CRM</span>
+                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 25.000</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="font-bold text-xs text-slate-900 block">Camila Duarte</span>
+                  <span className="text-[10px] text-slate-600 block">Gerente de RH & DP</span>
+                  <span className="text-[9px] text-emerald-700 font-bold mt-1 block">Alçada: R$ 30.000</span>
+                </div>
               </div>
             </div>
           </div>

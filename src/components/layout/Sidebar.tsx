@@ -76,9 +76,12 @@ export type ActiveView =
   | 'assets'
   | 'hr'
   | 'hr-employees'
+  | 'hr-ponto'
   | 'payroll'
   | 'benefits'
+  | 'hr-vacations'
   | 'freelancers'
+  | 'hr-reports'
   | 'projects'
   | 'projects-timeline'
   | 'operations'
@@ -140,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (['fiscal', 'fiscal-calc', 'fiscal-calendar', 'fiscal-invoices'].includes(view)) return 'fiscal';
     if (['purchasing', 'purchasing-requisitions', 'purchasing-comparison', 'purchasing-orders', 'suppliers'].includes(view)) return 'purchasing';
     if (['inventory', 'assets'].includes(view)) return 'inventory';
-    if (['hr', 'hr-employees', 'payroll', 'benefits', 'freelancers'].includes(view)) return 'hr';
+    if (['hr', 'hr-employees', 'hr-ponto', 'payroll', 'benefits', 'hr-vacations', 'freelancers', 'hr-reports'].includes(view)) return 'hr';
     if (['contracts', 'legal'].includes(view)) return 'contracts';
     if (['crm', 'crm-pipeline', 'crm-companies', 'crm-proposals'].includes(view)) return 'crm';
     if (['service-desk', 'service-desk-kb'].includes(view)) return 'service-desk';
@@ -278,16 +281,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       permissionKey: 'hr',
       defaultView: 'hr',
       items: [
-        { label: 'Visão Geral & Pendências', view: 'hr' },
-        { label: 'Colaboradores CLT', view: 'hr-employees' },
-        { label: 'Folha & Ponto', view: 'payroll' },
-        { label: 'Gestão de Benefícios', view: 'benefits' },
+        { label: 'Visão Geral do RH', view: 'hr' },
+        { label: 'Colaboradores', view: 'hr-employees' },
+        { label: 'Ponto & Jornada', view: 'hr-ponto' },
+        { label: 'Folha de Pagamento', view: 'payroll' },
+        { label: 'Benefícios', view: 'benefits' },
+        { label: 'Férias & Afastamentos', view: 'hr-vacations' },
         {
           label: 'Freelance / Taxas',
           view: 'freelancers',
           badge: 'Central',
           badgeColor: 'bg-amber-100 text-amber-800'
-        }
+        },
+        { label: 'Relatórios de RH', view: 'hr-reports' }
       ]
     },
     {
