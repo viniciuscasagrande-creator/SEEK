@@ -62,8 +62,9 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
   const [payrollPreview, setPayrollPreview] = useState<any>(null);
   const [closingPayroll, setClosingPayroll] = useState(false);
 
-  // Estados dos Benefícios (VT, VA, VR, Combustível) — Fase 3
-  const [benefitSection, setBenefitSection] = useState<'COLABORADORES' | 'FECHAMENTO' | 'PEDIDOS' | 'OPERADORAS' | 'AFASTAMENTOS'>('COLABORADORES');
+  // Estados dos Benefícios (VT, VA, VR, Combustível) — Fases 3 & 4
+  const [benefitSection, setBenefitSection] = useState<'COLABORADORES' | 'CONFERENCIA' | 'FECHAMENTO' | 'PEDIDOS' | 'OPERADORAS' | 'AFASTAMENTOS'>('COLABORADORES');
+  const [benefitConference, setBenefitConference] = useState<any>(null);
   const [benefitEmployees, setBenefitEmployees] = useState<any[]>([]);
   const [benefitOrders, setBenefitOrders] = useState<any[]>([]);
   const [benefitPeriod, setBenefitPeriod] = useState('2026-10');
@@ -549,6 +550,115 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
       loadData();
     } else {
       setNotification(`⚠️ ${res?.error || 'Falha ao enviar pedido ao Financeiro.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const refreshBenefitConference = async () => {
+    const res = await api.getBenefitConference(benefitPeriod);
+    if (res) setBenefitConference(res);
+  };
+
+  const confirmClearBenefits = async () => {
+    const res = await api.confirmClearBenefitConference(benefitPeriod, {
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification(`✅ ${res.updated || 0} item(ns) sem divergência marcados como conferidos.`);
+      refreshBenefitConference();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha na conferência.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const reviewBenefitItem = async (item: any) => {
+    const res = await api.reviewBenefitConference({
+      period: benefitPeriod,
+      employeeId: item.employee_id,
+      benefitType: item.benefit_type,
+      status: 'CONFERIDO',
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification('✅ Item conferido com sucesso.');
+      refreshBenefitConference();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha na conferência.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const approveBenefitOrder = async (order: any) => {
+    const res = await api.approveBenefitOrder(order.id, {
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification(`✅ Fechamento ${order.period} aprovado e bloqueado para compra.`);
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha na aprovação do fechamento.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const downloadOperatorFile = async (batch: any) => {
+    const res = await api.downloadBenefitOperatorFile(batch.id, currentUser?.fullName || 'RH');
+    if (!res.success || !res.text) {
+      setNotification(`⚠️ ${res.error || 'Falha ao gerar arquivo da operadora.'}`);
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
+    const blob = new Blob([res.text], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = res.fileName || 'beneficios_operadora.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    setNotification('✅ Arquivo nominal da operadora gerado com sucesso.');
+    loadData();
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const registerOperatorReturn = async (batch: any) => {
+    const raw = window.prompt(`Retorno da operadora para ${batch.provider_name} (${batch.benefit_type}):\nInforme ID/Matrícula do colaborador e valor processado separados por vírgula, uma linha por colaborador.\nExemplo:\nemp-01,250.00\nemp-02,570.00`);
+    if (!raw) return;
+    const items = raw.split(/\n+/).map(line => {
+      const [employeeId, value] = line.split(',');
+      return {
+        employeeId: employeeId?.trim(),
+        processedAmount: Number(String(value || '0').replace(',', '.'))
+      };
+    }).filter(x => x.employeeId);
+
+    const res = await api.registerBenefitOperatorReturn(batch.id, {
+      items,
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification(res.divergences ? `⚠️ Retorno processado com ${res.divergences} divergência(s). Verifique os valores.` : '✅ Retorno da operadora conferido sem divergências.');
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha ao processar retorno.'}`);
+    }
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const confirmBenefitCredit = async (batch: any) => {
+    const res = await api.confirmBenefitCredit(batch.id, {
+      userName: currentUser?.fullName,
+      userRole: currentUser?.roleTitle
+    });
+    if (res?.success) {
+      setNotification('✅ Crédito / disponibilização aos colaboradores confirmado pelo RH.');
+      loadData();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Falha na confirmação de crédito.'}`);
     }
     setTimeout(() => setNotification(null), 5000);
   };
@@ -1048,6 +1158,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
               <div className="flex flex-wrap gap-2">
                 {([
                   ['COLABORADORES', 'Colaboradores'],
+                  ['CONFERENCIA', 'Conferência'],
                   ['FECHAMENTO', 'Fechamento'],
                   ['PEDIDOS', 'Pedidos de compra'],
                   ['OPERADORAS', 'Operadoras'],
@@ -1170,6 +1281,161 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                             </tr>
                           );
                         })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-ABA: CONFERENCIA */}
+          {benefitSection === 'CONFERENCIA' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Conferência da competência</h3>
+                    <p className="text-xs text-slate-500">
+                      Pendências críticas bloqueiam o fechamento. Itens sem divergência precisam ser conferidos pelo RH.
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-slate-500">Competência</label>
+                      <input
+                        type="month"
+                        value={benefitPeriod}
+                        onChange={e => {
+                          setBenefitPeriod(e.target.value);
+                          setBenefitConference(null);
+                        }}
+                        className="mt-1 block rounded-lg border border-slate-200 p-2 text-xs font-medium text-slate-800"
+                      />
+                    </div>
+                    <button
+                      onClick={refreshBenefitConference}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      Atualizar conferência
+                    </button>
+                    <button
+                      onClick={confirmClearBenefits}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
+                    >
+                      Conferir itens sem divergência
+                    </button>
+                  </div>
+                </div>
+
+                {benefitConference && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-5">
+                    {[
+                      ['Total', benefitConference.summary?.total],
+                      ['Conferidos', benefitConference.summary?.conferidos],
+                      ['Pendentes', benefitConference.summary?.pendentes],
+                      ['Críticos', benefitConference.summary?.criticos],
+                      ['Atenções', benefitConference.summary?.atencoes]
+                    ].map(([label, value]: any) => (
+                      <div
+                        key={label}
+                        className={`rounded-lg p-3 ${
+                          label === 'Críticos' && Number(value) > 0
+                            ? 'bg-rose-50 border border-rose-200'
+                            : label === 'Conferidos'
+                            ? 'bg-emerald-50 border border-emerald-200'
+                            : 'bg-slate-50 border border-slate-200'
+                        }`}
+                      >
+                        <div className="text-[10px] font-bold uppercase text-slate-500">{label}</div>
+                        <div className="mt-1 text-xl font-black text-slate-900">{value || 0}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Colaborador</th>
+                      <th className="py-3 px-2">Benefício</th>
+                      <th className="py-3 px-2">Operadora</th>
+                      <th className="py-3 px-2 text-center">Dias</th>
+                      <th className="py-3 px-2 text-right">Valor final</th>
+                      <th className="py-3 px-2">Pendência</th>
+                      <th className="py-3 px-2 text-center">Status</th>
+                      <th className="py-3 px-3 text-center">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(benefitConference?.items || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-slate-400">
+                          Nenhum dado de conferência carregado. Selecione a competência e clique em &quot;Atualizar conferência&quot;.
+                        </td>
+                      </tr>
+                    ) : (
+                      (benefitConference?.items || []).map((i: any, idx: number) => {
+                        const c = i.conference || {};
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-3">
+                              <div className="font-bold text-slate-900">{i.full_name}</div>
+                              <div className="text-[10px] text-slate-400">{i.department}</div>
+                            </td>
+                            <td className="py-3 px-2 text-slate-700">
+                              {i.benefit_type === 'COMBUSTIVEL' ? 'Combustível' : i.benefit_type}
+                            </td>
+                            <td className="py-3 px-2">
+                              {i.provider_name ? (
+                                <span className="font-medium text-slate-900">{i.provider_name}</span>
+                              ) : (
+                                <span className="font-bold text-rose-600">Não definida</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-2 text-center font-bold text-slate-700">
+                              {i.eligible_days}/{i.business_days}
+                            </td>
+                            <td className="py-3 px-2 text-right font-black text-slate-900">
+                              {Number(i.calculated_company_cost || 0).toLocaleString('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL'
+                              })}
+                            </td>
+                            <td className="py-3 px-2">
+                              {c.issue_level === 'CRITICO' ? (
+                                <span className="rounded bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 border border-rose-200">
+                                  {c.issue_message}
+                                </span>
+                              ) : c.issue_level === 'ATENCAO' ? (
+                                <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-200">
+                                  {c.issue_message}
+                                </span>
+                              ) : (
+                                <span className="rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 border border-emerald-200">
+                                  Sem divergência
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <StatusBadge status={c.status || 'PENDENTE'} />
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              {c.issue_level !== 'CRITICO' && c.status !== 'CONFERIDO' ? (
+                                <button
+                                  onClick={() => reviewBenefitItem(i)}
+                                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                >
+                                  Conferir
+                                </button>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1377,7 +1643,7 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                         <th className="py-3 px-2 text-center">Colaboradores</th>
                         <th className="py-3 px-2 text-right">Valor Total</th>
                         <th className="py-3 px-2 text-center">Status</th>
-                        <th className="py-3 px-3 text-center">Financeiro</th>
+                        <th className="py-3 px-3 text-center">Ações / Operação</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1403,18 +1669,41 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                               <StatusBadge status={p.status} />
                             </td>
                             <td className="py-3 px-3 text-center">
-                              {p.financial_record_id ? (
-                                <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                  {p.financial_record_id}
-                                </span>
-                              ) : (
+                              <div className="flex flex-wrap items-center justify-center gap-1.5">
                                 <button
-                                  onClick={() => handleSendBenefitPurchase(p)}
-                                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
+                                  onClick={() => downloadOperatorFile(p)}
+                                  className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                                  title="Baixar arquivo nominal para envio à operadora"
                                 >
-                                  Enviar ao Financeiro
+                                  Arquivo operadora
                                 </button>
-                              )}
+                                {p.financial_record_id ? (
+                                  <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                    {p.financial_record_id}
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleSendBenefitPurchase(p)}
+                                    className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
+                                  >
+                                    Financeiro
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => registerOperatorReturn(p)}
+                                  className="rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+                                  title="Importar/registrar retorno de processamento da operadora"
+                                >
+                                  Retorno
+                                </button>
+                                <button
+                                  onClick={() => confirmBenefitCredit(p)}
+                                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                  title="Confirmar disponibilização do crédito aos colaboradores"
+                                >
+                                  Confirmar crédito
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -1440,12 +1729,13 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                       <th className="py-3 px-2 text-right">Combustível</th>
                       <th className="py-3 px-2 text-right">Total Empresa</th>
                       <th className="py-3 px-2 text-center">Status</th>
+                      <th className="py-3 px-3 text-center">Ação</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {benefitOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="p-6 text-center text-slate-400">
+                        <td colSpan={9} className="p-6 text-center text-slate-400">
                           Nenhum fechamento realizado.
                         </td>
                       </tr>
@@ -1460,6 +1750,23 @@ export const HRModule: React.FC<{ initialTab?: 'dashboard' | 'employees' | 'payr
                           <td className="py-3 px-2 text-right text-slate-700">{Number(o.fuel_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                           <td className="py-3 px-2 text-right font-black text-slate-900">{Number(o.total_amount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                           <td className="py-3 px-2 text-center"><StatusBadge status={o.status} /></td>
+                          <td className="py-3 px-3 text-center">
+                            {o.status === 'AGUARDANDO_APROVACAO' ? (
+                              <button
+                                onClick={() => approveBenefitOrder(o)}
+                                className="rounded-lg bg-blue-700 px-3 py-1 text-xs font-bold text-white hover:bg-blue-800 transition-colors shadow-xs cursor-pointer"
+                              >
+                                Aprovar fechamento
+                              </button>
+                            ) : o.approved_at ? (
+                              <div className="text-[10px] text-slate-500">
+                                <span className="font-bold text-slate-700">{o.approved_by || 'RH'}</span>
+                                <div>{String(o.approved_at).slice(0, 16).replace('T', ' ')}</div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}

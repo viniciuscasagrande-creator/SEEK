@@ -597,6 +597,120 @@ function calculateBenefitRows(period: string) {
   });
 }
 
+function rebuildBenefitConference(period: string) {
+  const rows = calculateBenefitRows(period) as any[];
+  const activeProviders = db.prepare(`SELECT name, benefit_type FROM benefit_providers WHERE active = 1`).all() as any[];
+  const providerKeys = new Set(activeProviders.map(p => `${String(p.benefit_type).toUpperCase()}::${String(p.name).trim().toLowerCase()}`));
+  const upsert = db.prepare(`
+    INSERT INTO benefit_conferences (id, period, employee_id, benefit_type, status, issue_level, issue_code, issue_message, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(period, employee_id, benefit_type) DO UPDATE SET
+      issue_level = excluded.issue_level,
+      issue_code = excluded.issue_code,
+      issue_message = excluded.issue_message,
+      updated_at = CURRENT_TIMESTAMP,
+      status = CASE WHEN benefit_conferences.status = 'CONFERIDO' AND excluded.issue_level = 'OK' THEN 'CONFERIDO' ELSE 'PENDENTE' END
+  `);
+
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      let level = 'OK', code: string | null = null, message: string | null = null;
+      const provider = String(r.provider_name || '').trim();
+      if (!provider) {
+        level = 'CRITICO';
+        code = 'SEM_OPERADORA';
+        message = 'Benefício sem operadora/fornecedor definido.';
+      } else if (!providerKeys.has(`${String(r.benefit_type).toUpperCase()}::${provider.toLowerCase()}`)) {
+        level = 'CRITICO';
+        code = 'OPERADORA_NAO_CADASTRADA';
+        message = 'Operadora não cadastrada ou inativa para este benefício.';
+      } else if (Number(r.calculated_company_cost || 0) <= 0 && Number(r.eligible_days || 0) > 0) {
+        level = 'CRITICO';
+        code = 'VALOR_INVALIDO';
+        message = 'Valor final da empresa está zerado ou inválido.';
+      } else if (Number(r.eligible_days || 0) <= 0) {
+        level = 'ATENCAO';
+        code = 'SEM_DIAS_ELEGIVEIS';
+        message = 'Colaborador sem dias úteis elegíveis nesta competência.';
+      }
+      upsert.run(
+        `bc-${period}-${r.employee_id}-${r.benefit_type}`,
+        period,
+        r.employee_id,
+        r.benefit_type,
+        level === 'CRITICO' ? 'PENDENTE' : 'PENDENTE',
+        level,
+        code,
+        message
+      );
+    }
+  });
+  tx();
+  return rows;
+}
+
+hrRouter.get('/benefits/conference', (req: Request, res: Response) => {
+  try {
+    const period = String(req.query.period || '');
+    if (!/^\d{4}-\d{2}$/.test(period)) return res.status(400).json({ error: 'Competência inválida.' });
+    const rows = rebuildBenefitConference(period);
+    const conferences = db.prepare(`
+      SELECT c.*, e.full_name employee_name, e.registration_number, e.department
+      FROM benefit_conferences c
+      JOIN employees e ON e.id = c.employee_id
+      WHERE c.period = ?
+      ORDER BY CASE c.issue_level WHEN 'CRITICO' THEN 0 WHEN 'ATENCAO' THEN 1 ELSE 2 END, e.full_name, c.benefit_type
+    `).all(period) as any[];
+    const byKey = new Map(conferences.map(c => [`${c.employee_id}::${c.benefit_type}`, c]));
+    const items = rows.map((r: any) => ({ ...r, conference: byKey.get(`${r.employee_id}::${r.benefit_type}`) }));
+    const summary = {
+      total: conferences.length,
+      conferidos: conferences.filter(c => c.status === 'CONFERIDO').length,
+      pendentes: conferences.filter(c => c.status === 'PENDENTE').length,
+      criticos: conferences.filter(c => c.issue_level === 'CRITICO').length,
+      atencoes: conferences.filter(c => c.issue_level === 'ATENCAO').length
+    };
+    return res.json({ period, summary, items });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/conference/review', (req: Request, res: Response) => {
+  try {
+    const { period, employeeId, benefitType, status, notes, userName, userRole } = req.body;
+    if (!/^\d{4}-\d{2}$/.test(String(period || '')) || !employeeId || !BENEFIT_TYPES.includes(benefitType) || !['CONFERIDO', 'PENDENTE'].includes(status)) {
+      return res.status(400).json({ error: 'Dados de conferência inválidos.' });
+    }
+    rebuildBenefitConference(period);
+    const row = db.prepare(`SELECT * FROM benefit_conferences WHERE period = ? AND employee_id = ? AND benefit_type = ?`).get(period, employeeId, benefitType) as any;
+    if (!row) return res.status(404).json({ error: 'Item de conferência não encontrado.' });
+    if (status === 'CONFERIDO' && row.issue_level === 'CRITICO') {
+      return res.status(422).json({ error: 'Corrija a divergência crítica antes de marcar como conferido.' });
+    }
+    db.prepare(`UPDATE benefit_conferences SET status = ?, notes = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(status, notes || null, userName || 'RH', row.id);
+    logAudit(userName || 'Recursos Humanos', userRole || 'RH', 'REVIEW', 'RH & Benefícios', `Conferência ${period}`, `${benefitType} de ${employeeId}: ${status}.`, req.ip || '127.0.0.1');
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/conference/:period/confirm-clear', (req: Request, res: Response) => {
+  try {
+    const period = String(req.params.period || '');
+    rebuildBenefitConference(period);
+    const result = db.prepare(`
+      UPDATE benefit_conferences
+      SET status = 'CONFERIDO', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE period = ? AND issue_level <> 'CRITICO'
+    `).run(req.body.userName || 'RH', period);
+    return res.json({ success: true, updated: result.changes });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 hrRouter.get('/benefits', (_req: Request, res: Response) => {
   try {
     const employees = db.prepare(`SELECT id, registration_number, full_name, department, job_title, active FROM employees WHERE active = 1 ORDER BY full_name`).all() as any[];
@@ -856,8 +970,13 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
     const exists = db.prepare(`SELECT id FROM benefit_orders WHERE company_id = ? AND period = ?`).get(companyId, period) as any;
     if (exists) return res.status(409).json({ error: 'Já existe fechamento de benefícios para esta competência.' });
 
-    const rows = calculateBenefitRows(period);
+    const rows = rebuildBenefitConference(period);
     if (!rows.length) return res.status(422).json({ error: 'Nenhum benefício ativo configurado.' });
+
+    const critical = (db.prepare(`SELECT COUNT(*) count FROM benefit_conferences WHERE period = ? AND issue_level = 'CRITICO'`).get(period) as any)?.count || 0;
+    const pending = (db.prepare(`SELECT COUNT(*) count FROM benefit_conferences WHERE period = ? AND status <> 'CONFERIDO'`).get(period) as any)?.count || 0;
+    if (critical > 0) return res.status(422).json({ error: `Existem ${critical} divergência(s) crítica(s). Corrija antes de fechar.` });
+    if (pending > 0) return res.status(422).json({ error: `Existem ${pending} item(ns) ainda não conferidos.` });
 
     const sums: any = { VT: 0, VA: 0, VR: 0, COMBUSTIVEL: 0 };
     rows.forEach(r => {
@@ -871,7 +990,7 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
     const tx = db.transaction(() => {
       db.prepare(`
         INSERT INTO benefit_orders (id, company_id, period, due_date, status, employee_count, vt_total, va_total, vr_total, fuel_total, total_amount, created_by)
-        VALUES (?, ?, ?, ?, 'FECHADO', ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, 'AGUARDANDO_APROVACAO', ?, ?, ?, ?, ?, ?, ?)
       `).run(id, companyId, period, dueDate, new Set(rows.map(r => r.employee_id)).size, sums.VT, sums.VA, sums.VR, sums.COMBUSTIVEL, total, operator);
 
       const ins = db.prepare(`
@@ -907,6 +1026,8 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
         );
       });
 
+      db.prepare(`UPDATE benefit_conferences SET status = 'CONFERIDO', reviewed_by = COALESCE(reviewed_by, ?), reviewed_at = COALESCE(reviewed_at, CURRENT_TIMESTAMP) WHERE period = ?`).run(operator, period);
+
       // Cria pedidos de compra agrupados por benefício e operadora
       const grouped = new Map<string, { provider: string; type: string; employees: Set<string>; total: number }>();
       rows.forEach((r: any) => {
@@ -935,6 +1056,35 @@ hrRouter.post('/benefits/orders', (req: Request, res: Response) => {
   }
 });
 
+hrRouter.post('/benefits/orders/:id/approve', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const order = db.prepare(`SELECT * FROM benefit_orders WHERE id = ?`).get(req.params.id) as any;
+    if (!order) return res.status(404).json({ error: 'Fechamento não encontrado.' });
+    if (!['AGUARDANDO_APROVACAO', 'FECHADO'].includes(order.status)) {
+      return res.status(409).json({ error: 'Este fechamento não está aguardando aprovação.' });
+    }
+    const critical = (db.prepare(`SELECT COUNT(*) count FROM benefit_conferences WHERE period = ? AND issue_level = 'CRITICO'`).get(order.period) as any)?.count || 0;
+    const pending = (db.prepare(`SELECT COUNT(*) count FROM benefit_conferences WHERE period = ? AND status <> 'CONFERIDO'`).get(order.period) as any)?.count || 0;
+    if (critical || pending) {
+      return res.status(422).json({ error: 'Existem pendências de conferência. O fechamento não pode ser aprovado.' });
+    }
+    const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
+
+    db.prepare(`
+      UPDATE benefit_orders
+      SET status = 'APROVADO', approved_by = ?, approved_at = CURRENT_TIMESTAMP, locked_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(operator, order.id);
+
+    logAudit(operator, role, 'APPROVE', 'RH & Benefícios', `Benefícios ${order.period}`, 'Fechamento conferido, aprovado e bloqueado para compra.', req.ip || '127.0.0.1', authReq.correlationId);
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 hrRouter.get('/benefits/purchases', (req: Request, res: Response) => {
   try {
     const orderId = String(req.query.orderId || '');
@@ -955,6 +1105,11 @@ hrRouter.post('/benefits/purchases/:id/send-finance', (req: Request, res: Respon
     if (batch.financial_record_id) return res.status(409).json({ error: 'Este pedido já foi enviado ao Financeiro.' });
     if (batch.provider_name === 'Operadora não definida') return res.status(422).json({ error: 'Defina a operadora/fornecedor nos colaboradores antes de enviar este pedido.' });
 
+    const parentOrder = db.prepare(`SELECT status FROM benefit_orders WHERE id = ?`).get(batch.order_id) as any;
+    if (!parentOrder || !['APROVADO', 'EM_COMPRA', 'FECHADO'].includes(parentOrder.status)) {
+      return res.status(422).json({ error: 'A competência precisa estar aprovada pelo RH antes do envio ao Financeiro.' });
+    }
+
     const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
     const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
     const label = batch.benefit_type === 'COMBUSTIVEL' ? 'Auxílio Combustível' : batch.benefit_type;
@@ -974,7 +1129,7 @@ hrRouter.post('/benefits/purchases/:id/send-finance', (req: Request, res: Respon
     }, authReq.user, req.ip || '127.0.0.1');
 
     db.prepare(`UPDATE benefit_purchase_batches SET status = 'ENVIADO_FINANCEIRO', financial_record_id = ?, sent_at = CURRENT_TIMESTAMP WHERE id = ?`).run(record.id, batch.id);
-    db.prepare(`UPDATE benefit_orders SET status = 'EM_COMPRA' WHERE id = ? AND status = 'FECHADO'`).run(batch.order_id);
+    db.prepare(`UPDATE benefit_orders SET status = 'EM_COMPRA' WHERE id = ? AND status IN ('APROVADO', 'FECHADO')`).run(batch.order_id);
 
     createCorporateNotification({
       title: 'Compra de benefício enviada ao Financeiro',
@@ -987,6 +1142,120 @@ hrRouter.post('/benefits/purchases/:id/send-finance', (req: Request, res: Respon
     return res.status(500).json({ error: error.message });
   }
 });
+
+hrRouter.get('/benefits/purchases/:id/operator-file', (req: Request, res: Response) => {
+  try {
+    const batch = db.prepare(`SELECT p.*, o.period FROM benefit_purchase_batches p JOIN benefit_orders o ON o.id = p.order_id WHERE p.id = ?`).get(req.params.id) as any;
+    if (!batch) return res.status(404).json({ error: 'Pedido não encontrado.' });
+    const items = db.prepare(`
+      SELECT i.employee_id, i.employee_name, i.department, i.benefit_type, i.provider_name, i.final_company_cost, i.eligible_days, i.business_days
+      FROM benefit_order_items i
+      WHERE i.order_id = ? AND i.benefit_type = ? AND COALESCE(NULLIF(TRIM(i.provider_name), ''), 'Operadora não definida') = ?
+      ORDER BY i.employee_name
+    `).all(batch.order_id, batch.benefit_type, batch.provider_name) as any[];
+
+    const header = ['Matrícula/ID', 'Colaborador', 'Departamento', 'Benefício', 'Operadora', 'Dias elegíveis', 'Dias úteis', 'Valor'];
+    const escape = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [
+      header.map(escape).join(';'),
+      ...items.map(i => [
+        i.employee_id,
+        i.employee_name,
+        i.department,
+        i.benefit_type,
+        i.provider_name,
+        i.eligible_days,
+        i.business_days,
+        Number(i.final_company_cost || 0).toFixed(2).replace('.', ',')
+      ].map(escape).join(';'))
+    ].join('\n');
+
+    const fileName = `beneficios_${batch.period}_${batch.benefit_type}_${String(batch.provider_name).replace(/[^a-zA-Z0-9]+/g, '_')}.csv`;
+    db.prepare(`
+      INSERT INTO benefit_operator_files (id, batch_id, file_type, file_name, row_count, total_amount, generated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(`bof-${Date.now()}`, batch.id, 'ENVIO', fileName, items.length, batch.total_amount, String(req.query.userName || 'RH'));
+
+    db.prepare(`UPDATE benefit_purchase_batches SET operator_file_name = ?, operator_sent_at = CURRENT_TIMESTAMP WHERE id = ?`).run(fileName, batch.id);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.send('\ufeff' + csv);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/purchases/:id/operator-return', (req: Request, res: Response) => {
+  try {
+    const batch = db.prepare(`SELECT * FROM benefit_purchase_batches WHERE id = ?`).get(req.params.id) as any;
+    if (!batch) return res.status(404).json({ error: 'Pedido não encontrado.' });
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!items.length) return res.status(400).json({ error: 'Informe os valores processados pela operadora.' });
+
+    const update = db.prepare(`
+      UPDATE benefit_order_items
+      SET operator_processed_amount = ?, divergence_amount = ?, divergence_reason = ?, credit_status = CASE WHEN ABS(?) < 0.01 THEN 'AGUARDANDO_CREDITO' ELSE 'DIVERGENCIA' END
+      WHERE order_id = ? AND employee_id = ? AND benefit_type = ?
+    `);
+
+    let divergences = 0;
+    const tx = db.transaction(() => {
+      for (const it of items) {
+        const row = db.prepare(`SELECT * FROM benefit_order_items WHERE order_id = ? AND employee_id = ? AND benefit_type = ?`).get(batch.order_id, it.employeeId, batch.benefit_type) as any;
+        if (!row) continue;
+        const processed = Number(it.processedAmount || 0);
+        const diff = Number((processed - Number(row.final_company_cost || 0)).toFixed(2));
+        if (Math.abs(diff) >= 0.01) divergences++;
+        update.run(
+          processed,
+          diff,
+          Math.abs(diff) >= 0.01 ? (it.reason || 'Valor retornado pela operadora difere do solicitado.') : null,
+          diff,
+          batch.order_id,
+          it.employeeId,
+          batch.benefit_type
+        );
+      }
+    });
+    tx();
+
+    db.prepare(`UPDATE benefit_purchase_batches SET status = ?, operator_returned_at = CURRENT_TIMESTAMP WHERE id = ?`).run(divergences ? 'DIVERGENCIA' : 'PROCESSADO_OPERADORA', batch.id);
+    return res.json({ success: true, divergences });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+hrRouter.post('/benefits/purchases/:id/confirm-credit', (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const batch = db.prepare(`SELECT * FROM benefit_purchase_batches WHERE id = ?`).get(req.params.id) as any;
+    if (!batch) return res.status(404).json({ error: 'Pedido não encontrado.' });
+    const divergences = (db.prepare(`SELECT COUNT(*) count FROM benefit_order_items WHERE order_id = ? AND benefit_type = ? AND credit_status = 'DIVERGENCIA'`).get(batch.order_id, batch.benefit_type) as any)?.count || 0;
+    if (divergences > 0) return res.status(422).json({ error: 'Existem divergências no retorno da operadora. Resolva antes de confirmar o crédito.' });
+
+    const operator = authReq.user?.fullName || req.body.userName || 'Recursos Humanos';
+    const role = authReq.user?.roleTitle || req.body.userRole || 'RH';
+
+    db.prepare(`
+      UPDATE benefit_order_items
+      SET credit_status = 'CREDITADO', credit_confirmed_at = CURRENT_TIMESTAMP
+      WHERE order_id = ? AND benefit_type = ? AND COALESCE(provider_name, '') = ?
+    `).run(batch.order_id, batch.benefit_type, batch.provider_name);
+
+    db.prepare(`UPDATE benefit_purchase_batches SET status = 'CREDITADO', credit_confirmed_at = CURRENT_TIMESTAMP WHERE id = ?`).run(batch.id);
+
+    const pending = (db.prepare(`SELECT COUNT(*) count FROM benefit_purchase_batches WHERE order_id = ? AND status <> 'CREDITADO'`).get(batch.order_id) as any)?.count || 0;
+    if (pending === 0) db.prepare(`UPDATE benefit_orders SET status = 'CONCLUIDO' WHERE id = ?`).run(batch.order_id);
+
+    logAudit(operator, role, 'CONFIRM', 'RH & Benefícios', `Crédito ${batch.benefit_type}`, 'Crédito dos benefícios confirmado pelo RH.', req.ip || '127.0.0.1', authReq.correlationId);
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 
 hrRouter.post('/benefits/orders/:id/send-finance', (req: Request, res: Response) => {
   try {

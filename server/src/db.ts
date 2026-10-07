@@ -1454,6 +1454,69 @@ export function initializeDatabase() {
     }
   } catch {}
 
+  // Migração 015: RH Benefícios Fase 4 (Conferência, divergências, arquivos de operadora e crédito)
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_conferences (
+      id TEXT PRIMARY KEY,
+      period TEXT NOT NULL,
+      employee_id TEXT NOT NULL REFERENCES employees(id),
+      benefit_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDENTE',
+      issue_level TEXT NOT NULL DEFAULT 'OK',
+      issue_code TEXT,
+      issue_message TEXT,
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(period, employee_id, benefit_type)
+    )`);
+  } catch {}
+
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS benefit_operator_files (
+      id TEXT PRIMARY KEY,
+      batch_id TEXT NOT NULL REFERENCES benefit_purchase_batches(id) ON DELETE CASCADE,
+      file_type TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      row_count INTEGER NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL DEFAULT 0,
+      generated_by TEXT,
+      generated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      imported_at TEXT,
+      notes TEXT
+    )`);
+  } catch {}
+
+  try {
+    const boCols = new Set((db.prepare(`PRAGMA table_info(benefit_orders)`).all() as any[]).map(c => c.name));
+    if (!boCols.has('approved_by')) db.exec(`ALTER TABLE benefit_orders ADD COLUMN approved_by TEXT`);
+    if (!boCols.has('approved_at')) db.exec(`ALTER TABLE benefit_orders ADD COLUMN approved_at TEXT`);
+    if (!boCols.has('locked_at')) db.exec(`ALTER TABLE benefit_orders ADD COLUMN locked_at TEXT`);
+  } catch {}
+
+  try {
+    const boiCols = new Set((db.prepare(`PRAGMA table_info(benefit_order_items)`).all() as any[]).map(c => c.name));
+    if (!boiCols.has('conference_status')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN conference_status TEXT NOT NULL DEFAULT 'PENDENTE'`);
+    if (!boiCols.has('operator_processed_amount')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN operator_processed_amount REAL`);
+    if (!boiCols.has('divergence_amount')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN divergence_amount REAL NOT NULL DEFAULT 0`);
+    if (!boiCols.has('divergence_reason')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN divergence_reason TEXT`);
+    if (!boiCols.has('credit_status')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN credit_status TEXT NOT NULL DEFAULT 'PENDENTE'`);
+    if (!boiCols.has('credit_confirmed_at')) db.exec(`ALTER TABLE benefit_order_items ADD COLUMN credit_confirmed_at TEXT`);
+  } catch {}
+
+  try {
+    const bpbCols = new Set((db.prepare(`PRAGMA table_info(benefit_purchase_batches)`).all() as any[]).map(c => c.name));
+    if (!bpbCols.has('operator_file_name')) db.exec(`ALTER TABLE benefit_purchase_batches ADD COLUMN operator_file_name TEXT`);
+    if (!bpbCols.has('operator_sent_at')) db.exec(`ALTER TABLE benefit_purchase_batches ADD COLUMN operator_sent_at TEXT`);
+    if (!bpbCols.has('operator_returned_at')) db.exec(`ALTER TABLE benefit_purchase_batches ADD COLUMN operator_returned_at TEXT`);
+    if (!bpbCols.has('credit_confirmed_at')) db.exec(`ALTER TABLE benefit_purchase_batches ADD COLUMN credit_confirmed_at TEXT`);
+  } catch {}
+
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_conferences_period ON benefit_conferences(period, status, issue_level)`); } catch {}
+  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_benefit_operator_files_batch ON benefit_operator_files(batch_id, file_type)`); } catch {}
+
   // Parâmetros oficiais de acesso e ambiente
   try {
     db.prepare(`
