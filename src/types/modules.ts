@@ -110,4 +110,28 @@ export interface ContractRecord {
   daysRemaining: number;
   readjustmentIndex: 'IPCA' | 'IGP-M' | 'FIXO';
   status: 'VIGENTE' | 'VENCENDO' | 'RESCINDIDO' | 'RENOVADO';
+  costCenter?: string;
+  paymentDay?: number;
+  recurrence?: 'MENSAL' | 'TRIMESTRAL' | 'ANUAL';
+  financialEnabled?: boolean;
+  nextDueDate?: string | null;
+  pendingObligations?: number;
+  pendingAmount?: number;
 }
+
+export interface ContractObligation {
+  id: string;
+  contract_id: string;
+  competence: string;
+  due_date: string;
+  amount: number;
+  financial_record_id?: string | null;
+  status: 'GERADA' | 'PAGO' | 'PAGA' | 'CANCELADA';
+  created_at?: string;
+  paid_at?: string | null;
+  contract_number?: string;
+  party_name?: string;
+  financial_code?: string;
+  financial_status?: string;
+}
+

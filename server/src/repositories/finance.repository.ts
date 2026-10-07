@@ -142,9 +142,19 @@ export class FinanceRepository {
     }
     if (filters.originType && filters.originType !== 'ALL') {
       if (filters.originType === 'RH') {
-        sql += " AND (origin_type = 'RH' OR origin_type = 'FOLHA_PAGAMENTO' OR origin_type = 'BENEFICIOS' OR origin_type = 'TAXA')";
+        sql += " AND (origin_type IN ('RH', 'FOLHA', 'FOLHA_PAGAMENTO', 'FERIAS', 'BENEFICIOS', 'TAXA'))";
+      } else if (filters.originType === 'FOLHA') {
+        sql += " AND (origin_type IN ('FOLHA', 'FOLHA_PAGAMENTO'))";
+      } else if (filters.originType === 'FERIAS') {
+        sql += " AND origin_type = 'FERIAS'";
       } else if (filters.originType === 'PO' || filters.originType === 'COMPRAS') {
-        sql += " AND (origin_type = 'PO' OR origin_type = 'COMPRAS' OR origin_type = 'COMPRAS_PEDIDO')";
+        sql += " AND (origin_type IN ('PO', 'COMPRAS', 'COMPRAS_PEDIDO'))";
+      } else if (filters.originType === 'FISCAL' || filters.originType === 'IMPOSTOS') {
+        sql += " AND (origin_type IN ('FISCAL', 'IMPOSTOS', 'TRIBUTO'))";
+      } else if (filters.originType === 'CONTRATO' || filters.originType === 'CONTRATOS') {
+        sql += " AND (origin_type IN ('CONTRATO', 'CONTRATOS'))";
+      } else if (filters.originType === 'AVULSO' || filters.originType === 'MANUAL') {
+        sql += " AND (origin_type IN ('AVULSO', 'MANUAL') OR origin_type IS NULL OR origin_type = '')";
       } else {
         sql += ' AND origin_type = ?';
         params.push(filters.originType);

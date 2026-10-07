@@ -11,6 +11,9 @@ export class AccountingService {
     if (existing) return existing;
     let debit = input.type === 'PAGAR' ? '4.02.01.002' : '1.01.02.001';
     let credit = input.type === 'PAGAR' ? '2.01.01.001' : '3.01.01.001';
+    if (input.type === 'PAGAR' && input.originType === 'CONTRATO') {
+      debit = '4.02.01.002'; credit = '2.01.01.001';
+    }
     if (input.type === 'PAGAR' && input.originType === 'FISCAL' && input.originId) {
       const tax = db.prepare('SELECT tax_type FROM tax_obligations WHERE id=? OR code=?').get(input.originId, input.originId) as { tax_type?: string } | undefined;
       const taxType = tax?.tax_type || '';

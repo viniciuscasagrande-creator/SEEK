@@ -1,15 +1,26 @@
 import { Router, Request, Response } from 'express';
-import { db, logAudit } from '../db.js';
+import { db, logAudit, createCorporateNotification } from '../db.js';
+import { financeService } from '../services/finance.service.js';
 
 export const contractsRouter = Router();
 
-// Lista todos os contratos com recálculo dinâmico de dias restantes
+function nextDueDate(paymentDay: number, fromDate = new Date()): string {
+  const y = fromDate.getFullYear();
+  const m = fromDate.getMonth();
+  let d = new Date(y, m, Math.min(Math.max(paymentDay, 1), 28));
+  if (d < new Date(fromDate.toDateString())) d = new Date(y, m + 1, Math.min(Math.max(paymentDay, 1), 28));
+  return d.toISOString().slice(0, 10);
+}
+
+function competenceFromDate(date: string) {
+  return date.slice(0, 7);
+}
+
 contractsRouter.get('/', (req: Request, res: Response) => {
   try {
     const { type, status } = req.query;
     let query = 'SELECT * FROM contracts WHERE 1=1';
     const params: any[] = [];
-
     if (type && type !== 'ALL') {
       query += ' AND type = ?';
       params.push(type);
@@ -18,22 +29,17 @@ contractsRouter.get('/', (req: Request, res: Response) => {
       query += ' AND status = ?';
       params.push(status);
     }
-
     query += ' ORDER BY end_date ASC';
     const rows = db.prepare(query).all(...params) as any[];
-
     const today = new Date();
     const contracts = rows.map(c => {
-      const end = new Date(c.end_date);
-      const diffTime = end.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      const daysRemaining = diffDays > 0 ? diffDays : 0;
+      const diffDays = Math.ceil((new Date(c.end_date).getTime() - today.getTime()) / 86400000);
+      const daysRemaining = Math.max(diffDays, 0);
       let calculatedStatus = c.status;
       if (c.status !== 'RESCINDIDO') {
-        if (daysRemaining <= 30) calculatedStatus = 'VENCENDO';
-        else calculatedStatus = 'VIGENTE';
+        calculatedStatus = daysRemaining <= 30 ? 'VENCENDO' : 'VIGENTE';
       }
-
+      const pending = db.prepare("SELECT COUNT(*) count, COALESCE(SUM(amount),0) amount FROM contract_obligations WHERE contract_id=? AND status!='PAGO'").get(c.id) as any;
       return {
         id: c.id,
         contractNumber: c.contract_number,
@@ -45,81 +51,85 @@ contractsRouter.get('/', (req: Request, res: Response) => {
         daysRemaining,
         readjustmentIndex: c.readjustment_index,
         status: calculatedStatus,
-        signedDate: c.signed_date
+        signedDate: c.signed_date,
+        costCenter: c.cost_center || 'Administrativo & Operações',
+        paymentDay: c.payment_day || 10,
+        recurrence: c.recurrence || 'MENSAL',
+        financialEnabled: Boolean(c.financial_enabled),
+        nextDueDate: c.next_due_date || null,
+        pendingObligations: pending?.count || 0,
+        pendingAmount: pending?.amount || 0
       };
     });
-
-    const totalMonthlyBilling = contracts.reduce((acc, c) => acc + c.monthlyValue, 0);
-
-    return res.json({
-      total: contracts.length,
-      totalMonthlyBilling,
-      contracts
-    });
+    return res.json({ total: contracts.length, totalMonthlyBilling: contracts.reduce((a, c) => a + c.monthlyValue, 0), contracts });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-// Alertas de vencimento para governança
 contractsRouter.get('/alerts', (_req: Request, res: Response) => {
   try {
-    const rows = db.prepare("SELECT * FROM contracts WHERE status != 'RESCINDIDO' ORDER BY end_date ASC").all() as any[];
+    const rows = db.prepare("SELECT * FROM contracts WHERE status!='RESCINDIDO' ORDER BY end_date ASC").all() as any[];
     const today = new Date();
-
-    const alerts30: any[] = [];
-    const alerts60: any[] = [];
-    const alerts90: any[] = [];
-
+    const a30: any[] = [];
+    const a60: any[] = [];
+    const a90: any[] = [];
     for (const c of rows) {
-      const diffDays = Math.ceil((new Date(c.end_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      const formatted = { ...c, daysRemaining: diffDays > 0 ? diffDays : 0 };
-      if (diffDays <= 30) alerts30.push(formatted);
-      else if (diffDays <= 60) alerts60.push(formatted);
-      else if (diffDays <= 90) alerts90.push(formatted);
+      const d = Math.ceil((new Date(c.end_date).getTime() - today.getTime()) / 86400000);
+      const f = { ...c, daysRemaining: Math.max(d, 0) };
+      if (d <= 30) a30.push(f);
+      else if (d <= 60) a60.push(f);
+      else if (d <= 90) a90.push(f);
     }
-
-    return res.json({
-      within30Days: alerts30,
-      within60Days: alerts60,
-      within90Days: alerts90,
-      totalAlerts: alerts30.length + alerts60.length + alerts90.length
-    });
+    return res.json({ within30Days: a30, within60Days: a60, within90Days: a90, totalAlerts: a30.length + a60.length + a90.length });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-// Cadastro de novo contrato corporativo
+contractsRouter.get('/obligations', (req: Request, res: Response) => {
+  try {
+    const contractId = req.query.contractId as string | undefined;
+    const rows = db.prepare(`SELECT o.*, c.contract_number, c.party_name, f.code financial_code, f.status financial_status
+      FROM contract_obligations o JOIN contracts c ON c.id=o.contract_id
+      LEFT JOIN financial_records f ON f.id=o.financial_record_id
+      ${contractId ? 'WHERE o.contract_id=?' : ''} ORDER BY o.due_date DESC`).all(...(contractId ? [contractId] : []));
+    return res.json({ obligations: rows });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 contractsRouter.post('/', (req: Request, res: Response) => {
   try {
-    const { partyName, type, monthlyValue, startDate, endDate, readjustmentIndex, userName, userRole } = req.body;
-
+    const { partyName, type, monthlyValue, startDate, endDate, readjustmentIndex, costCenter, paymentDay, recurrence, financialEnabled, userName, userRole } = req.body;
     if (!partyName || !monthlyValue || !startDate || !endDate) {
       return res.status(400).json({ error: 'Campos obrigatórios: partyName, monthlyValue, startDate, endDate.' });
     }
-
     const id = `ct-${Date.now()}`;
     const contractNumber = `CT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     const parsedValue = parseFloat(monthlyValue);
     const index = readjustmentIndex || 'IPCA';
     const contractType = type || 'CLIENTE';
+    const pday = Math.min(Math.max(parseInt(paymentDay) || 10, 1), 28);
+    const enabled = Boolean(financialEnabled) && contractType !== 'CLIENTE';
+    const due = enabled ? nextDueDate(pday, new Date(startDate)) : null;
+    const diffDays = Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
 
-    const diffDays = Math.ceil((new Date(endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-
-    db.prepare(`
-      INSERT INTO contracts (id, contract_number, party_name, type, monthly_value, start_date, end_date, days_remaining, readjustment_index, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'VIGENTE')
-    `).run(id, contractNumber, partyName, contractType, parsedValue, startDate, endDate, diffDays > 0 ? diffDays : 0, index);
+    db.prepare(`INSERT INTO contracts (id,contract_number,party_name,type,monthly_value,start_date,end_date,days_remaining,readjustment_index,status,cost_center,payment_day,recurrence,financial_enabled,next_due_date)
+      VALUES(?,?,?,?,?,?,?,?,?,'VIGENTE',?,?,?,?,?)`).run(
+      id, contractNumber, partyName, contractType, parsedValue, startDate, endDate,
+      Math.max(diffDays, 0), index, costCenter || 'Administrativo & Operações', pday, recurrence || 'MENSAL', enabled ? 1 : 0, due
+    );
 
     logAudit(
-      userName || 'Departamento Jurídico',
+      userName || 'Gestão de Contratos',
       userRole || 'Jurídico',
       'CREATE',
       'Contratos & Jurídico',
       `Contrato ${contractNumber}`,
-      `Cadastrado contrato com ${partyName} no valor mensal de R$ ${parsedValue.toFixed(2)} (Índice: ${index})`,
-      req.ip || '189.44.120.10'
+      `Contrato com ${partyName}; R$ ${parsedValue.toFixed(2)}/mês; financeiro recorrente ${enabled ? 'habilitado' : 'desabilitado'}.`,
+      req.ip || '127.0.0.1'
     );
 
     return res.status(201).json({
@@ -132,9 +142,14 @@ contractsRouter.post('/', (req: Request, res: Response) => {
         monthlyValue: parsedValue,
         startDate,
         endDate,
-        daysRemaining: diffDays,
+        daysRemaining: Math.max(diffDays, 0),
         readjustmentIndex: index,
-        status: 'VIGENTE'
+        status: 'VIGENTE',
+        costCenter: costCenter || 'Administrativo & Operações',
+        paymentDay: pday,
+        recurrence: recurrence || 'MENSAL',
+        financialEnabled: enabled,
+        nextDueDate: due
       }
     });
   } catch (error: any) {
@@ -142,90 +157,165 @@ contractsRouter.post('/', (req: Request, res: Response) => {
   }
 });
 
-// Aplicação de reajuste contratual (ex: IPCA 4.2%)
-contractsRouter.post('/:id/readjust', (req: Request, res: Response) => {
+contractsRouter.post('/:id/generate-obligation', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { percentage, indexName, userName, userRole } = req.body;
+    const c = db.prepare('SELECT * FROM contracts WHERE id=?').get(req.params.id) as any;
+    if (!c) return res.status(404).json({ error: 'Contrato não encontrado.' });
+    if (c.type === 'CLIENTE') return res.status(422).json({ error: 'Esta fase gera Contas a Pagar para contratos de fornecedor/prestador/locação.' });
+    if (!c.financial_enabled) return res.status(422).json({ error: 'Geração financeira recorrente não está habilitada neste contrato.' });
 
-    const contract = db.prepare('SELECT * FROM contracts WHERE id = ?').get(id) as any;
-    if (!contract) {
-      return res.status(404).json({ error: 'Contrato não encontrado.' });
-    }
+    const dueDate = req.body.dueDate || c.next_due_date || nextDueDate(c.payment_day || 10);
+    const competence = req.body.competence || competenceFromDate(dueDate);
+    const existing = db.prepare('SELECT * FROM contract_obligations WHERE contract_id=? AND competence=?').get(c.id, competence) as any;
+    if (existing) return res.status(409).json({ error: `Obrigação ${competence} já gerada para este contrato.`, obligation: existing });
 
-    const rate = parseFloat(percentage);
-    const oldValue = contract.monthly_value;
-    const newValue = oldValue * (1 + rate / 100);
+    const obligationId = `cob-${c.id}-${competence}`;
+    const operator = req.body.userName || 'Gestão de Contratos';
+    let record: any;
 
-    db.prepare(`
-      UPDATE contracts
-      SET monthly_value = ?, readjustment_index = ?
-      WHERE id = ?
-    `).run(newValue, indexName || contract.readjustment_index, id);
+    const tx = db.transaction(() => {
+      db.prepare(`INSERT INTO contract_obligations(id,contract_id,competence,due_date,amount,status) VALUES(?,?,?,?,?,'GERADA')`).run(
+        obligationId, c.id, competence, dueDate, c.monthly_value
+      );
+      record = financeService.createRecord({
+        type: 'PAGAR',
+        title: `Contrato ${c.contract_number} — ${competence}`,
+        entityName: c.party_name,
+        costCenter: c.cost_center || 'Administrativo & Operações',
+        category: 'Contratos recorrentes',
+        amount: c.monthly_value,
+        dueDate,
+        paymentMethod: 'PIX',
+        originType: 'CONTRATO',
+        originId: obligationId,
+        userName: operator,
+        userRole: req.body.userRole || 'Contratos'
+      }, undefined, req.ip || '127.0.0.1');
+
+      db.prepare('UPDATE contract_obligations SET financial_record_id=? WHERE id=?').run(record.id, obligationId);
+      const next = new Date(dueDate + 'T12:00:00');
+      next.setMonth(next.getMonth() + 1);
+      const nd = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(Math.min(c.payment_day || 10, 28)).padStart(2, '0')}`;
+      db.prepare('UPDATE contracts SET next_due_date=? WHERE id=?').run(nd, c.id);
+    });
+    tx();
 
     logAudit(
-      userName || 'Controladoria & Jurídico',
-      userRole || 'Jurídico',
-      'UPDATE',
+      operator,
+      req.body.userRole || 'Contratos',
+      'CREATE',
       'Contratos & Jurídico',
-      `Contrato ${contract.contract_number}`,
-      `Reajuste de ${rate.toFixed(2)}% (${indexName || contract.readjustment_index}) aplicado. De R$ ${oldValue.toFixed(2)} para R$ ${newValue.toFixed(2)}`,
-      req.ip || '189.44.120.10'
+      `Obrigação ${c.contract_number}/${competence}`,
+      `Obrigação recorrente enviada ao Financeiro: ${record.code}, R$ ${Number(c.monthly_value).toFixed(2)}, vencimento ${dueDate}.`,
+      req.ip || '127.0.0.1'
     );
 
-    return res.json({
+    createCorporateNotification({
+      title: 'Contrato gerou obrigação financeira',
+      message: `${c.contract_number} — ${c.party_name}: ${record.code} no valor de R$ ${Number(c.monthly_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, vencimento ${dueDate}.`,
+      type: 'FINANCE',
+      linkRoute: 'finance-payables'
+    });
+
+    return res.status(201).json({
       success: true,
-      contractNumber: contract.contract_number,
-      oldMonthlyValue: oldValue,
-      newMonthlyValue: newValue,
-      percentage: rate
+      obligation: db.prepare('SELECT * FROM contract_obligations WHERE id=?').get(obligationId),
+      financialRecord: record
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-// Renovação de contrato
-contractsRouter.post('/:id/renew', (req: Request, res: Response) => {
+contractsRouter.post('/generate-due/batch', (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const { months, userName, userRole } = req.body;
+    const today = (req.body.referenceDate || new Date().toISOString().slice(0, 10)) as string;
+    const contracts = db.prepare("SELECT * FROM contracts WHERE financial_enabled=1 AND status!='RESCINDIDO' AND next_due_date IS NOT NULL AND next_due_date<=?").all(today) as any[];
+    const generated: any[] = [];
+    const skipped: any[] = [];
 
-    const contract = db.prepare('SELECT * FROM contracts WHERE id = ?').get(id) as any;
-    if (!contract) {
-      return res.status(404).json({ error: 'Contrato não encontrado.' });
+    for (const c of contracts) {
+      const competence = competenceFromDate(c.next_due_date);
+      const exists = db.prepare('SELECT id FROM contract_obligations WHERE contract_id=? AND competence=?').get(c.id, competence);
+      if (exists) {
+        skipped.push(c.contract_number);
+        continue;
+      }
+      const oid = `cob-${c.id}-${competence}`;
+      db.prepare(`INSERT INTO contract_obligations(id,contract_id,competence,due_date,amount,status) VALUES(?,?,?,?,?,'GERADA')`).run(
+        oid, c.id, competence, c.next_due_date, c.monthly_value
+      );
+      const fr = financeService.createRecord({
+        type: 'PAGAR',
+        title: `Contrato ${c.contract_number} — ${competence}`,
+        entityName: c.party_name,
+        costCenter: c.cost_center || 'Administrativo & Operações',
+        category: 'Contratos recorrentes',
+        amount: c.monthly_value,
+        dueDate: c.next_due_date,
+        paymentMethod: 'PIX',
+        originType: 'CONTRATO',
+        originId: oid,
+        userName: req.body.userName || 'Job Contratos',
+        userRole: 'Sistema'
+      }, undefined, req.ip || '127.0.0.1');
+
+      db.prepare('UPDATE contract_obligations SET financial_record_id=? WHERE id=?').run(fr.id, oid);
+      const n = new Date(c.next_due_date + 'T12:00:00');
+      n.setMonth(n.getMonth() + 1);
+      const nd = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(Math.min(c.payment_day || 10, 28)).padStart(2, '0')}`;
+      db.prepare('UPDATE contracts SET next_due_date=? WHERE id=?').run(nd, c.id);
+      generated.push({ contract: c.contract_number, financialCode: fr.code, competence });
     }
+    return res.json({ success: true, generated, skipped });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 
-    const additionalMonths = parseInt(months) || 12;
-    const currentEnd = new Date(contract.end_date);
-    currentEnd.setMonth(currentEnd.getMonth() + additionalMonths);
-    const newEndDate = currentEnd.toISOString().substring(0, 10);
-
-    const diffDays = Math.ceil((currentEnd.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-
-    db.prepare(`
-      UPDATE contracts
-      SET end_date = ?, days_remaining = ?, status = 'VIGENTE'
-      WHERE id = ?
-    `).run(newEndDate, diffDays, id);
-
+contractsRouter.post('/:id/readjust', (req: Request, res: Response) => {
+  try {
+    const c = db.prepare('SELECT * FROM contracts WHERE id=?').get(req.params.id) as any;
+    if (!c) return res.status(404).json({ error: 'Contrato não encontrado.' });
+    const rate = parseFloat(req.body.percentage);
+    const oldValue = c.monthly_value;
+    const newValue = oldValue * (1 + rate / 100);
+    db.prepare('UPDATE contracts SET monthly_value=?,readjustment_index=? WHERE id=?').run(newValue, req.body.indexName || c.readjustment_index, c.id);
     logAudit(
-      userName || 'Gestão de Contratos',
-      userRole || 'Jurídico',
+      req.body.userName || 'Controladoria & Jurídico',
+      req.body.userRole || 'Jurídico',
       'UPDATE',
       'Contratos & Jurídico',
-      `Contrato ${contract.contract_number}`,
-      `Renovado por mais ${additionalMonths} meses. Novo vencimento: ${newEndDate}`,
-      req.ip || '189.44.120.10'
+      `Contrato ${c.contract_number}`,
+      `Reajuste de ${rate.toFixed(2)}%. De R$ ${oldValue.toFixed(2)} para R$ ${newValue.toFixed(2)}.`,
+      req.ip || '127.0.0.1'
     );
+    return res.json({ success: true, contractNumber: c.contract_number, oldMonthlyValue: oldValue, newMonthlyValue: newValue, percentage: rate });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 
-    return res.json({
-      success: true,
-      contractNumber: contract.contract_number,
-      newEndDate,
-      daysRemaining: diffDays,
-      status: 'VIGENTE'
-    });
+contractsRouter.post('/:id/renew', (req: Request, res: Response) => {
+  try {
+    const c = db.prepare('SELECT * FROM contracts WHERE id=?').get(req.params.id) as any;
+    if (!c) return res.status(404).json({ error: 'Contrato não encontrado.' });
+    const months = parseInt(req.body.months) || 12;
+    const end = new Date(c.end_date);
+    end.setMonth(end.getMonth() + months);
+    const newEndDate = end.toISOString().slice(0, 10);
+    const days = Math.ceil((end.getTime() - Date.now()) / 86400000);
+    db.prepare("UPDATE contracts SET end_date=?,days_remaining=?,status='VIGENTE' WHERE id=?").run(newEndDate, days, c.id);
+    logAudit(
+      req.body.userName || 'Gestão de Contratos',
+      req.body.userRole || 'Jurídico',
+      'UPDATE',
+      'Contratos & Jurídico',
+      `Contrato ${c.contract_number}`,
+      `Renovado por ${months} meses. Novo vencimento: ${newEndDate}.`,
+      req.ip || '127.0.0.1'
+    );
+    return res.json({ success: true, contractNumber: c.contract_number, newEndDate, daysRemaining: days, status: 'VIGENTE' });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

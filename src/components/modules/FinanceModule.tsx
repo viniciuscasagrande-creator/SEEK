@@ -535,18 +535,20 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="text-sm font-black text-slate-900">Fluxos integrados ao Financeiro</h3>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <h3 className="text-sm font-black text-slate-900">Origens Operacionais Integradas ao Financeiro</h3>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {[
-                  { label: 'RH • Folha & Encargos', desc: 'Líquidos CLT, GPS, GRF', action: () => { setFilterType('PAGAR'); setFilterOrigin('RH'); setActiveTab('lancamentos'); } },
-                  { label: 'Compras • Ordens & NFs', desc: 'Contratos e Suprimentos PO', action: () => { setFilterType('PAGAR'); setFilterOrigin('PO'); setActiveTab('lancamentos'); } },
-                  { label: 'Fiscal • Guias e Tributos', desc: 'Retenções e NFS-e apuradas', action: () => { setFilterType('PAGAR'); setFilterOrigin('FISCAL'); setActiveTab('lancamentos'); } },
-                  { label: 'Contratos • Recorrentes', desc: 'Recebimentos e SaaS SEEK', action: () => { setFilterType('RECEBER'); setActiveTab('lancamentos'); } }
+                  { label: 'RH • Folha CLT', desc: 'Salários e Encargos apurados', action: () => { setFilterType('PAGAR'); setFilterOrigin('FOLHA'); setActiveTab('lancamentos'); } },
+                  { label: 'RH • Férias', desc: 'Adiantamento e 1/3 Constitucional', action: () => { setFilterType('PAGAR'); setFilterOrigin('FERIAS'); setActiveTab('lancamentos'); } },
+                  { label: 'Compras • PO & NFs', desc: 'Recebimentos e Ordens faturadas', action: () => { setFilterType('PAGAR'); setFilterOrigin('COMPRAS'); setActiveTab('lancamentos'); } },
+                  { label: 'Fiscal • Guias Tributárias', desc: 'DARF, GPS, ISS, PIS/COFINS', action: () => { setFilterType('PAGAR'); setFilterOrigin('FISCAL'); setActiveTab('lancamentos'); } },
+                  { label: 'Contratos • Recorrentes', desc: 'Despesas contratuais mensais', action: () => { setFilterType('PAGAR'); setFilterOrigin('CONTRATO'); setActiveTab('lancamentos'); } },
+                  { label: 'Despesas Avulsas', desc: 'Lançamentos administrativos manuais', action: () => { setFilterType('PAGAR'); setFilterOrigin('AVULSO'); setActiveTab('lancamentos'); } }
                 ].map(x => (
                   <div
                     key={x.label}
                     onClick={x.action}
-                    className="rounded-lg bg-slate-50 p-3 text-xs border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer"
+                    className="rounded-lg bg-slate-50 p-2.5 text-xs border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer"
                   >
                     <div className="font-bold text-slate-800">{x.label}</div>
                     <div className="text-[11px] text-slate-500 mt-0.5">{x.desc}</div>
@@ -628,7 +630,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-900">Hub Central de Obrigações e Direitos</h3>
               <p className="text-xs text-slate-500">
-                Alimentado automaticamente por Compras (PO), RH (Taxas Freelancers), Fiscal (Tributos) e Contratos.
+                Alimentado automaticamente por Folha CLT, Férias, Compras (PO), Fiscal (Tributos) e Contratos.
               </p>
             </div>
 
@@ -648,7 +650,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               <select
                 value={filterType}
                 onChange={e => setFilterType(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden"
+                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden font-medium"
               >
                 <option value="ALL">Tipo: Todos</option>
                 <option value="PAGAR">Contas a Pagar</option>
@@ -658,23 +660,22 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               <select
                 value={filterOrigin}
                 onChange={e => setFilterOrigin(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden"
+                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden font-medium"
               >
                 <option value="ALL">Todas as Origens</option>
-                <option value="RH">Recursos Humanos (Folha / Benefícios / Taxas)</option>
-                <option value="PO">Compras (Pedidos / Fornecedores)</option>
-                <option value="FOLHA_PAGAMENTO">RH / Folha de Pagamento (CLT)</option>
-                <option value="BENEFICIOS">RH / Benefícios Corporativos (VT/VR/Caju)</option>
-                <option value="TAXA">RH / Taxas Freelancers</option>
+                <option value="FOLHA">Folha de Pagamento (CLT)</option>
+                <option value="FERIAS">Férias & Encargos</option>
+                <option value="COMPRAS">Compras (PO & NFs)</option>
                 <option value="FISCAL">Fiscal / Tributos & DARF</option>
                 <option value="CONTRATO">Contratos Recorrentes</option>
-                <option value="AVULSO">Administrativo / Manual</option>
+                <option value="AVULSO">Despesas Avulsas / Manual</option>
+                <option value="RH">RH Geral (Folha/Férias/Taxas)</option>
               </select>
 
               <select
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden"
+                className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-700 focus:outline-hidden font-medium"
               >
                 <option value="ALL">Status: Todos</option>
                 <option value="PREVISTO">Previsto</option>
@@ -682,6 +683,35 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 <option value="PAGO">Pago / Liquidado</option>
               </select>
             </div>
+          </div>
+
+          {/* BARRA SEGMENTADA DE ORIGENS TRANSACIONAIS (SEEK CORE) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 text-xs border-y border-slate-100 bg-slate-50/60 p-2 rounded-lg">
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider mr-1 shrink-0">Filtrar Origem:</span>
+            {[
+              { id: 'ALL', label: 'Todas as Origens' },
+              { id: 'FOLHA', label: 'Folha' },
+              { id: 'FERIAS', label: 'Férias' },
+              { id: 'COMPRAS', label: 'Compras' },
+              { id: 'FISCAL', label: 'Impostos' },
+              { id: 'CONTRATO', label: 'Contratos' },
+              { id: 'AVULSO', label: 'Despesas avulsas' },
+            ].map(pill => {
+              const isSelected = filterOrigin === pill.id;
+              return (
+                <button
+                  key={pill.id}
+                  onClick={() => setFilterOrigin(pill.id)}
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>{pill.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Tabela de Lançamentos */}
@@ -707,21 +737,36 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
                   const origin = (entry as any).originType || 'AVULSO';
                   const originBadge = 
-                    origin === 'PO' || origin === 'COMPRAS' || origin === 'COMPRAS_PEDIDO' ? { text: 'Compras (PO)', bg: 'bg-blue-50 text-blue-700 border-blue-200' }
-                    : origin === 'FOLHA_PAGAMENTO' ? { text: 'Folha RH (CLT)', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' }
-                    : origin === 'BENEFICIOS' ? { text: 'Benefícios RH', bg: 'bg-purple-50 text-purple-700 border-purple-200' }
-                    : origin === 'TAXA' ? { text: 'Taxa RH', bg: 'bg-amber-50 text-amber-700 border-amber-200' }
-                    : origin === 'FISCAL' ? { text: 'Fiscal / Tributos', bg: 'bg-rose-50 text-rose-700 border-rose-200' }
-                    : origin === 'CONTRATO' ? { text: 'Contrato', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
-                    : { text: 'Manual / Avulso', bg: 'bg-slate-50 text-slate-600 border-slate-200' };
+                    origin === 'PO' || origin === 'COMPRAS' || origin === 'COMPRAS_PEDIDO'
+                      ? { text: 'Compras (PO)', bg: 'bg-blue-50 text-blue-800 border-blue-200' }
+                    : origin === 'FOLHA' || origin === 'FOLHA_PAGAMENTO'
+                      ? { text: 'Folha CLT', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' }
+                    : origin === 'FERIAS'
+                      ? { text: 'Férias RH', bg: 'bg-teal-50 text-teal-800 border-teal-200' }
+                    : origin === 'BENEFICIOS'
+                      ? { text: 'Benefícios RH', bg: 'bg-purple-50 text-purple-700 border-purple-200' }
+                    : origin === 'TAXA'
+                      ? { text: 'Taxa RH', bg: 'bg-amber-50 text-amber-700 border-amber-200' }
+                    : origin === 'FISCAL' || origin === 'IMPOSTOS' || origin === 'TRIBUTO'
+                      ? { text: 'Impostos / Fiscal', bg: 'bg-rose-50 text-rose-700 border-rose-200' }
+                    : origin === 'CONTRATO' || origin === 'CONTRATOS'
+                      ? { text: 'Contrato', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
+                    : { text: 'Despesa Avulsa', bg: 'bg-slate-50 text-slate-600 border-slate-200' };
 
                   return (
                     <tr key={entry.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-800">{entry.code}</td>
                       <td className="py-2.5 px-3">
-                        <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${originBadge.bg}`}>
-                          {originBadge.text}
-                        </span>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${originBadge.bg}`}>
+                            {originBadge.text}
+                          </span>
+                          {(entry as any).originId && (
+                            <span className="text-[9px] font-mono text-slate-400">
+                              {(entry as any).originId.length > 16 ? `${(entry as any).originId.slice(0, 14)}...` : (entry as any).originId}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 font-medium text-slate-900">{entry.title}</td>
                       <td className="py-2.5 px-3 text-slate-600">{entry.entityName}</td>

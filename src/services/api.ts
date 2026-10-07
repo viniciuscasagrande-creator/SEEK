@@ -838,6 +838,44 @@ export const api = {
     }
   },
 
+  async getContractObligations(contractId?: string): Promise<any> {
+    try {
+      const q = contractId ? `?contractId=${encodeURIComponent(contractId)}` : '';
+      const res = await authFetch(`${API_BASE_URL}/contracts/obligations${q}`);
+      if (res.ok) return await res.json();
+      return { obligations: [] };
+    } catch {
+      return { obligations: [] };
+    }
+  },
+
+  async generateContractObligation(id: string, payload: any = {}): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/contracts/${id}/generate-obligation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      return res.ok ? data : { success: false, error: data.error };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  async generateDueContractObligations(referenceDate?: string, userName?: string): Promise<any> {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/contracts/generate-due/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referenceDate, userName })
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  },
+
   // PACOTE 4: RH & Departamento Pessoal
   async getEmployees(): Promise<any[]> {
     try {

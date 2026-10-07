@@ -187,6 +187,7 @@ export class FinanceService {
       if ((record.origin_type === 'FOLHA' || record.origin_type === 'FOLHA_PAGAMENTO') && record.origin_id) db.prepare(`UPDATE payroll_runs SET status='PAGO' WHERE id=?`).run(record.origin_id);
       if (record.origin_type === 'FERIAS' && record.origin_id) db.prepare(`UPDATE vacation_requests SET status='PAGO' WHERE id=?`).run(record.origin_id);
       if (record.origin_type === 'BENEFICIOS' && record.origin_id) db.prepare(`UPDATE benefit_purchase_orders SET status='PAGO' WHERE id=?`).run(record.origin_id);
+      if (record.origin_type === 'CONTRATO' && record.origin_id) db.prepare(`UPDATE contract_obligations SET status='PAGO', paid_at=? WHERE id=? OR financial_record_id=?`).run(paymentDate, record.origin_id, record.id);
       workflowRepository.logAudit({ userName: operator, userRole: operatorRole, action: 'LIQUIDATE', module: 'Financeiro', entity: `Lançamento ${record.code}`, description: `Liquidação atômica de R$ ${record.amount.toFixed(2)}${bank ? ` via ${bank.bank_name}` : ''}; lançamento contábil gerado automaticamente.`, ipAddress });
       return { bankTransactionId, accountingEntry };
     });

@@ -15,7 +15,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { CONTRACTS_RECORDS } from '../../data/mockData';
-import { ContractRecord } from '../../types/modules';
+import { ContractRecord, ContractObligation } from '../../types/modules';
 import { StatusBadge } from '../common/StatusBadge';
 import { StatCard } from '../common/StatCard';
 import { Modal } from '../common/Modal';
@@ -25,6 +25,8 @@ import { api } from '../../services/api';
 export const ContractsModule: React.FC = () => {
   const { currentUser } = useAuth();
   const [contracts, setContracts] = useState<ContractRecord[]>(CONTRACTS_RECORDS);
+  const [obligations, setObligations] = useState<ContractObligation[]>([]);
+  const [activeTab, setActiveTab] = useState<'contracts' | 'obligations'>('contracts');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
@@ -32,11 +34,15 @@ export const ContractsModule: React.FC = () => {
   const [isNewContractOpen, setIsNewContractOpen] = useState(false);
   const [newContract, setNewContract] = useState({
     partyName: '',
-    type: 'CLIENTE',
+    type: 'FORNECEDOR',
     monthlyValue: '',
     startDate: '2026-11-01',
     endDate: '2027-11-01',
-    readjustmentIndex: 'IPCA'
+    readjustmentIndex: 'IPCA',
+    costCenter: 'Administrativo & Operações',
+    paymentDay: '10',
+    recurrence: 'MENSAL',
+    financialEnabled: true
   });
 
   const [reajusteModal, setReajusteModal] = useState<{
@@ -59,6 +65,10 @@ export const ContractsModule: React.FC = () => {
       if (data && data.contracts && data.contracts.length > 0) {
         setContracts(data.contracts);
       }
+      const obData = await api.getContractObligations();
+      if (obData && obData.obligations) {
+        setObligations(obData.obligations);
+      }
     } catch {
       // fallback
     }
@@ -79,6 +89,10 @@ export const ContractsModule: React.FC = () => {
       startDate: newContract.startDate,
       endDate: newContract.endDate,
       readjustmentIndex: newContract.readjustmentIndex,
+      costCenter: newContract.costCenter,
+      paymentDay: parseInt(newContract.paymentDay),
+      recurrence: newContract.recurrence,
+      financialEnabled: newContract.financialEnabled,
       userName: currentUser.fullName,
       userRole: currentUser.roleTitle
     });
@@ -88,11 +102,15 @@ export const ContractsModule: React.FC = () => {
       setIsNewContractOpen(false);
       setNewContract({
         partyName: '',
-        type: 'CLIENTE',
+        type: 'FORNECEDOR',
         monthlyValue: '',
         startDate: '2026-11-01',
         endDate: '2027-11-01',
-        readjustmentIndex: 'IPCA'
+        readjustmentIndex: 'IPCA',
+        costCenter: 'Administrativo & Operações',
+        paymentDay: '10',
+        recurrence: 'MENSAL',
+        financialEnabled: true
       });
       loadContracts();
     } else {
@@ -106,7 +124,11 @@ export const ContractsModule: React.FC = () => {
         endDate: newContract.endDate,
         daysRemaining: 365,
         readjustmentIndex: newContract.readjustmentIndex as any,
-        status: 'VIGENTE'
+        status: 'VIGENTE',
+        costCenter: newContract.costCenter,
+        paymentDay: parseInt(newContract.paymentDay),
+        recurrence: newContract.recurrence as any,
+        financialEnabled: newContract.financialEnabled
       };
       setContracts(prev => [fallbackContract, ...prev]);
       setIsNewContractOpen(false);
@@ -114,6 +136,32 @@ export const ContractsModule: React.FC = () => {
     }
 
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleGenerateObligation = async (contract: ContractRecord) => {
+    const res = await api.generateContractObligation(contract.id, {
+      userName: currentUser.fullName,
+      userRole: currentUser.roleTitle
+    });
+    if (res?.success) {
+      setNotification(`💳 Obrigação ${res.financialRecord?.code || ''} enviada ao Financeiro para ${contract.partyName}.`);
+      loadContracts();
+    } else {
+      setNotification(`⚠️ ${res?.error || 'Não foi possível gerar a obrigação financeira.'}`);
+    }
+    setTimeout(() => setNotification(null), 6000);
+  };
+
+  const handleBatchGenerateDue = async () => {
+    const res = await api.generateDueContractObligations(new Date().toISOString().slice(0, 10), currentUser.fullName);
+    if (res && res.success) {
+      const count = res.generated?.length || 0;
+      setNotification(`⚡ Processamento em lote concluído: ${count} obrigação(ões) enviada(s) ao Contas a Pagar.`);
+      loadContracts();
+    } else {
+      setNotification('⚠️ Não foi possível processar o lote de contratos vencíveis.');
+    }
+    setTimeout(() => setNotification(null), 6000);
   };
 
   const handleApplyReadjustment = async () => {
@@ -190,6 +238,14 @@ export const ContractsModule: React.FC = () => {
 
         <div className="mt-3 sm:mt-0 flex items-center space-x-2">
           <button
+            onClick={handleBatchGenerateDue}
+            className="flex items-center space-x-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors shadow-2xs"
+            title="Gera obrigações a pagar para todos os contratos vigentes com vencimento pendente"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Gerar Lote Vencíveis</span>
+          </button>
+          <button
             onClick={() => setIsNewContractOpen(true)}
             className="flex items-center space-x-1.5 rounded-lg bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-800 transition-colors"
           >
@@ -259,130 +315,268 @@ export const ContractsModule: React.FC = () => {
           iconBg="bg-emerald-50"
         />
         <StatCard
-          title="Índice de Reajuste Homologado"
-          value="+4.2% (IPCA)"
-          subtitle="Ciclo contratual 2026/2027"
+          title="Obrigações Financeiras"
+          value={obligations.length}
+          subtitle="Parcelas integradas ao Contas a Pagar"
           icon={Scale}
-          iconColor="text-purple-600"
-          iconBg="bg-purple-50"
+          iconColor="text-blue-600"
+          iconBg="bg-blue-50"
         />
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
-        <div className="flex items-center space-x-2 text-xs">
-          <span className="font-bold text-slate-700">Filtrar por Tipo:</span>
-          <select
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 font-medium focus:outline-hidden"
-          >
-            <option value="ALL">Todos os Tipos</option>
-            <option value="CLIENTE">Clientes</option>
-            <option value="FORNECEDOR">Fornecedores</option>
-            <option value="PRESTADOR">Prestadores de Serviço</option>
-          </select>
-
-          <span className="font-bold text-slate-700 ml-2">Status:</span>
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 font-medium focus:outline-hidden"
-          >
-            <option value="ALL">Todos os Status</option>
-            <option value="VIGENTE">Vigente</option>
-            <option value="VENCENDO">Vencendo (&lt;30 dias)</option>
-            <option value="RENOVADO">Renovado</option>
-          </select>
-        </div>
-
-        <span className="text-xs text-slate-500 font-medium">
-          Exibindo <strong>{contracts.length}</strong> contratos ativos
-        </span>
+      {/* Navegação por Abas */}
+      <div className="flex border-b border-slate-200 space-x-4 text-xs font-bold">
+        <button
+          onClick={() => setActiveTab('contracts')}
+          className={`pb-2 border-b-2 transition-colors ${
+            activeTab === 'contracts'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Contratos Cadastrados ({contracts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('obligations')}
+          className={`pb-2 border-b-2 transition-colors flex items-center space-x-1.5 ${
+            activeTab === 'obligations'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Obrigações Financeiras Geradas</span>
+          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] text-blue-800">
+            {obligations.length}
+          </span>
+        </button>
       </div>
 
-      {/* Tabela de Contratos */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
-              <tr>
-                <th className="py-3 px-4">Nº Contrato</th>
-                <th className="py-3 px-4">Parte Envolvida / Razão Social</th>
-                <th className="py-3 px-4 text-center">Tipo</th>
-                <th className="py-3 px-4 text-right">Valor Mensal (R$)</th>
-                <th className="py-3 px-4">Início</th>
-                <th className="py-3 px-4">Vencimento</th>
-                <th className="py-3 px-4 text-center">Dias Restantes</th>
-                <th className="py-3 px-4 text-center">Índice</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4 text-center">Ações Jurídicas</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {contracts.map(c => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{c.contractNumber}</td>
-                  <td className="py-3.5 px-4 font-bold text-slate-900">{c.partyName}</td>
-                  <td className="py-3.5 px-4 text-center">
-                    <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                      {c.type}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-black text-slate-900">
-                    R$ {c.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-600">{c.startDate}</td>
-                  <td className="py-3.5 px-4 text-slate-600 font-medium">{c.endDate}</td>
-                  <td className="py-3.5 px-4 text-center">
-                    <span
-                      className={`font-black ${
-                        c.daysRemaining <= 30
-                          ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded'
-                          : c.daysRemaining <= 90
-                          ? 'text-amber-600'
-                          : 'text-slate-700'
-                      }`}
-                    >
-                      {c.daysRemaining} dias
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-center font-bold text-slate-600">{c.readjustmentIndex}</td>
-                  <td className="py-3.5 px-4 text-center">
-                    <StatusBadge status={c.status} />
-                  </td>
-                  <td className="py-3.5 px-4 text-center">
-                    <div className="flex items-center justify-center space-x-1.5">
-                      <button
-                        onClick={() =>
-                          setReajusteModal({
-                            isOpen: true,
-                            contract: c,
-                            rate: '4.2',
-                            indexName: c.readjustmentIndex || 'IPCA'
-                          })
-                        }
-                        className="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
-                        title="Aplicar Reajuste por Índice"
-                      >
-                        Reajustar
-                      </button>
+      {activeTab === 'contracts' ? (
+        <>
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+            <div className="flex items-center space-x-2 text-xs">
+              <span className="font-bold text-slate-700">Filtrar por Tipo:</span>
+              <select
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 font-medium focus:outline-hidden"
+              >
+                <option value="ALL">Todos os Tipos</option>
+                <option value="CLIENTE">Clientes</option>
+                <option value="FORNECEDOR">Fornecedores</option>
+                <option value="PRESTADOR">Prestadores de Serviço</option>
+                <option value="LOCACAO">Locação</option>
+              </select>
 
-                      <button
-                        onClick={() => handleRenewContract(c)}
-                        className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
-                        title="Renovar Contrato por 12 Meses"
-                      >
-                        Renovar
-                      </button>
-                    </div>
-                  </td>
+              <span className="font-bold text-slate-700 ml-2">Status:</span>
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700 font-medium focus:outline-hidden"
+              >
+                <option value="ALL">Todos os Status</option>
+                <option value="VIGENTE">Vigente</option>
+                <option value="VENCENDO">Vencendo (&lt;30 dias)</option>
+                <option value="RENOVADO">Renovado</option>
+              </select>
+            </div>
+
+            <span className="text-xs text-slate-500 font-medium">
+              Exibindo <strong>{contracts.length}</strong> contratos ativos
+            </span>
+          </div>
+
+          {/* Tabela de Contratos */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Nº Contrato</th>
+                    <th className="py-3 px-4">Parte Envolvida / Razão Social</th>
+                    <th className="py-3 px-4 text-center">Tipo</th>
+                    <th className="py-3 px-4 text-right">Valor Mensal (R$)</th>
+                    <th className="py-3 px-4">Início</th>
+                    <th className="py-3 px-4">Vencimento</th>
+                    <th className="py-3 px-4 text-center">Dias Restantes</th>
+                    <th className="py-3 px-4 text-center">Índice</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Financeiro</th>
+                    <th className="py-3 px-4 text-center">Ações Jurídicas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {contracts.map(c => (
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800">{c.contractNumber}</td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900">{c.partyName}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                          {c.type}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-black text-slate-900">
+                        R$ {c.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">{c.startDate}</td>
+                      <td className="py-3.5 px-4 text-slate-600 font-medium">{c.endDate}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`font-black ${
+                            c.daysRemaining <= 30
+                              ? 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded'
+                              : c.daysRemaining <= 90
+                              ? 'text-amber-600'
+                              : 'text-slate-700'
+                          }`}
+                        >
+                          {c.daysRemaining} dias
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-600">{c.readjustmentIndex}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <StatusBadge status={c.status} />
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        {c.financialEnabled && c.type !== 'CLIENTE' ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <button
+                              onClick={() => handleGenerateObligation(c)}
+                              className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                              title="Gera obrigação a pagar para a competência do próximo vencimento"
+                            >
+                              Gerar parcela
+                            </button>
+                            <span className="text-[10px] text-slate-500 font-mono">Próx.: {c.nextDueDate || '—'}</span>
+                            {(c.pendingObligations || 0) > 0 && (
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">
+                                {c.pendingObligations} pendente(s)
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">Sem recorrência</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            onClick={() =>
+                              setReajusteModal({
+                                isOpen: true,
+                                contract: c,
+                                rate: '4.2',
+                                indexName: c.readjustmentIndex || 'IPCA'
+                              })
+                            }
+                            className="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                            title="Aplicar Reajuste por Índice"
+                          >
+                            Reajustar
+                          </button>
+
+                          <button
+                            onClick={() => handleRenewContract(c)}
+                            className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            title="Renovar Contrato por 12 Meses"
+                          >
+                            Renovar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Aba de Obrigações Financeiras Geradas */
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800">Obrigações Recorrentes Integradas ao Financeiro</h2>
+              <p className="text-[11px] text-slate-500">Histórico de parcelas de contratos de despesa enviadas diretamente ao Contas a Pagar.</p>
+            </div>
+            <button
+              onClick={handleBatchGenerateDue}
+              className="flex items-center space-x-1 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Processar Lote Vencíveis</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-200 bg-slate-50 font-bold text-slate-600 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Contrato</th>
+                  <th className="py-3 px-4">Fornecedor / Parte</th>
+                  <th className="py-3 px-4 text-center">Competência</th>
+                  <th className="py-3 px-4 text-center">Vencimento</th>
+                  <th className="py-3 px-4 text-right">Valor (R$)</th>
+                  <th className="py-3 px-4 text-center">Título Financeiro</th>
+                  <th className="py-3 px-4 text-center">Status Obrigação</th>
+                  <th className="py-3 px-4 text-center">Status Pagamento</th>
+                  <th className="py-3 px-4">Data Pagamento</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {obligations.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-slate-400">
+                      Nenhuma obrigação contratual gerada ainda. Use a ação "Gerar parcela" em contratos habilitados.
+                    </td>
+                  </tr>
+                ) : (
+                  obligations.map(o => (
+                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-800">{o.contract_number}</td>
+                      <td className="py-3 px-4 font-bold text-slate-900">{o.party_name}</td>
+                      <td className="py-3 px-4 text-center font-mono">{o.competence}</td>
+                      <td className="py-3 px-4 text-center text-slate-600">{o.due_date}</td>
+                      <td className="py-3 px-4 text-right font-black text-slate-900">
+                        R$ {Number(o.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-4 text-center font-mono font-bold text-blue-700">
+                        {o.financial_code || '—'}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                            o.status === 'PAGO' || o.status === 'PAGA'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {o.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                            o.financial_status === 'PAGO'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {o.financial_status || 'ABERTO'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {o.paid_at ? o.paid_at.slice(0, 10) : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modal Novo Contrato */}
       <Modal
@@ -430,6 +624,57 @@ export const ContractsModule: React.FC = () => {
                 placeholder="0,00"
                 className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 font-bold focus:border-blue-600 focus:outline-hidden"
               />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="block font-bold text-slate-800">Integração Financeira Recorrente</span>
+                <span className="text-[10px] text-slate-500">Fornecedor, prestador e locação podem gerar Contas a Pagar automaticamente.</span>
+              </div>
+              <label className="flex items-center gap-2 font-bold text-blue-800">
+                <input
+                  type="checkbox"
+                  checked={newContract.financialEnabled}
+                  onChange={e => setNewContract({ ...newContract, financialEnabled: e.target.checked })}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Habilitar
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Centro de Custo</label>
+                <input
+                  value={newContract.costCenter}
+                  onChange={e => setNewContract({ ...newContract, costCenter: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Dia de Pagamento (1-28)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={newContract.paymentDay}
+                  onChange={e => setNewContract({ ...newContract, paymentDay: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Recorrência</label>
+                <select
+                  value={newContract.recurrence}
+                  onChange={e => setNewContract({ ...newContract, recurrence: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 p-2.5 text-slate-800 focus:border-blue-600 focus:outline-hidden"
+                >
+                  <option value="MENSAL">Mensal</option>
+                  <option value="TRIMESTRAL">Trimestral</option>
+                  <option value="ANUAL">Anual</option>
+                </select>
+              </div>
             </div>
           </div>
 
